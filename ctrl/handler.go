@@ -94,7 +94,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	if err != nil {
 		log.Debugf("request error to target, %s", err)
 		rep := gosocks5.NewReply(gosocks5.HostUnreachable, nil)
-		rep.Write(conn)
+		_ = rep.Write(conn)
 		return
 	}
 	defer resp.Body.Close()
@@ -102,7 +102,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	if err != nil {
 		log.Errorf("error read response frame, %+v, connection goes to shutdown", err)
 		rep := gosocks5.NewReply(gosocks5.HostUnreachable, nil)
-		rep.Write(conn)
+		_ = rep.Write(conn)
 		return
 	}
 	log.Debugf("recv dial response from server: length: %d", fr.Length)
@@ -111,18 +111,22 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	if err != nil {
 		log.Errorf("failed to process frame, %v", err)
 		rep := gosocks5.NewReply(gosocks5.HostUnreachable, nil)
-		rep.Write(conn)
+		_ = rep.Write(conn)
 		return
 	}
 	status := serverData["s"]
 	if len(status) != 1 || status[0] != 0x00 {
 		log.Errorf("connection refused to %s", sockReq.Addr)
 		rep := gosocks5.NewReply(gosocks5.ConnRefused, nil)
-		rep.Write(conn)
+		_ = rep.Write(conn)
 		return
 	}
 	rep := gosocks5.NewReply(gosocks5.Succeeded, nil)
-	rep.Write(conn)
+	err = rep.Write(conn)
+	if err != nil {
+		log.Errorf("write data failed, %w", err)
+		return
+	}
 	log.Infof("conn successfully connected to %s", sockReq.Addr)
 
 	var streamRW io.ReadWriter
@@ -156,7 +160,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 
 func (m *socks5Handler) pipe(r io.Reader, w io.Writer) error {
 	buf := m.pool.Get().([]byte)
-	defer m.pool.Put(buf)
+	defer m.pool.Put(buf) //nolint:staticcheck
 	for {
 		n, err := r.Read(buf)
 		if err != nil {

@@ -84,7 +84,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	msg += fmt.Sprintf("Target:  %s\n", config.Target)
 	msg += fmt.Sprintf("Proxy:   socks5://%s\n", config.Listen)
 	if config.NoAuth {
-		msg += fmt.Sprintf("Auth:    Not Set\n")
+		msg += "Auth:    Not Set\n"
 	} else {
 		msg += fmt.Sprintf("Auth:    %s %s\n", config.Username, config.Password)
 	}

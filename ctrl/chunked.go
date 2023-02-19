@@ -16,7 +16,6 @@ type fullChunkedReadWriter struct {
 	reqBody    io.WriteCloser
 	serverResp io.Reader
 	once       sync.Once
-	chunked    bool
 
 	readBuf  bytes.Buffer
 	readTmp  []byte
