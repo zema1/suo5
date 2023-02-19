@@ -1,0 +1,58 @@
+name: Release October
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: gui
+
+jobs:
+  releases:
+    runs-on: windows-latest
+#    strategy:
+#      matrix:
+#        platform:
+#          - windows/amd64
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Install wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Update npm
+        run: npm install -g npm
+
+#      - name: Bump manifest version
+#        run: node version.js ${{ github.event.release.tag_name }} https://github.com/marcus-crane/october/blob/main/version.js
+
+      - name: Build frontend assets
+        run: cd frontend && npm install
+
+      - name: Build wails application
+        run: wails build -u -webview2 embed -trimpath
+        
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: wails-build
+          path: build/bin
