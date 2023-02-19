@@ -12,9 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: actions/setup-go@v3
         with:
           go-version: 1.19
+          cache: true
       - run: go mod download
       - uses: golangci/golangci-lint-action@v3.4.0
         with:

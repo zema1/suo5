@@ -1,4 +1,4 @@
-name: Release October
+name: Release suo5
 
 on:
   push:
@@ -6,53 +6,131 @@ on:
       - main
       - 'release/**'
   release:
-    types: [published]
+    types: [ published ]
 
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: gui
-
 jobs:
-  releases:
-    runs-on: windows-latest
-#    strategy:
-#      matrix:
-#        platform:
-#          - windows/amd64
+  prepare:
+    name: Prepare release environment
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v3
+      - run: env
+  #      - run: node version.js ${{ github.event.release.tag_name }} https://github.com/marcus-crane/october/blob/main/version.js
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
+  build-binary:
+    name: Build cli
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows
+            arch: amd64
+            output: suo5-windows-amd64.exe
+          - os: darwin
+            arch: amd64
+            output: suo5-darwin-amd64
+          - os: darwin
+            arch: arm64
+            output: suo5-darwin-arm64
+          - os: linux
+            arch: amd64
+            output: suo5-linux-amd64
+          - os: linux
+            arch: arm64
+            output: suo5-linux-arm64
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+      GOOS: ${{ matrix.os }}
+      GOARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v3
         with:
           go-version: 1.19
-
-      - name: Install wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Set up Node
-        uses: actions/setup-node@v3
+          cache: true
+      - run: go build -trimpath -ldflags "-w -s -extldflags '-static'" -o target/${{ matrix.output }}
+      - uses: actions/upload-artifact@v3
         with:
-          node-version: '16'
+          name: target
+          path: target/*
+          retention-days: 1
 
-      - name: Update npm
-        run: npm install -g npm
-
-#      - name: Bump manifest version
-#        run: node version.js ${{ github.event.release.tag_name }} https://github.com/marcus-crane/october/blob/main/version.js
-
-      - name: Build frontend assets
-        run: cd frontend && npm install
-
-      - name: Build wails application
-        run: wails build -u -webview2 embed -trimpath
-        
-      - name: Archive build artifacts
-        uses: actions/upload-artifact@v3
+  build-gui:
+    name: Build gui
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            output: suo5-gui-windows.exe
+          - os: macos-latest
+            platform: darwin/universal
+            # wails bug mac 的 output file 不生效, 先用这个保证能用
+            output: suo5
+          - os: ubuntu-latest
+            platform: linux/amd64
+            output: suo5-gui-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
         with:
-          name: wails-build
-          path: build/bin
+          submodules: recursive
+      - uses: dAppServer/wails-build-action@v2
+        with:
+          build-name: ${{ matrix.output }}
+          build-platform: ${{ matrix.platform }}
+          app-working-directory: gui
+          go-version: 1.19
+          package: false
+      - if: runner.os == 'macOS'
+        shell: bash
+        working-directory: gui
+        run: |
+          rm -rf ./build/bin/${{ matrix.output }}.app.zip
+          ditto -c -k --keepParent ./build/bin/${{matrix.output}}.app ./build/bin/${{matrix.output}}.app.zip
+          rm -rf ./build/bin/${{ matrix.output }}.app
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: target
+          path: gui/build/bin/*
+          retention-days: 1
+
+  collect-release:
+    name: Collect and release
+    needs: [ build-binary, build-gui ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: target
+          path: target
+      - run: ls -al target && ls -R target/
+      - working-directory: target
+        run: |
+          rm -rf suo5-amd64-installer.exe
+          rm -rf suo5.pkg
+          mv suo5.app.zip suo5-gui-darwin.app.zip
+      - run: ls -al target && ls -R target/ && file target/
+      - uses: actions/upload-artifact@v3
+        with:
+          name: target-release
+          path: target/*
+          retention-days: 3
+
+      # release assets
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/*
