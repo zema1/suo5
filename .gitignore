@@ -1,0 +1,31 @@
+.idea/
+.DS_Store
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+release/
+
+# Test binary, built with `go test -c`
+*.test
+_test
+_testmain.go
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+vendor/
+
+*.env
+config.yml
+
+*.sqlite3
+*.sqlite3-journal
+
+data/
+*backup/
+assets/
