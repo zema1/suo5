@@ -28,7 +28,7 @@ for i in {1..100}; do echo $RANDOM > $RANDOM.txt; done;
 + suo5.jsp **5.21s**
 + neo.jsp 64.53s
 
-![little-files.png](img/little-files.png)
+![little-files.png](img/little-files.jpg)
 
 ## 大文件测试
 
@@ -41,7 +41,7 @@ dd if=/dev/urandom of=100mb.bin bs=1024 count=102400
 + suo5.jsp **8.78s**
 + neo.jsp 20.14s
 
-![big-files.jpg](img/big-files.png)
+![big-files.jpg](img/big-files.jpg)
 
 值得一提的是，测试机器的带宽是 100MB 的网络，所以 `suo5` 实际上已经跑满带宽了。
 
@@ -50,7 +50,7 @@ dd if=/dev/urandom of=100mb.bin bs=1024 count=102400
 + suo5.jsp **0.91s**
 + neo.jsp 20.42s
 
-![big-files.jpg](img/big-files.png)
+![big-files.jpg](img/big-files.jpg)
 
 ## 结论
 

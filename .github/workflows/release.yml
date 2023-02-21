@@ -59,7 +59,6 @@ jobs:
         with:
           name: target
           path: target/*
-          retention-days: 1
 
   build-gui:
     name: Build gui
@@ -73,7 +72,7 @@ jobs:
             output: suo5-gui-windows.exe
           - os: macos-latest
             platform: darwin/universal
-            # wails bug mac 的 output file 不生效, 先用这个保证能用
+            # wails bug, mac 的 output file 不生效, 先用这个保证能用
             output: suo5
           - os: ubuntu-latest
             platform: linux/amd64
@@ -102,7 +101,6 @@ jobs:
         with:
           name: target
           path: gui/build/bin/*
-          retention-days: 1
 
   collect-release:
     name: Collect and release
@@ -127,7 +125,6 @@ jobs:
         with:
           name: target-release
           path: target/*
-          retention-days: 3
 
       # release assets
       - uses: softprops/action-gh-release@v1
