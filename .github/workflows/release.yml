@@ -3,7 +3,6 @@ name: Release suo5
 on:
   push:
     branches:
-      - main
       - 'release/**'
   release:
     types: [ published ]
