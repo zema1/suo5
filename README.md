@@ -35,9 +35,9 @@
 
 ## 安装运行
 
-前往 Releases 下载编译好的二进制，其中带 `gui` 的版本是界面版，不带 `gui` 的为命令行版。
+前往 [Releases](https://github.com/zema1/suo5/releases) 下载编译好的二进制，其中带 `gui` 的版本是界面版，不带 `gui` 的为命令行版。所有编译由 Github Action 自动构建，请放心使用。
 
-使用前需上传 [suo5.jsp](./assets/suo5.jsp) 到目标环境中并确保可以执行。
+使用时需上传 [suo5.jsp](./assets/suo5.jsp) 到目标环境中并确保可以执行。
 
 ### 界面版
 
