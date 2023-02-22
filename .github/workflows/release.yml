@@ -1,0 +1,133 @@
+name: Release suo5
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  release:
+    types: [ published ]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare release environment
+    runs-on: ubuntu-latest
+    steps:
+      - run: env
+  #      - run: node version.js ${{ github.event.release.tag_name }} https://github.com/marcus-crane/october/blob/main/version.js
+
+  build-binary:
+    name: Build cli
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows
+            arch: amd64
+            output: suo5-windows-amd64.exe
+          - os: darwin
+            arch: amd64
+            output: suo5-darwin-amd64
+          - os: darwin
+            arch: arm64
+            output: suo5-darwin-arm64
+          - os: linux
+            arch: amd64
+            output: suo5-linux-amd64
+          - os: linux
+            arch: arm64
+            output: suo5-linux-arm64
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+      GOOS: ${{ matrix.os }}
+      GOARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+          cache: true
+      - run: go build -trimpath -ldflags "-w -s -extldflags '-static'" -o target/${{ matrix.output }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: target
+          path: target/*
+
+  build-gui:
+    name: Build gui
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            output: suo5-gui-windows.exe
+          - os: macos-latest
+            platform: darwin/universal
+            # wails bug, mac 的 output file 不生效, 先用这个保证能用
+            output: suo5
+          - os: ubuntu-latest
+            platform: linux/amd64
+            output: suo5-gui-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: dAppServer/wails-build-action@v2
+        with:
+          build-name: ${{ matrix.output }}
+          build-platform: ${{ matrix.platform }}
+          app-working-directory: gui
+          go-version: 1.19
+          package: false
+      - if: runner.os == 'macOS'
+        shell: bash
+        working-directory: gui
+        run: |
+          rm -rf ./build/bin/${{ matrix.output }}.app.zip
+          ditto -c -k --keepParent ./build/bin/${{matrix.output}}.app ./build/bin/${{matrix.output}}.app.zip
+          rm -rf ./build/bin/${{ matrix.output }}.app
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: target
+          path: gui/build/bin/*
+
+  collect-release:
+    name: Collect and release
+    needs: [ build-binary, build-gui ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: target
+          path: target
+      - run: ls -al target && ls -R target/
+      - working-directory: target
+        run: |
+          rm -rf suo5-amd64-installer.exe
+          rm -rf suo5.pkg
+          mv suo5.app.zip suo5-gui-darwin.app.zip
+      - run: ls -al target && ls -R target/ && file target/
+      - uses: actions/upload-artifact@v3
+        with:
+          name: target-release
+          path: target/*
+
+      # release assets
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/*

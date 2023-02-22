@@ -1,4 +1,4 @@
-name: "Run golangci-lint"
+name: Run linters
 on:
   push:
     branches:
@@ -8,17 +8,18 @@ permissions:
   contents: read
 jobs:
   lint:
-    name: lint
+    name: golangci-lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: actions/setup-go@v3
         with:
           go-version: 1.19
+          cache: true
       - run: go mod download
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.4.0
+      - uses: golangci/golangci-lint-action@v3.4.0
         with:
           skip-cache: true
           skip-pkg-cache: true

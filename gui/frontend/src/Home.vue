@@ -1,11 +1,11 @@
 <template>
   <div class="container">
-    <n-card title="运行日志" size="small">
+    <n-card size="small">
       <n-form
           label-width="70"
           label-placement="left"
           size="medium"
-          style="margin-bottom: -12px"
+          style="margin-bottom: -12px; margin-top:12px;"
       >
         <n-form-item label="目标" required>
           <n-input v-model:value="formValue.target" placeholder="https://example.com/1.jsp"/>
@@ -69,7 +69,7 @@
           </n-icon>
         </n-button>
       </template>
-      <n-log :log="log" ref="logInst" :font-size="12" language="accesslog" :rows="17"/>
+      <n-log :log="log" ref="logInst" :font-size="12" language="accesslog" :rows="18"/>
     </n-card>
     <n-space justify="space-between" style="margin-top:20px">
       <span>连接数: {{ status.connection_count }}</span>
