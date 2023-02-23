@@ -103,3 +103,7 @@ $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
 - [ ] 支持配置上游 socks 代理
 - [ ] 支持负载均衡的场景
 - [ ] 支持 .Net 的类型
+
+## 参考
+- [https://github.com/L-codes/Neo-reGeorg](https://github.com/L-codes/Neo-reGeorg)
+- [https://github.com/BeichenDream/Chunk-Proxy](https://github.com/BeichenDream/Chunk-Proxy)
