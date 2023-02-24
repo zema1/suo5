@@ -13,6 +13,8 @@
 
 ![experience](./tests/img/experience.gif)
 
+[中文](./README.md) | [English](./README_EN.md)
+
 ----
 
 `suo5` 是一个全新的 HTTP 代理隧道，基于 `HTTP/1.1` 的 `Chunked-Encoding`
@@ -28,7 +30,7 @@
 - 服务端基于 `Servlet` 原生实现，JDK6~JDK19 全版本兼容
 - 同时提供提供命令行和图形化界面，方便不同用户使用
 
-具体原理参考 [博客](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
+具体原理参考 [https://koalr.me/posts/suo5-a-hign-performace-http-socks/](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
 
 > 免责声明：此工具仅限于安全研究，用户承担因使用此工具而导致的所有法律和相关责任！作者不承担任何法律责任！
 
