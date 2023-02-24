@@ -82,6 +82,7 @@ type halfChunkedReadWriter struct {
 	ctx        context.Context
 	id         string
 	client     *http.Client
+	method     string
 	target     string
 	serverResp io.Reader
 	once       sync.Once
@@ -94,11 +95,12 @@ type halfChunkedReadWriter struct {
 }
 
 // NewHalfChunkedReadWriter 半双工读写流, 用发送请求的方式模拟写
-func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, target string, serverResp io.Reader, baseHeader http.Header) io.ReadWriter {
+func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, method, target string, serverResp io.Reader, baseHeader http.Header) io.ReadWriter {
 	return &halfChunkedReadWriter{
 		ctx:        ctx,
 		id:         id,
 		client:     client,
+		method:     method,
 		target:     target,
 		serverResp: serverResp,
 		readBuf:    bytes.Buffer{},
@@ -140,7 +142,7 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
 	body := buildBody(newActionData(s.id, p))
 	log.Debugf("send request, length: %d", len(body))
-	req, err := http.NewRequestWithContext(s.ctx, http.MethodPost, s.target, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
 	if err != nil {
 		return 0, err
 	}
@@ -165,7 +167,7 @@ func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
 func (s *halfChunkedReadWriter) Close() error {
 	s.once.Do(func() {
 		body := buildBody(newDelete(s.id))
-		req, err := http.NewRequestWithContext(s.ctx, http.MethodPost, s.target, bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
 		if err != nil {
 			log.Error(err)
 			return

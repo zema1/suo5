@@ -30,23 +30,34 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		log.SetLevel("debug")
 	}
 
-	ignoreTls := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	noTimeoutClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: ignoreTls,
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
 		},
-		Timeout: 0,
+	}
+	if config.UpstreamProxy != "" {
+		proxy := strings.TrimSpace(strings.ToLower(config.UpstreamProxy))
+		if !strings.HasPrefix(proxy, "socks5") {
+			return fmt.Errorf("only support socks5 proxy, eg: socks5://127.0.0.1:1080")
+		}
+		config.UpstreamProxy = proxy
+		u, err := url.Parse(config.UpstreamProxy)
+		if err != nil {
+			return err
+		}
+		log.Infof("using upstream proxy %v", proxy)
+		tr.Proxy = http.ProxyURL(u)
+	}
+	noTimeoutClient := &http.Client{
+		Transport: tr,
+		Timeout:   0,
 	}
 	normalClient := &http.Client{
-		Timeout: time.Duration(config.Timeout) * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: ignoreTls,
-		},
+		Timeout:   time.Duration(config.Timeout) * time.Second,
+		Transport: tr,
 	}
 	rawClient := rawhttp.NewClient(&rawhttp.Options{
+		Proxy:                  config.UpstreamProxy,
 		Timeout:                0,
 		FollowRedirects:        false,
 		MaxRedirects:           0,
@@ -55,23 +66,26 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		ForceReadAllBody:       false,
 	})
 
+	log.Infof("ua: %s", config.UserAgent)
+	log.Infof("method: %s", config.Method)
+
 	baseHeader := http.Header{}
 	baseHeader.Set("User-Agent", config.UserAgent)
 
-	log.Infof("testing memory shell ...")
-	err := checkMemshell(normalClient, config.Target, baseHeader.Clone())
+	log.Infof("testing connection with remote server")
+	err := checkMemshell(normalClient, config.Method, config.Target, baseHeader.Clone())
 	if err != nil {
 		return err
 	}
-	log.Infof("memory shell basic check passed")
+	log.Infof("connection to remote server successful")
 	if config.Mode == AutoDuplex || config.Mode == FullDuplex {
 		log.Infof("checking the capability of FullDuplex..")
-		if checkFullDuplex(config.Target, baseHeader.Clone()) {
+		if checkFullDuplex(config.Method, config.Target, baseHeader.Clone()) {
 			config.Mode = FullDuplex
-			log.Infof("Wow, you can run the proxy on FullDuplex mode")
+			log.Infof("wow, you can run the proxy on FullDuplex mode")
 		} else {
 			config.Mode = HalfDuplex
-			log.Warnf("the target may behind reverse proxy, fallback to HalfDuplex mode")
+			log.Warnf("the target may behind a reverse proxy, fallback to HalfDuplex mode")
 		}
 	}
 	log.Infof("tunnel created at mode %s!", config.Mode)
@@ -118,14 +132,15 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	}
 	handler := &socks5Handler{
 		ctx:             ctx,
+		method:          config.Method,
 		target:          config.Target,
+		mode:            config.Mode,
+		bufSize:         config.BufferSize,
 		normalClient:    normalClient,
 		noTimeoutClient: noTimeoutClient,
 		rawClient:       rawClient,
-		bufSize:         config.BufferSize,
 		pool:            trPool,
 		selector:        selector,
-		mode:            config.Mode,
 		baseHeader:      baseHeader,
 	}
 	_ = srv.Serve(&ClientEventHandler{
@@ -136,9 +151,9 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	return nil
 }
 
-func checkMemshell(client *http.Client, target string, baseHeader http.Header) error {
+func checkMemshell(client *http.Client, method string, target string, baseHeader http.Header) error {
 	data := RandString(64)
-	req, err := http.NewRequest(http.MethodPost, target, strings.NewReader(data))
+	req, err := http.NewRequest(method, target, strings.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("invalid target url, %s", err)
 	}
@@ -158,14 +173,13 @@ func checkMemshell(client *http.Client, target string, baseHeader http.Header) e
 	if len(body) != 32 || !strings.HasPrefix(data, string(body)) {
 		header, _ := httputil.DumpResponse(resp, false)
 		log.Errorf("response are as follows:\n%s", string(header)+string(body))
-		return fmt.Errorf("got unexpected body, memshell test failed")
+		return fmt.Errorf("got unexpected body, remote server test failed")
 	}
 
-	log.Infof("memshell connect success!!")
 	return nil
 }
 
-func checkFullDuplex(target string, baseHeader http.Header) bool {
+func checkFullDuplex(method string, target string, baseHeader http.Header) bool {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	rawClient := rawhttp.NewClient(&rawhttp.Options{
 		Timeout:                3 * time.Second,
@@ -183,7 +197,7 @@ func checkFullDuplex(target string, baseHeader http.Header) bool {
 		time.Sleep(time.Second * 5)
 		close(ch)
 	}()
-	req, err := http.NewRequest(http.MethodPost, target, netrans.NewChannelReader(ch))
+	req, err := http.NewRequest(method, target, netrans.NewChannelReader(ch))
 	if err != nil {
 		return false
 	}

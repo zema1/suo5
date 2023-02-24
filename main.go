@@ -24,15 +24,21 @@ func main() {
 		&cli.StringFlag{
 			Name:     "target",
 			Aliases:  []string{"t"},
-			Usage:    "set the memshell url, ex: http://localhost:8080/tomcat_debug_war_exploded/",
+			Usage:    "set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/",
 			Value:    defaultConfig.Target,
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:    "listen",
 			Aliases: []string{"l"},
-			Usage:   "set the socks server port",
+			Usage:   "set the listen address of socks5 server",
 			Value:   defaultConfig.Listen,
+		},
+		&cli.StringFlag{
+			Name:    "method",
+			Aliases: []string{"m"},
+			Usage:   "http request method",
+			Value:   defaultConfig.Method,
 		},
 		&cli.BoolFlag{
 			Name:  "no-auth",
@@ -63,6 +69,11 @@ func main() {
 			Name:  "buf-size",
 			Usage: "set the request max body size",
 			Value: defaultConfig.BufferSize,
+		},
+		&cli.StringFlag{
+			Name:  "proxy",
+			Usage: "use upstream socks5 proxy",
+			Value: defaultConfig.UpstreamProxy,
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
@@ -95,6 +106,8 @@ func Action(c *cli.Context) error {
 	bufSize := c.Int("buf-size")
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
+	proxy := c.String("proxy")
+	method := c.String("method")
 
 	var username, password string
 	if auth == "" {
@@ -116,16 +129,18 @@ func Action(c *cli.Context) error {
 		return fmt.Errorf("inproper buffer size, 512~1024000")
 	}
 	config := &ctrl.Suo5Config{
-		Listen:     listen,
-		Target:     target,
-		NoAuth:     noAuth,
-		Username:   username,
-		Password:   password,
-		Mode:       mode,
-		UserAgent:  ua,
-		BufferSize: bufSize,
-		Timeout:    timeout,
-		Debug:      debug,
+		Listen:        listen,
+		Target:        target,
+		NoAuth:        noAuth,
+		Username:      username,
+		Password:      password,
+		Mode:          mode,
+		UserAgent:     ua,
+		BufferSize:    bufSize,
+		Timeout:       timeout,
+		Debug:         debug,
+		UpstreamProxy: proxy,
+		Method:        method,
 	}
 	ctx, cancel := signalCtx()
 	defer cancel()
