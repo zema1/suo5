@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'release/**'
+      - 'feat/**'
   release:
     types: [ published ]
 
@@ -78,9 +79,15 @@ jobs:
             output: suo5-gui-linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
+      - name: Setup NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16
+      - run: npm install && npm run build
+        working-directory: gui/frontend
       - uses: dAppServer/wails-build-action@v2
         with:
           build-name: ${{ matrix.output }}
