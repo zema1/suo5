@@ -37,7 +37,7 @@
 
 前往 [Releases](https://github.com/zema1/suo5/releases) 下载编译好的二进制，其中带 `gui` 的版本是界面版，不带 `gui` 的为命令行版。所有编译由 Github Action 自动构建，请放心使用。
 
-使用时需上传 [suo5.jsp](./assets/suo5.jsp) 到目标环境中并确保可以执行。
+使用时需上传 [suo5.jsp](./assets/) 到目标环境中并确保可以执行。
 
 ### 界面版
 
@@ -52,29 +52,39 @@ NAME:
    suo5 - A super http proxy tunnel
 
 USAGE:
-   suo5 command [command options] [arguments...]
+   suo5 [global options] command [command options] [arguments...]
+
+VERSION:
+   v0.3.0
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command
 
-OPTIONS:
-   --target value, -t value  set the memshell url, ex: http://localhost:8080/tomcat_debug_war_exploded/
-   --listen value, -l value  set the socks server port (default: "127.0.0.1:1111")
+GLOBAL OPTIONS:
+   --target value, -t value  set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/
+   --listen value, -l value  set the listen address of socks5 server (default: "127.0.0.1:1111")
+   --method value, -m value  http request method (default: "POST")
    --no-auth                 disable socks5 authentication (default: true)
    --auth value              socks5 creds, username:password, leave empty to auto generate
    --mode value              connection mode, choices are auto, full, half (default: "auto")
    --ua value                the user-agent used to send request (default: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3")
    --timeout value           http request timeout in seconds (default: 10)
    --buf-size value          set the request max body size (default: 327680)
+   --proxy value             use upstream socks5 proxy
    --debug, -d               debug the traffic, print more details (default: false)
-   --help, -h                show help (default: false)
-   --version, -v             print the version (default: false)
+   --help, -h                show help
+   --version, -v             print the version
 ```
 
 命令行版本与界面版配置完全一致，可以对照界面版功能来使用，最简单的只需指定连接目标
 
 ```bash
 $ ./suo5 -t https://example.com/proxy.jsp
+```
+
+使用 `GET` 方法发送请求，有时可以绕过限制
+```bash
+$ ./suo5 -m GET -t https://example.com/proxy.jsp
 ```
 
 自定义 socks5 监听在 `0.0.0.0:7788`，并自定义认证信息为 `test:test123`
@@ -100,7 +110,7 @@ $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
  
 ## 接下来
 
-- [ ] 支持配置上游 socks 代理
+- [x] 支持配置上游 socks 代理
 - [ ] 支持负载均衡的场景
 - [ ] 支持 .Net 的类型
 

@@ -76,7 +76,7 @@
       <span>连接数: {{ status.connection_count }}</span>
       <span>CPU: {{ status.cpu_percent }}</span>
       <span>内存: {{ status.memory_usage }}</span>
-      <span>版本: 0.2.0</span>
+      <span>版本: 0.3.0</span>
     </n-space>
 
     <div class="footer">

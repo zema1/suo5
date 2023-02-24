@@ -16,7 +16,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "suo5"
 	app.Usage = "A super http proxy tunnel"
-	app.Version = "v0.2.0"
+	app.Version = "v0.3.0"
 
 	defaultConfig := ctrl.DefaultSuo5Config()
 
