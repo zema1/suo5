@@ -1,6 +1,7 @@
 export namespace ctrl {
 	
 	export class Suo5Config {
+	    method: string;
 	    listen: string;
 	    target: string;
 	    no_auth: boolean;
@@ -11,6 +12,7 @@ export namespace ctrl {
 	    buffer_size: number;
 	    timeout: number;
 	    debug: boolean;
+	    upstream_proxy: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -18,6 +20,7 @@ export namespace ctrl {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
 	        this.listen = source["listen"];
 	        this.target = source["target"];
 	        this.no_auth = source["no_auth"];
@@ -28,6 +31,7 @@ export namespace ctrl {
 	        this.buffer_size = source["buffer_size"];
 	        this.timeout = source["timeout"];
 	        this.debug = source["debug"];
+	        this.upstream_proxy = source["upstream_proxy"];
 	    }
 	}
 

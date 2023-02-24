@@ -33,6 +33,7 @@ const (
 
 type socks5Handler struct {
 	ctx             context.Context
+	method          string
 	target          string
 	normalClient    *http.Client
 	noTimeoutClient *http.Client
@@ -81,12 +82,12 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 			ioutil.NopCloser(bytes.NewReader(dialData)),
 			ioutil.NopCloser(netrans.NewChannelReader(ch)),
 		)
-		req, _ = http.NewRequestWithContext(m.ctx, http.MethodPost, m.target, body)
+		req, _ = http.NewRequestWithContext(m.ctx, m.method, m.target, body)
 		baseHeader.Set("Content-Type", ContentTypeFull)
 		req.Header = baseHeader
 		resp, err = m.rawClient.Do(req)
 	} else {
-		req, _ = http.NewRequestWithContext(m.ctx, http.MethodPost, m.target, bytes.NewReader(dialData))
+		req, _ = http.NewRequestWithContext(m.ctx, m.method, m.target, bytes.NewReader(dialData))
 		baseHeader.Set("Content-Type", ContentTypeHalf)
 		req.Header = baseHeader
 		resp, err = m.noTimeoutClient.Do(req)
@@ -133,7 +134,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	if m.mode == FullDuplex {
 		streamRW = NewFullChunkedReadWriter(id, chWR, resp.Body)
 	} else {
-		streamRW = NewHalfChunkedReadWriter(m.ctx, id, m.normalClient, m.target, resp.Body, baseHeader)
+		streamRW = NewHalfChunkedReadWriter(m.ctx, id, m.normalClient, m.method, m.target, resp.Body, baseHeader)
 	}
 	defer streamRW.(io.Closer).Close()
 

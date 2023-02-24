@@ -8,6 +8,7 @@
           style="margin-bottom: -12px; margin-top:12px;"
       >
         <n-form-item label="目标" required>
+          <n-input v-model:value="formValue.method" style="width: 85px; margin-right: 10px"/>
           <n-input v-model:value="formValue.target" placeholder="https://example.com/1.jsp"/>
           <n-button style="margin-left: 18px" :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
           </n-button>
@@ -75,7 +76,7 @@
       <span>连接数: {{ status.connection_count }}</span>
       <span>CPU: {{ status.cpu_percent }}</span>
       <span>内存: {{ status.memory_usage }}</span>
-      <span>版本: 0.2.0</span>
+      <span>版本: 0.3.0</span>
     </n-space>
 
     <div class="footer">
@@ -105,6 +106,10 @@
             </n-form-item>
           </n-gi>
         </n-grid>
+
+        <n-form-item label="上游代理">
+          <n-input v-model:value="advancedOptions.upstream_proxy" placeholder="socks5://user:pass@ip:port"/>
+        </n-form-item>
         <n-form-item label="连接UA">
           <n-input type="textarea" v-model:value="advancedOptions.ua"/>
         </n-form-item>
@@ -143,13 +148,16 @@ const formValue = ref<ctrl.Suo5Config>({
   buffer_size: 0,
   timeout: 0,
   debug: false,
+  upstream_proxy: '',
+  method: '',
 })
 
 const advancedOptions = ref({
   debug: false,
   buffer_size: 0,
   timeout: 0,
-  ua: ''
+  ua: '',
+  upstream_proxy: ''
 })
 
 
@@ -160,6 +168,7 @@ onBeforeMount(async () => {
     buffer_size: formValue.value.buffer_size,
     timeout: formValue.value.timeout,
     ua: formValue.value.ua,
+    upstream_proxy: formValue.value.upstream_proxy,
   }
 })
 
