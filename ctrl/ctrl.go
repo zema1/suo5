@@ -30,6 +30,11 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		log.SetLevel("debug")
 	}
 
+	err := config.parseHeader()
+	if err != nil {
+		return err
+	}
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -47,6 +52,13 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		}
 		log.Infof("using upstream proxy %v", proxy)
 		tr.Proxy = http.ProxyURL(u)
+	}
+	if config.RedirectURL != "" {
+		_, err := url.Parse(config.RedirectURL)
+		if err != nil {
+			return fmt.Errorf("failed to parse redirect url, %s", err)
+		}
+		log.Infof("using redirect url %v", config.RedirectURL)
 	}
 	noTimeoutClient := &http.Client{
 		Transport: tr,
@@ -66,21 +78,18 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		ForceReadAllBody:       false,
 	})
 
-	log.Infof("ua: %s", config.UserAgent)
+	log.Infof("header: %s", config.headerString())
 	log.Infof("method: %s", config.Method)
 
-	baseHeader := http.Header{}
-	baseHeader.Set("User-Agent", config.UserAgent)
-
 	log.Infof("testing connection with remote server")
-	err := checkMemshell(normalClient, config.Method, config.Target, baseHeader.Clone())
+	err = checkMemshell(normalClient, config.Method, config.Target, config.Header.Clone())
 	if err != nil {
 		return err
 	}
 	log.Infof("connection to remote server successful")
 	if config.Mode == AutoDuplex || config.Mode == FullDuplex {
 		log.Infof("checking the capability of FullDuplex..")
-		if checkFullDuplex(config.Method, config.Target, baseHeader.Clone()) {
+		if checkFullDuplex(config.Method, config.Target, config.Header.Clone()) {
 			config.Mode = FullDuplex
 			log.Infof("wow, you can run the proxy on FullDuplex mode")
 		} else {
@@ -96,11 +105,10 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	fmt.Println()
 	msg := "[Tunnel Info]\n"
 	msg += fmt.Sprintf("Target:  %s\n", config.Target)
-	msg += fmt.Sprintf("Proxy:   socks5://%s\n", config.Listen)
 	if config.NoAuth {
-		msg += "Auth:    Not Set\n"
+		msg += fmt.Sprintf("Proxy:   socks5://%s\n", config.Listen)
 	} else {
-		msg += fmt.Sprintf("Auth:    %s %s\n", config.Username, config.Password)
+		msg += fmt.Sprintf("Proxy:   socks5://%s:%s@%s\n", config.Username, config.Password, config.Listen)
 	}
 	msg += fmt.Sprintf("Mode:    %s\n", config.Mode)
 	fmt.Println(pio.Rich(msg, pio.Green))
@@ -132,16 +140,12 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	}
 	handler := &socks5Handler{
 		ctx:             ctx,
-		method:          config.Method,
-		target:          config.Target,
-		mode:            config.Mode,
-		bufSize:         config.BufferSize,
+		config:          config,
 		normalClient:    normalClient,
 		noTimeoutClient: noTimeoutClient,
 		rawClient:       rawClient,
 		pool:            trPool,
 		selector:        selector,
-		baseHeader:      baseHeader,
 	}
 	_ = srv.Serve(&ClientEventHandler{
 		Inner:                   handler,

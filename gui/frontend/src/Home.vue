@@ -76,7 +76,7 @@
       <span>连接数: {{ status.connection_count }}</span>
       <span>CPU: {{ status.cpu_percent }}</span>
       <span>内存: {{ status.memory_usage }}</span>
-      <span>版本: 0.3.0</span>
+      <span>版本: 0.4.0</span>
     </n-space>
 
     <div class="footer">
@@ -106,15 +106,18 @@
             </n-form-item>
           </n-gi>
         </n-grid>
-
+        <n-form-item label="流量集中">
+          <n-input v-model:value="advancedOptions.redirect_url"
+                   placeholder="用于应对负载均衡，流量将集中转发到这个 url"/>
+        </n-form-item>
         <n-form-item label="上游代理">
           <n-input v-model:value="advancedOptions.upstream_proxy" placeholder="socks5://user:pass@ip:port"/>
         </n-form-item>
-        <n-form-item label="连接UA">
-          <n-input type="textarea" v-model:value="advancedOptions.ua"/>
+        <n-form-item label="请求头">
+          <n-input type="textarea" v-model:value="header"/>
         </n-form-item>
         <n-form-item label="地址">
-          <n-a :href=link @click.stop.prevent="openLink">{{link}}</n-a>
+          <n-a :href=link @click.stop.prevent="openLink">{{ link }}</n-a>
         </n-form-item>
       </n-form>
       <template #action>
@@ -144,37 +147,39 @@ const formValue = ref<ctrl.Suo5Config>({
   username: '',
   password: '',
   mode: '',
-  ua: '',
   buffer_size: 0,
   timeout: 0,
   debug: false,
   upstream_proxy: '',
   method: '',
+  redirect_url: '',
+  raw_header: [],
 })
 
-const advancedOptions = ref({
-  debug: false,
-  buffer_size: 0,
-  timeout: 0,
-  ua: '',
-  upstream_proxy: ''
-})
-
+const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
 
 onBeforeMount(async () => {
   formValue.value = await DefaultSuo5Config();
-  advancedOptions.value = {
-    debug: formValue.value.debug,
-    buffer_size: formValue.value.buffer_size,
-    timeout: formValue.value.timeout,
-    ua: formValue.value.ua,
-    upstream_proxy: formValue.value.upstream_proxy,
+  advancedOptions.value = await DefaultSuo5Config();
+})
+
+const header = computed({
+  get() {
+    return advancedOptions.value.raw_header.join('\n')
+  },
+  set(newValue) {
+    advancedOptions.value.raw_header = newValue.split('\n')
   }
 })
 
 const showAdvanced = ref(false)
 const confirmAdvanced = () => {
-  Object.assign(formValue.value, advancedOptions.value)
+  formValue.value.debug = advancedOptions.value.debug
+  formValue.value.timeout = advancedOptions.value.timeout
+  formValue.value.buffer_size = advancedOptions.value.buffer_size
+  formValue.value.upstream_proxy = advancedOptions.value.upstream_proxy
+  formValue.value.raw_header = advancedOptions.value.raw_header
+  formValue.value.redirect_url = advancedOptions.value.redirect_url
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)

