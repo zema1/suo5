@@ -57,25 +57,27 @@ USAGE:
    suo5 [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.3.0
+   v0.4.0
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --target value, -t value  set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/
-   --listen value, -l value  set the listen address of socks5 server (default: "127.0.0.1:1111")
-   --method value, -m value  http request method (default: "POST")
-   --no-auth                 disable socks5 authentication (default: true)
-   --auth value              socks5 creds, username:password, leave empty to auto generate
-   --mode value              connection mode, choices are auto, full, half (default: "auto")
-   --ua value                the user-agent used to send request (default: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3")
-   --timeout value           http request timeout in seconds (default: 10)
-   --buf-size value          set the request max body size (default: 327680)
-   --proxy value             use upstream socks5 proxy
-   --debug, -d               debug the traffic, print more details (default: false)
-   --help, -h                show help
-   --version, -v             print the version
+   --target value, -t value                               set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/
+   --listen value, -l value                               set the listen address of socks5 server (default: "127.0.0.1:1111")
+   --method value, -m value                               http request method (default: "POST")
+   --redirect value, -r value                             redirect to the url if host not matched, used to bypass load balance
+   --no-auth                                              disable socks5 authentication (default: true)
+   --auth value                                           socks5 creds, username:password, leave empty to auto generate
+   --mode value                                           connection mode, choices are auto, full, half (default: "auto")
+   --ua value                                             the user-agent used to send request (default: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3")
+   --header value, -H value [ --header value, -H value ]  use extra header, ex -H 'Cookie: abc'
+   --timeout value                                        http request timeout in seconds (default: 10)
+   --buf-size value                                       set the request max body size (default: 327680)
+   --proxy value                                          use upstream socks5 proxy
+   --debug, -d                                            debug the traffic, print more details (default: false)
+   --help, -h                                             show help
+   --version, -v                                          print the version
 ```
 
 命令行版本与界面版配置完全一致，可以对照界面版功能来使用，最简单的只需指定连接目标
@@ -94,6 +96,13 @@ $ ./suo5 -m GET -t https://example.com/proxy.jsp
 ```bash
 $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
 ```
+
+负载均衡场景下将流量转发到某一个固定的 url 解决请求被分散的问题 (需要尽可能的在每一个后端服务中上传 suo5)
+
+```bash
+$ ./suo5 -t https://example.com/proxy.jsp -t http://172.0.3.2/code/proxy.jsp
+```
+
 ### 特别提醒
 `User-Agent` (`ua`) 的配置本地端与服务端是绑定的，如果修改了其中一个，另一个也必须对应修改才能连接上。
 
@@ -113,7 +122,7 @@ $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
 ## 接下来
 
 - [x] 支持配置上游 socks 代理
-- [ ] 支持负载均衡的场景
+- [x] 支持负载均衡的场景
 - [ ] 支持 .Net 的类型
 
 ## 参考

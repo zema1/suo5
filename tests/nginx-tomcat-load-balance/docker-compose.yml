@@ -1,0 +1,32 @@
+version: "3"
+services:
+  nginx:
+    image: nginx
+    ports:
+      - "8070:80"
+    volumes:
+      - ./default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  tomcat1:
+    image: tomcat:9
+    volumes:
+      - ./server.xml:/usr/local/tomcat/conf/server.xml:ro
+      - ./code:/usr/local/tomcat/webapps/code/
+    # ports:
+    # - "8071:8080"
+
+  tomcat2:
+    image: tomcat:9
+    volumes:
+      - ./server.xml:/usr/local/tomcat/conf/server.xml:ro
+      - ./code:/usr/local/tomcat/webapps/code/
+    # ports:
+    # - "8072:8080"
+
+  tomcat3:
+    image: tomcat:9
+    volumes:
+      - ./server.xml:/usr/local/tomcat/conf/server.xml:ro
+      - ./code:/usr/local/tomcat/webapps/code/
+    # ports:
+    # - "8073:8080"

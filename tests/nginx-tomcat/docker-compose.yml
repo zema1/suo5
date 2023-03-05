@@ -6,8 +6,6 @@ services:
       - "8070:80"
     volumes:
       - ./default.conf:/etc/nginx/conf.d/default.conf:ro
-    links:
-      - tomcat
 
   tomcat:
     image: tomcat:9

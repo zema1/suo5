@@ -16,7 +16,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "suo5"
 	app.Usage = "A super http proxy tunnel"
-	app.Version = "v0.3.0"
+	app.Version = "v0.4.0"
 
 	defaultConfig := ctrl.DefaultSuo5Config()
 
@@ -40,6 +40,12 @@ func main() {
 			Usage:   "http request method",
 			Value:   defaultConfig.Method,
 		},
+		&cli.StringFlag{
+			Name:    "redirect",
+			Aliases: []string{"r"},
+			Usage:   "redirect to the url if host not matched, used to bypass load balance",
+			Value:   defaultConfig.RedirectURL,
+		},
 		&cli.BoolFlag{
 			Name:  "no-auth",
 			Usage: "disable socks5 authentication",
@@ -58,7 +64,12 @@ func main() {
 		&cli.StringFlag{
 			Name:  "ua",
 			Usage: "the user-agent used to send request",
-			Value: defaultConfig.UserAgent,
+			Value: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3",
+		},
+		&cli.StringSliceFlag{
+			Name:    "header",
+			Aliases: []string{"H"},
+			Usage:   "use extra header, ex -H 'Cookie: abc'",
 		},
 		&cli.IntFlag{
 			Name:  "timeout",
@@ -108,6 +119,8 @@ func Action(c *cli.Context) error {
 	debug := c.Bool("debug")
 	proxy := c.String("proxy")
 	method := c.String("method")
+	redirect := c.String("redirect")
+	header := c.StringSlice("header")
 
 	var username, password string
 	if auth == "" {
@@ -120,6 +133,7 @@ func Action(c *cli.Context) error {
 		}
 		username = parts[0]
 		password = parts[1]
+		noAuth = false
 	}
 	if !(mode == ctrl.AutoDuplex || mode == ctrl.FullDuplex || mode == ctrl.HalfDuplex) {
 		return fmt.Errorf("invalid mode, expected auto or full or half")
@@ -128,6 +142,8 @@ func Action(c *cli.Context) error {
 	if bufSize < 512 || bufSize > 1024000 {
 		return fmt.Errorf("inproper buffer size, 512~1024000")
 	}
+	header = append(header, "User-Agent: "+ua)
+
 	config := &ctrl.Suo5Config{
 		Listen:        listen,
 		Target:        target,
@@ -135,12 +151,13 @@ func Action(c *cli.Context) error {
 		Username:      username,
 		Password:      password,
 		Mode:          mode,
-		UserAgent:     ua,
 		BufferSize:    bufSize,
 		Timeout:       timeout,
 		Debug:         debug,
 		UpstreamProxy: proxy,
 		Method:        method,
+		RedirectURL:   redirect,
+		RawHeader:     header,
 	}
 	ctx, cancel := signalCtx()
 	defer cancel()
