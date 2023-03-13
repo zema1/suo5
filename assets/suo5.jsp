@@ -281,6 +281,8 @@
                         socketOutStream.write(data);
                         socketOutStream.flush();
                     }
+                } else if (action[0] == 0x03) {
+                    continue;
                 } else {
                     return;
                 }
@@ -317,7 +319,7 @@
             }
             // load balance, send request with data to request url
             // action 0x00 need to pipe, see below
-            if (needRedirect && (action[0] == 0x01 || action[0] == 0x02)) {
+            if (needRedirect && action[0] >= 0x01 && action[0] <= 0x03){
                 HttpURLConnection conn = redirect(request, dataMap, redirectUrl);
                 conn.disconnect();
                 return;
@@ -345,6 +347,11 @@
                     scOutStream.flush();
                 }
                 respOutStream.close();
+                return;
+            } else {
+            }
+
+            if (action[0] != 0x00) {
                 return;
             }
             // 0x00 create new tunnel

@@ -176,9 +176,10 @@ func buildBody(m map[string][]byte) []byte {
 }
 
 const (
-	ActionCreate byte = 0x00
-	ActionData   byte = 0x01
-	ActionDelete byte = 0x02
+	ActionCreate    byte = 0x00
+	ActionData      byte = 0x01
+	ActionDelete    byte = 0x02
+	ActionHeartbeat byte = 0x03
 )
 
 func newActionCreate(id, addr string, port uint16, redirect string) map[string][]byte {
@@ -207,6 +208,16 @@ func newActionData(id string, data []byte, redirect string) map[string][]byte {
 func newDelete(id string, redirect string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionDelete}
+	m["id"] = []byte(id)
+	if len(redirect) != 0 {
+		m["r"] = []byte(redirect)
+	}
+	return m
+}
+
+func newHeartbeat(id string, redirect string) map[string][]byte {
+	m := make(map[string][]byte)
+	m["ac"] = []byte{ActionHeartbeat}
 	m["id"] = []byte(id)
 	if len(redirect) != 0 {
 		m["r"] = []byte(redirect)
