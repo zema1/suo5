@@ -14,6 +14,7 @@ export namespace ctrl {
 	    upstream_proxy: string;
 	    redirect_url: string;
 	    raw_header: string[];
+	    disable_heartbeat: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -34,6 +35,7 @@ export namespace ctrl {
 	        this.upstream_proxy = source["upstream_proxy"];
 	        this.redirect_url = source["redirect_url"];
 	        this.raw_header = source["raw_header"];
+	        this.disable_heartbeat = source["disable_heartbeat"];
 	    }
 	}
 

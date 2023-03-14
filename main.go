@@ -92,6 +92,12 @@ func main() {
 			Usage:   "debug the traffic, print more details",
 			Value:   defaultConfig.Debug,
 		},
+		&cli.BoolFlag{
+			Name:    "no-heartbeat",
+			Aliases: []string{"nh"},
+			Usage:   "disable heartbeat to the remote server which will send data every 5s",
+			Value:   defaultConfig.DisableHeartbeat,
+		},
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
@@ -121,6 +127,7 @@ func Action(c *cli.Context) error {
 	method := c.String("method")
 	redirect := c.String("redirect")
 	header := c.StringSlice("header")
+	noHeartbeat := c.Bool("no-heartbeat")
 
 	var username, password string
 	if auth == "" {
@@ -145,19 +152,20 @@ func Action(c *cli.Context) error {
 	header = append(header, "User-Agent: "+ua)
 
 	config := &ctrl.Suo5Config{
-		Listen:        listen,
-		Target:        target,
-		NoAuth:        noAuth,
-		Username:      username,
-		Password:      password,
-		Mode:          mode,
-		BufferSize:    bufSize,
-		Timeout:       timeout,
-		Debug:         debug,
-		UpstreamProxy: proxy,
-		Method:        method,
-		RedirectURL:   redirect,
-		RawHeader:     header,
+		Listen:           listen,
+		Target:           target,
+		NoAuth:           noAuth,
+		Username:         username,
+		Password:         password,
+		Mode:             mode,
+		BufferSize:       bufSize,
+		Timeout:          timeout,
+		Debug:            debug,
+		UpstreamProxy:    proxy,
+		Method:           method,
+		RedirectURL:      redirect,
+		RawHeader:        header,
+		DisableHeartbeat: noHeartbeat,
 	}
 	ctx, cancel := signalCtx()
 	defer cancel()

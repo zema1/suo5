@@ -11,6 +11,10 @@ import (
 	"sync"
 )
 
+type RawWriter interface {
+	WriteRaw(p []byte) (n int, err error)
+}
+
 type fullChunkedReadWriter struct {
 	id         string
 	reqBody    io.WriteCloser
@@ -24,7 +28,7 @@ type fullChunkedReadWriter struct {
 
 // NewFullChunkedReadWriter 全双工读写流
 func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.ReadCloser) io.ReadWriter {
-	return &fullChunkedReadWriter{
+	rw := &fullChunkedReadWriter{
 		id:         id,
 		reqBody:    reqBody,
 		serverResp: serverResp,
@@ -32,6 +36,7 @@ func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.R
 		readTmp:    make([]byte, 16*1024),
 		writeTmp:   make([]byte, 8*1024),
 	}
+	return rw
 }
 
 func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
@@ -64,9 +69,13 @@ func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
 }
 
 func (s *fullChunkedReadWriter) Write(p []byte) (n int, err error) {
-	log.Debugf("write data, length: %d", len(p))
+	log.Debugf("write socket data, length: %d", len(p))
 	body := buildBody(newActionData(s.id, p, ""))
-	return s.reqBody.Write(body)
+	return s.WriteRaw(body)
+}
+
+func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
+	return s.reqBody.Write(p)
 }
 
 func (s *fullChunkedReadWriter) Close() error {
@@ -146,14 +155,18 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
 	body := buildBody(newActionData(s.id, p, s.redirect))
 	log.Debugf("send request, length: %d", len(body))
-	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
+	return s.WriteRaw(body)
+}
+
+func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
+	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(p))
 	if err != nil {
 		return 0, err
 	}
 	if s.chunked {
 		req.ContentLength = -1
 	} else {
-		req.ContentLength = int64(len(body))
+		req.ContentLength = int64(len(p))
 	}
 	req.Header = s.baseHeader.Clone()
 	resp, err := s.client.Do(req)

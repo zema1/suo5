@@ -91,9 +91,19 @@
       <n-form label-width="85"
               label-placement="left"
               size="small">
-        <n-form-item label="调试模式">
-          <n-checkbox v-model:checked="advancedOptions.debug"></n-checkbox>
-        </n-form-item>
+        <n-grid :cols="2">
+          <n-gi>
+            <n-form-item label="调试模式">
+              <n-checkbox v-model:checked="advancedOptions.debug"></n-checkbox>
+            </n-form-item>
+          </n-gi>
+
+          <n-gi>
+            <n-form-item label="禁用心跳包">
+              <n-checkbox v-model:checked="advancedOptions.disable_heartbeat"></n-checkbox>
+            </n-form-item>
+          </n-gi>
+        </n-grid>
         <n-grid :cols="2">
           <n-gi>
             <n-form-item label="超时时间(s)">
@@ -154,6 +164,7 @@ const formValue = ref<ctrl.Suo5Config>({
   method: '',
   redirect_url: '',
   raw_header: [],
+  disable_heartbeat: false,
 })
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
@@ -180,6 +191,7 @@ const confirmAdvanced = () => {
   formValue.value.upstream_proxy = advancedOptions.value.upstream_proxy
   formValue.value.raw_header = advancedOptions.value.raw_header
   formValue.value.redirect_url = advancedOptions.value.redirect_url
+  formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)
