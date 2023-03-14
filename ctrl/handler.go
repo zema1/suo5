@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type ConnectionType string
@@ -124,7 +125,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		log.Errorf("write data failed, %w", err)
 		return
 	}
-	log.Infof("conn successfully connected to %s", sockReq.Addr)
+	log.Infof("successfully connected to %s", sockReq.Addr)
 
 	var streamRW io.ReadWriter
 	if m.config.Mode == FullDuplex {
@@ -135,25 +136,41 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	}
 	defer streamRW.(io.Closer).Close()
 
+	ctx, cancel := context.WithCancel(m.ctx)
+	defer cancel()
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer cancel()
 		if err := m.pipe(conn, streamRW); err != nil {
-			log.Debugf("local conn closed")
+			log.Debugf("local conn closed, %s", sockReq.Addr)
 			_ = streamRW.(io.Closer).Close()
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer cancel()
 		if err := m.pipe(streamRW, conn); err != nil {
-			log.Debugf("remote readwriter closed")
+			log.Debugf("remote readwriter closed, %s", sockReq.Addr)
 			_ = conn.Close()
 		}
 	}()
+
+	if !m.config.DisableHeartbeat {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer cancel()
+			m.heartbeat(ctx, id, m.config.RedirectURL, streamRW.(RawWriter))
+			log.Debugf("heartbeat stopped, %s", sockReq.Addr)
+		}()
+	}
+
 	wg.Wait()
-	log.Infof("connection from %s closed", conn.RemoteAddr())
+	log.Infof("connection closed, %s", sockReq.Addr)
 }
 
 func (m *socks5Handler) pipe(r io.Reader, w io.Writer) error {
@@ -167,6 +184,27 @@ func (m *socks5Handler) pipe(r io.Reader, w io.Writer) error {
 		_, err = w.Write(buf[:n])
 		if err != nil {
 			return err
+		}
+	}
+}
+
+// write data to the remote server to avoid server's ReadTimeout
+// todo: lb still not work
+func (m *socks5Handler) heartbeat(ctx context.Context, id, redirect string, w RawWriter) {
+	t := time.NewTicker(time.Second * 5)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			body := buildBody(newHeartbeat(id, redirect))
+			log.Debugf("send heartbeat, length: %d", len(body))
+			_, err := w.WriteRaw(body)
+			if err != nil {
+				log.Errorf("send heartbeat error %s", err)
+				return
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }

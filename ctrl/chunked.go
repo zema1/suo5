@@ -9,8 +9,11 @@ import (
 	"io"
 	"net/http"
 	"sync"
-	"time"
 )
+
+type RawWriter interface {
+	WriteRaw(p []byte) (n int, err error)
+}
 
 type fullChunkedReadWriter struct {
 	id         string
@@ -21,12 +24,10 @@ type fullChunkedReadWriter struct {
 	readBuf  bytes.Buffer
 	readTmp  []byte
 	writeTmp []byte
-	cancel   func()
 }
 
 // NewFullChunkedReadWriter 全双工读写流
 func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.ReadCloser) io.ReadWriter {
-	ctx, cancel := context.WithCancel(context.Background())
 	rw := &fullChunkedReadWriter{
 		id:         id,
 		reqBody:    reqBody,
@@ -34,14 +35,7 @@ func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.R
 		readBuf:    bytes.Buffer{},
 		readTmp:    make([]byte, 16*1024),
 		writeTmp:   make([]byte, 8*1024),
-		cancel:     cancel,
 	}
-
-	go func() {
-		defer cancel()
-		rw.heartbeat(ctx)
-	}()
-
 	return rw
 }
 
@@ -77,33 +71,16 @@ func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
 func (s *fullChunkedReadWriter) Write(p []byte) (n int, err error) {
 	log.Debugf("write socket data, length: %d", len(p))
 	body := buildBody(newActionData(s.id, p, ""))
-	return s.reqBody.Write(body)
+	return s.WriteRaw(body)
 }
 
-func (s *fullChunkedReadWriter) heartbeat(ctx context.Context) {
-	defer s.Close()
-	t := time.NewTicker(time.Second * 5)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			body := buildBody(newHeartbeat(s.id, ""))
-			log.Debugf("write heartbeat data, length: %d", len(body))
-			_, err := s.reqBody.Write(body)
-			if err != nil {
-				log.Errorf("send heartbeat error %s", err)
-				return
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
+func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
+	return s.reqBody.Write(p)
 }
 
 func (s *fullChunkedReadWriter) Close() error {
 	s.once.Do(func() {
 		defer s.reqBody.Close()
-		s.cancel()
 		body := buildBody(newDelete(s.id, ""))
 		_, _ = s.reqBody.Write(body)
 		_ = s.serverResp.Close()
@@ -178,14 +155,18 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
 	body := buildBody(newActionData(s.id, p, s.redirect))
 	log.Debugf("send request, length: %d", len(body))
-	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
+	return s.WriteRaw(body)
+}
+
+func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
+	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(p))
 	if err != nil {
 		return 0, err
 	}
 	if s.chunked {
 		req.ContentLength = -1
 	} else {
-		req.ContentLength = int64(len(body))
+		req.ContentLength = int64(len(p))
 	}
 	req.Header = s.baseHeader.Clone()
 	resp, err := s.client.Do(req)
