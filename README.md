@@ -77,6 +77,7 @@ GLOBAL OPTIONS:
    --buf-size value                                       set the request max body size (default: 327680)
    --proxy value                                          use upstream socks5 proxy
    --debug, -d                                            debug the traffic, print more details (default: false)
+   --no-heartbeat, --nh                                   disable heartbeat to the remote server which will send data every 5s (default: false)
    --help, -h                                             show help
    --version, -v                                          print the version
 ```
