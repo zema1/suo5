@@ -119,7 +119,7 @@ $ ./suo5 -t https://example.com/proxy.jsp -t http://172.0.3.2/code/proxy.jsp
 
 2. `suo5` 和 `Neo-reGeorg` 怎么选？
     
-    如果目标是 Java 的站点，可以使用 `suo5` 来构建 http 隧道，大多数情况下 `suo5` 都要比 `neo` 更稳定速度更快。但 `neo` 提供了非常多种类的服务端支持，兼容性很好，而且也支持一些 `suo5` 当前还在开发的功能，比如负载均衡等，也支持更灵活的定制化。
+    如果目标是 Java 的站点，可以使用 `suo5` 来构建 http 隧道，大多数情况下 `suo5` 都要比 `neo` 更稳定速度更快。但 `neo` 提供了非常多种类的服务端支持，兼容性很好，而且也支持一些 `suo5` 当前还在开发的功能，也支持更灵活的定制化。
  
 ## 接下来
 
@@ -130,3 +130,8 @@ $ ./suo5 -t https://example.com/proxy.jsp -t http://172.0.3.2/code/proxy.jsp
 ## 参考
 - [https://github.com/L-codes/Neo-reGeorg](https://github.com/L-codes/Neo-reGeorg)
 - [https://github.com/BeichenDream/Chunk-Proxy](https://github.com/BeichenDream/Chunk-Proxy)
+
+## 其他
+扫码加我拉进讨论群，请备注申请理由为：问题反馈与讨论，否则不通过
+
+![wechat](https://user-images.githubusercontent.com/20637881/229296623-24a7cc5d-8f33-4120-ae77-bbe2610ce5bb.jpg)
