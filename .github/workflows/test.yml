@@ -3,12 +3,13 @@ on:
   push:
     branches:
       - main
+      - 'test/**'
   pull_request:
 permissions:
   contents: read
 jobs:
-  test:
-    name: test
+  go-test:
+    name: Go Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -20,3 +21,49 @@ jobs:
           cache: true
       - run: go mod download
       - run: go test $(go list ./... | grep -v /gui/ | grep -v /tests/)
+
+  build-binary:
+    name: Build Test Binary
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+          cache: true
+      - run: go build -trimpath -ldflags "-w -s -extldflags '-static'" -o suo5
+      - uses: actions/upload-artifact@v3
+        with:
+          name: test-target
+          path: suo5
+
+  tomcat-test:
+    name: Tomcat Test
+    runs-on: ubuntu-latest
+    needs: build-binary
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: tomcat:6.0.41-jre7
+            bind_dir: /usr/local/tomcat/webapps/ROOT
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: test-target
+          path: .
+      - uses: docker-practice/actions-setup-docker@master
+        timeout-minutes: 10
+      - run: chmod +x ./suo5
+      - run: |
+          set -x
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.bind_dir }}/assets ${{ matrix.image }}
+          sleep 10
+          docker ps -a
+          curl -v http://127.0.0.1:8080/assets/suo5.jsp
+          ./suo5 -debug -t http://127.0.0.1:8080/assets/suo5.jsp
