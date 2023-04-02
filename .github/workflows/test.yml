@@ -48,9 +48,40 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        include:
-          - image: tomcat:6.0.41-jre7
-            bind_dir: /usr/local/tomcat/webapps/ROOT
+        image:
+          - andreptb/tomcat:6.0.45-jdk6
+          - andreptb/tomcat:6.0.48-jdk6
+          - andreptb/tomcat:6.0.44-jdk7
+          - andreptb/tomcat:7.0.64-jdk7
+          - andreptb/tomcat:7.0.64-jdk8
+          - andreptb/tomcat:8.0.26-jdk7
+          - andreptb/tomcat:9.0.10
+          - tomcat:6.0.41-jre7
+          - tomcat:6.0-jre7
+          - tomcat:6.0-jre8
+          - tomcat:7.0.56-jre7
+          - tomcat:7.0-jre7
+          - tomcat:7.0-jre8
+          - tomcat:8.0.14-jre7
+          - tomcat:8.0-jre7
+          - tomcat:8.0-jre8
+          - tomcat:8.5.0-jre8
+          - tomcat:8.5.0-jre8
+          - tomcat:8.5-jre8
+          - tomcat:8.5-jre11
+          - tomcat:8.5-jre17
+          - tomcat:9.0.1-jre8
+          - tomcat:9.0-jre8
+          - tomcat:9.0-jre11
+          - tomcat:9.0-jre17
+          - tomcat:10.0.0-jdk8
+          - tomcat:10.0-jre8
+          - tomcat:10.0-jre11
+          - tomcat:10.0-jre17
+          - tomcat:10.1.0-jre11
+          - tomcat:10.1-jre11
+          - tomcat:10.1-jre17
+
     steps:
       - uses: actions/checkout@v3
       - uses: actions/download-artifact@v3
@@ -58,11 +89,13 @@ jobs:
           name: test-target
           path: .
       - uses: docker-practice/actions-setup-docker@master
+        with:
+          docker_buildx: false
         timeout-minutes: 10
       - run: chmod +x ./suo5
       - run: |
           set -x
-          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.bind_dir }}/assets ${{ matrix.image }}
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:/usr/local/tomcat/webapps/ROOT/assets ${{ matrix.image }}
           sleep 10
           docker ps -a
           curl -v http://127.0.0.1:8080/assets/suo5.jsp
