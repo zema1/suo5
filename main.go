@@ -98,6 +98,12 @@ func main() {
 			Usage:   "disable heartbeat to the remote server which will send data every 5s",
 			Value:   defaultConfig.DisableHeartbeat,
 		},
+		&cli.StringFlag{
+			Name:    "test-exit",
+			Aliases: []string{"T"},
+			Usage:   "test a real connection, if success exit(0), else exit(1)",
+			Hidden:  true,
+		},
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
@@ -128,6 +134,7 @@ func Action(c *cli.Context) error {
 	redirect := c.String("redirect")
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
+	testExit := c.String("test-exit")
 
 	var username, password string
 	if auth == "" {
@@ -166,6 +173,7 @@ func Action(c *cli.Context) error {
 		RedirectURL:      redirect,
 		RawHeader:        header,
 		DisableHeartbeat: noHeartbeat,
+		TestExit:         testExit,
 	}
 	ctx, cancel := signalCtx()
 	defer cancel()
