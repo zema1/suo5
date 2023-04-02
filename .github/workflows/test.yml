@@ -46,8 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-binary
     strategy:
-      fail-fast: true
       matrix:
+        mount:
+          - /usr/local/tomcat/webapps/ROOT/
         image:
           - andreptb/tomcat:6.0.45-jdk6
           - andreptb/tomcat:6.0.48-jdk6
@@ -81,6 +82,11 @@ jobs:
           - tomcat:10.1.0-jre11
           - tomcat:10.1-jre11
           - tomcat:10.1-jre17
+        include:
+          - image: nortthon/tomcat5
+            mount: /opt/tomcat/webapps/ROOT
+          - image: consol/tomcat-4.1
+            mount: /opt/tomcat/webapps/ROOT
 
     steps:
       - uses: actions/checkout@v3
@@ -95,7 +101,7 @@ jobs:
       - run: chmod +x ./suo5
       - run: |
           set -x
-          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:/usr/local/tomcat/webapps/ROOT/assets ${{ matrix.image }}
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }}/assets ${{ matrix.image }}
           sleep 10
           docker ps -a
           curl -v http://127.0.0.1:8080/assets/suo5.jsp
