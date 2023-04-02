@@ -24,6 +24,7 @@ type Suo5Config struct {
 	DisableHeartbeat bool           `json:"disable_heartbeat"`
 
 	Header                  http.Header                          `json:"-"`
+	TestExit                string                               `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`

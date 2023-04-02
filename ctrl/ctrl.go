@@ -7,6 +7,7 @@ import (
 	"github.com/go-gost/gosocks5/server"
 	log "github.com/kataras/golog"
 	"github.com/kataras/pio"
+	"github.com/pkg/errors"
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -103,13 +105,15 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	}
 
 	fmt.Println()
+	var socks5Addr string
 	msg := "[Tunnel Info]\n"
 	msg += fmt.Sprintf("Target:  %s\n", config.Target)
 	if config.NoAuth {
-		msg += fmt.Sprintf("Proxy:   socks5://%s\n", config.Listen)
+		socks5Addr = fmt.Sprintf("socks5://%s", config.Listen)
 	} else {
-		msg += fmt.Sprintf("Proxy:   socks5://%s:%s@%s\n", config.Username, config.Password, config.Listen)
+		socks5Addr = fmt.Sprintf("socks5://%s:%s@%s", config.Username, config.Password, config.Listen)
 	}
+	msg += fmt.Sprintf("Proxy:   %s\n", socks5Addr)
 	msg += fmt.Sprintf("Mode:    %s\n", config.Mode)
 	fmt.Println(pio.Rich(msg, pio.Green))
 
@@ -138,6 +142,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 			url.UserPassword(config.Username, config.Password),
 		})
 	}
+
 	handler := &socks5Handler{
 		ctx:             ctx,
 		config:          config,
@@ -147,11 +152,24 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		pool:            trPool,
 		selector:        selector,
 	}
-	_ = srv.Serve(&ClientEventHandler{
-		Inner:                   handler,
-		OnNewClientConnection:   config.OnNewClientConnection,
-		OnClientConnectionClose: config.OnClientConnectionClose,
-	})
+
+	go func() {
+		_ = srv.Serve(&ClientEventHandler{
+			Inner:                   handler,
+			OnNewClientConnection:   config.OnNewClientConnection,
+			OnClientConnectionClose: config.OnClientConnectionClose,
+		})
+	}()
+
+	if config.TestExit != "" {
+		time.Sleep(time.Second * 1)
+		if err := testConnection(socks5Addr, config.TestExit); err != nil {
+			return errors.Wrap(err, "test connection failed")
+		}
+		// exit(0)
+		return nil
+	}
+	<-ctx.Done()
 	return nil
 }
 
@@ -223,6 +241,42 @@ func checkFullDuplex(method string, target string, baseHeader http.Header) bool 
 		return false
 	}
 	return true
+}
+
+// 检查代理是否真正有效, 只要能按有响应即可，无论目标是否能连通
+func testConnection(socks5 string, remote string) error {
+	log.Infof("checking connection to %s using %s", remote, socks5)
+	u, err := url.Parse(socks5)
+	if err != nil {
+		return err
+	}
+	client := http.Client{
+		Timeout: time.Second * 5,
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(u),
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, remote, nil)
+	if err != nil {
+		return err
+	}
+	req.Close = true
+	resp, err := client.Do(req)
+	if err != nil {
+		if os.IsTimeout(err) {
+			return err
+		}
+		log.Infof("test connection got error, but it's ok, %s", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	data, err := httputil.DumpResponse(resp, false)
+	if err != nil {
+		log.Debugf("test connection got error when read response,  %s, but it's ok", err)
+		return nil
+	}
+	log.Debugf("test connection got response for %s (without body)\n%s", remote, string(data))
+	return nil
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

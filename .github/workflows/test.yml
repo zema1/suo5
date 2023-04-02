@@ -66,4 +66,4 @@ jobs:
           sleep 10
           docker ps -a
           curl -v http://127.0.0.1:8080/assets/suo5.jsp
-          ./suo5 -debug -t http://127.0.0.1:8080/assets/suo5.jsp
+          ./suo5 -debug -t http://127.0.0.1:8080/assets/suo5.jsp -T https://www.google.com
