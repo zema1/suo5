@@ -61,9 +61,9 @@ jobs:
           bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
           curl -v ${{ env.SUO5_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode half
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode half
 
 
 
@@ -109,9 +109,9 @@ jobs:
           sleep 10
           curl -v ${{ env.SUO5_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode half
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode half
 
   tomcat-test:
     name: Tomcat
@@ -171,6 +171,6 @@ jobs:
           bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
           curl -v ${{ env.SUO5_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode half
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode half
