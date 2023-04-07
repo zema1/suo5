@@ -1,9 +1,6 @@
 name: Run go tests
 on:
   push:
-    branches:
-      - main
-      - 'test/**'
   pull_request:
 permissions:
   contents: read
@@ -42,42 +39,84 @@ jobs:
           path: suo5
 
   jboss-test:
-    name: JBoss Test
-    runs-on: ubuntu-latest
+    name: JBoss
     needs: build-binary
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - image: vulhub/jboss:as-4.0.5
-            mount: /opt/jboss/jboss4/server/default/deploy/jbossweb-tomcat55.sar/ROOT.war
+            mount: /opt/jboss/jboss4/server/default/deploy/jbossweb-tomcat55.sar/ROOT.war/assets
           - image: vulhub/jboss:as-6.1.0
-            mount: /jboss-6.1.0.Final/server/default/deploy/ROOT.war
-
+            mount: /jboss-6.1.0.Final/server/default/deploy/ROOT.war/assets
+    env:
+      SUO5_URL: http://127.0.0.1:8080/assets/suo5.jsp
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: test-target
-          path: .
-      - uses: docker-practice/actions-setup-docker@master
-        with:
-          docker_buildx: false
-        timeout-minutes: 10
-      - run: chmod +x ./suo5
+      - uses: ./.github/actions
       - run: |
-          set -x
-          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }}/assets ${{ matrix.image }}
-          sleep 20
-          docker ps -a
-          curl -v http://127.0.0.1:8080/assets/suo5.jsp
-          ./suo5 -debug -t http://127.0.0.1:8080/assets/suo5.jsp -T https://www.google.com
+          set -ex
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode half
 
+
+
+  weblogic-test:
+    name: Weblogic
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - container-registry.oracle.com/middleware/weblogic:12.2.1.3
+          - container-registry.oracle.com/middleware/weblogic:12.2.1.3-ol8-210214
+          - container-registry.oracle.com/middleware/weblogic:12.2.1.4
+          - container-registry.oracle.com/middleware/weblogic:12.2.1.4-ol8-210214
+          - container-registry.oracle.com/middleware/weblogic:14.1.1.0-11
+          - container-registry.oracle.com/middleware/weblogic:14.1.1.0-11-ol8
+        deploy:
+          - /u01/oracle/user_projects/domains/base_domain/autodeploy/
+    env:
+      SUO5_URL: http://127.0.0.1:7001/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+        with:
+          jar: true
+      - run: |
+          echo ${password} | docker login -u ${username} --password-stdin container-registry.oracle.com
+        env:
+          username: ${{ secrets.OCR_USERNAME }}
+          password: ${{ secrets.OCR_PASSWORD }}
+      - run: |
+          set -ex
+          mkdir properties
+          printf "username=weblogic\npassword=weblogic123\n" > ./properties/domain.properties
+          docker run -it --rm -d -p7001:7001 --name weblogic-test \
+            -e PRODUCTION_MODE=dev \
+            -v ${{ github.workspace }}/properties:/u01/oracle/properties \
+            ${{ matrix.image }}
+          docker ps -a
+          bash ./.github/workflows/ready.sh http://127.0.0.1:7001 60
+          docker cp ./assets/assets.war weblogic-test:${{ matrix.deploy }}
+          sleep 10
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode half
 
   tomcat-test:
-    name: Tomcat Test
-    runs-on: ubuntu-latest
+    name: Tomcat
     needs: build-binary
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -115,28 +154,23 @@ jobs:
           - tomcat:10.1-jre11
           - tomcat:10.1-jre17
         mount:
-          - /usr/local/tomcat/webapps/ROOT/
+          - /usr/local/tomcat/webapps/ROOT/assets
         include:
           - image: nortthon/tomcat5
-            mount: /opt/tomcat/webapps/ROOT
+            mount: /opt/tomcat/webapps/ROOT/assets
           - image: consol/tomcat-4.1
-            mount: /opt/tomcat/webapps/ROOT
-
+            mount: /opt/tomcat/webapps/ROOT/assets
+    env:
+      SUO5_URL: http://127.0.0.1:8080/assets/suo5.jsp
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-        with:
-          name: test-target
-          path: .
-      - uses: docker-practice/actions-setup-docker@master
-        with:
-          docker_buildx: false
-        timeout-minutes: 10
-      - run: chmod +x ./suo5
+      - uses: ./.github/actions
       - run: |
-          set -x
-          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }}/assets ${{ matrix.image }}
-          sleep 10
-          docker ps -a
-          curl -v http://127.0.0.1:8080/assets/suo5.jsp
-          ./suo5 -debug -t http://127.0.0.1:8080/assets/suo5.jsp -T https://www.google.com
+          set -ex
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.google.com -mode half
