@@ -194,7 +194,7 @@ func checkMemshell(client *http.Client, method string, target string, baseHeader
 
 	// 如果是数据末尾的换行，并不影响使用
 	b := strings.TrimRight(string(body), "\r\n")
-	if !strings.HasPrefix(data, b) {
+	if len(b) < 32 || !strings.HasPrefix(data, b) {
 		header, _ := httputil.DumpResponse(resp, false)
 		log.Errorf("response are as follows:\n%s", string(header)+string(body))
 		return fmt.Errorf("got unexpected body, remote server test failed")
@@ -239,10 +239,7 @@ func checkFullDuplex(method string, target string, baseHeader http.Header) bool 
 		return false
 	}
 	b := strings.TrimRight(string(body), "\r\n")
-	if !strings.HasPrefix(data, b) {
-		return false
-	}
-	return true
+	return len(b) >= 32 && strings.HasPrefix(data, b)
 }
 
 // 检查代理是否真正有效, 只要能按有响应即可，无论目标是否能连通
