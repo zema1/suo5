@@ -163,7 +163,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 
 	if config.TestExit != "" {
 		time.Sleep(time.Second * 1)
-		if err := testConnection(socks5Addr, config.TestExit); err != nil {
+		if err := testConnection(socks5Addr, config.TestExit, time.Second*15); err != nil {
 			return errors.Wrap(err, "test connection failed")
 		}
 		// exit(0)
@@ -192,7 +192,9 @@ func checkMemshell(client *http.Client, method string, target string, baseHeader
 		return err
 	}
 
-	if len(body) != 32 || !strings.HasPrefix(data, string(body)) {
+	// 如果是数据末尾的换行，并不影响使用
+	b := strings.TrimRight(string(body), "\r\n")
+	if len(b) < 32 || !strings.HasPrefix(data, b) {
 		header, _ := httputil.DumpResponse(resp, false)
 		log.Errorf("response are as follows:\n%s", string(header)+string(body))
 		return fmt.Errorf("got unexpected body, remote server test failed")
@@ -236,22 +238,19 @@ func checkFullDuplex(method string, target string, baseHeader http.Header) bool 
 	if err != nil {
 		return false
 	}
-
-	if len(body) != 32 || !strings.HasPrefix(data, string(body)) {
-		return false
-	}
-	return true
+	b := strings.TrimRight(string(body), "\r\n")
+	return len(b) >= 32 && strings.HasPrefix(data, b)
 }
 
 // 检查代理是否真正有效, 只要能按有响应即可，无论目标是否能连通
-func testConnection(socks5 string, remote string) error {
+func testConnection(socks5 string, remote string, timeout time.Duration) error {
 	log.Infof("checking connection to %s using %s", remote, socks5)
 	u, err := url.Parse(socks5)
 	if err != nil {
 		return err
 	}
 	client := http.Client{
-		Timeout: time.Second * 5,
+		Timeout: timeout,
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(u),
 		},
