@@ -38,6 +38,31 @@ jobs:
           name: test-target
           path: suo5
 
+  resin-test:
+    name: Resin
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: expertsystems/resin
+            mount: /var/resin/webapps/ROOT/assets
+    env:
+      SUO5_URL: http://127.0.0.1:8080/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+      - run: |
+          set -ex
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
+
   jboss-test:
     name: JBoss
     needs: build-binary
@@ -61,9 +86,9 @@ jobs:
           bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
           curl -v ${{ env.SUO5_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode half
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
 
 
 
@@ -83,6 +108,10 @@ jobs:
           - container-registry.oracle.com/middleware/weblogic:14.1.1.0-11-ol8
         deploy:
           - /u01/oracle/user_projects/domains/base_domain/autodeploy/
+# fixme: can't use full mode, why?
+#        include:
+#          - image: vulhub/weblogic:10.3.6.0-201
+#            deploy: /root/Oracle/Middleware/user_projects/domains/base_domain/autodeploy/
     env:
       SUO5_URL: http://127.0.0.1:7001/assets/suo5.jsp
     steps:
@@ -109,9 +138,9 @@ jobs:
           sleep 10
           curl -v ${{ env.SUO5_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode half
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
 
   tomcat-test:
     name: Tomcat
@@ -171,6 +200,6 @@ jobs:
           bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
           curl -v ${{ env.SUO5_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.baidu.com -mode half
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
