@@ -1,5 +1,21 @@
 # 更新记录
 
+## [0.6.0] - 2023-04-10
+
+### 新增
+
+- 降低 JDK 依赖到 Java 4, 目前兼容 Java 4 ~ Java 19 全版本
+- 新增 Tomcat Weblogic Resin Jetty 等中间件的自动化测试, 下列版本均测试通过:
+    - Tomcat 4,5,6,7,8,9,10
+    - Weblogic 10,12,14
+    - Jboss 4,6
+    - Jetty 9,10,11
+- 更换一个更圆润的图标, 感谢 [@savior-only](https://github.com/savior-only)
+
+## 修复
+
+- 修复 GUI 版本在高版本 Edge 下启动缓慢的问题
+
 ## [0.5.0] - 2023-03-14
 
 ### 新增
@@ -23,7 +39,7 @@
 
 ### 新增
 
-- 支持自定义连接方法，如 GET, PATCH 
+- 支持自定义连接方法，如 GET, PATCH
 - 支持配置上游代理, 仅支持 socks5
 - 增加英文文档和变更记录
 

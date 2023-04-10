@@ -11,7 +11,7 @@
 
 </div>
 
-![experience](./tests/img/experience.gif)
+![experience](./tests/img/suo5.gif)
 
 [中文](./README.md) | [English](./README_EN.md)
 
@@ -23,16 +23,14 @@ Compared to traditional tunneling tools like [Neo-reGeorg](https://github.com/L-
 
 Its key features include:
 
-- Bidirectional data transmission through a single connection
-- Support for both full-duplex and half-duplex modes, and automatically selects the best mode
-- Supports use in Nginx reverse proxy scenarios
-- Own data serialization protocol, with encrypted data transmission
-- Robust connection control and concurrency management, smooth and silky
-- Implementation based on native `Servlet`, with full compatibility across JDK6~JDK19 versions.
-- Both command line and graphical interfaces are provided
-
-The reference the
-principle: [https://koalr.me/posts/suo5-a-hign-performace-http-socks/](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
+- Simultaneously supports full duplex and half duplex modes, with transmission performance similar to FRP.
+- Supports usage in Nginx reverse proxy and load balancing scenarios.
+- Perfect connection control and concurrency management for smooth and seamless usage.
+- Supports common middleware such as Tomcat, Jetty, Weblogic, Resin, etc.
+- Supports all versions of Java4 to Java 19.
+- Provides both command line and graphical interfaces simultaneously.
+ 
+The principle: [https://koalr.me/posts/suo5-a-hign-performace-http-socks/](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
 
 ## Install and run
 
@@ -115,14 +113,12 @@ modified to connect as well.
 
 2. `suo5` vs `Neo-reGeorg`?
 
-   If the target is a Java site, you can use `suo5` to build an http tunnel, and in most cases `suo5` is more stable and
-   faster than `neo`. However, `neo` provides a variety of server support, and also
-   supports some features that `suo5` is currently developing, such as load balancing, and also has more flexible customization.
+   If the target is a Java-based website, in most cases, `suo5` is more stable and faster than `neo`. However, `neo` provides a wide range of server-side support, good compatibility, and also supports some features that `suo5` is still developing. Additionally, `neo` also supports more flexible customization.
 
 ## Next
 
 - [x] support for configuring upstream socks proxy
-- [ ] Support load balancing scenarios
+- [x] Support load balancing scenarios
 - [ ] Support for .net
 
 ## Reference
