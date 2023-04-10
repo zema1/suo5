@@ -63,6 +63,51 @@ jobs:
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
 
+  jetty-test:
+    name: Jetty
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: jetty:9.4.30-jdk8
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:9.4.30-jdk11
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:9.4-jdk8
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:9.4-jdk11
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:9.4-jdk17
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:10.0.1-jdk11
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:10.0-jdk11
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:10.0-jdk17
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:11.0.1-jdk11
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:11.0-jdk11
+            mount: /var/lib/jetty/webapps/ROOT/assets
+          - image: jetty:11.0-jdk17
+            mount: /var/lib/jetty/webapps/ROOT/assets
+    env:
+      SUO5_URL: http://127.0.0.1:8080/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+      - run: |
+          set -ex
+          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          bash ./.github/workflows/ready.sh ${{ env.SUO5_URL }} 30
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half 
+
   jboss-test:
     name: JBoss
     needs: build-binary
