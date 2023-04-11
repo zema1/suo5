@@ -11,12 +11,14 @@ import (
 	"strings"
 )
 
+var Version = "v0.0.0"
+
 func main() {
 	log.Default.SetTimeFormat("01-02 15:04")
 	app := cli.NewApp()
 	app.Name = "suo5"
 	app.Usage = "A super http proxy tunnel"
-	app.Version = "v0.6.0"
+	app.Version = Version
 
 	defaultConfig := ctrl.DefaultSuo5Config()
 
