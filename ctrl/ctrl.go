@@ -44,8 +44,8 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	}
 	if config.UpstreamProxy != "" {
 		proxy := strings.TrimSpace(strings.ToLower(config.UpstreamProxy))
-		if !strings.HasPrefix(proxy, "socks5") {
-			return fmt.Errorf("only support socks5 proxy, eg: socks5://127.0.0.1:1080")
+		if !strings.HasPrefix(proxy, "socks5") && !strings.HasPrefix(proxy, "http") {
+			return fmt.Errorf("invalid proxy, both socks5 and http(s) are supported, eg: socks5://127.0.0.1:1080")
 		}
 		config.UpstreamProxy = proxy
 		u, err := url.Parse(config.UpstreamProxy)

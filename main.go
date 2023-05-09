@@ -83,7 +83,7 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "proxy",
-			Usage: "use upstream socks5 proxy",
+			Usage: "use upstream proxy, support both socks5 and http(s), eg: socks5://127.0.0.1:7890",
 			Value: defaultConfig.UpstreamProxy,
 		},
 		&cli.BoolFlag{
