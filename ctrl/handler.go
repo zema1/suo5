@@ -87,6 +87,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		req, _ = http.NewRequestWithContext(m.ctx, m.config.Method, m.config.Target, bytes.NewReader(dialData))
 		baseHeader.Set("Content-Type", ContentTypeHalf)
 		req.Header = baseHeader
+		req.Header.Set("Accept-Encoding", "identity")
 		resp, err = m.noTimeoutClient.Do(req)
 	}
 	if err != nil {
