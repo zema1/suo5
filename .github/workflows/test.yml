@@ -144,10 +144,9 @@ jobs:
           - container-registry.oracle.com/middleware/weblogic:14.1.1.0-11-ol8
         deploy:
           - /u01/oracle/user_projects/domains/base_domain/autodeploy/
-    # fixme: can't use full mode, why?
-    #        include:
-    #          - image: vulhub/weblogic:10.3.6.0-201
-    #            deploy: /root/Oracle/Middleware/user_projects/domains/base_domain/autodeploy/
+        include:
+          - image: vulhub/weblogic:10.3.6.0-2017
+            deploy: /root/Oracle/Middleware/user_projects/domains/base_domain/autodeploy/
     env:
       SUO5_URL: http://127.0.0.1:7001/assets/suo5.jsp
     steps:

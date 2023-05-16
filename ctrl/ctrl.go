@@ -84,7 +84,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	log.Infof("method: %s", config.Method)
 
 	log.Infof("testing connection with remote server")
-	err = checkMemshell(normalClient, config.Method, config.Target, config.Header.Clone())
+	err = checkBasicConnect(normalClient, config.Method, config.Target, config.Header.Clone())
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	return nil
 }
 
-func checkMemshell(client *http.Client, method string, target string, baseHeader http.Header) error {
+func checkBasicConnect(client *http.Client, method string, target string, baseHeader http.Header) error {
 	data := RandString(64)
 	req, err := http.NewRequest(method, target, strings.NewReader(data))
 	if err != nil {
@@ -206,19 +206,19 @@ func checkMemshell(client *http.Client, method string, target string, baseHeader
 func checkFullDuplex(method string, target string, baseHeader http.Header) bool {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	rawClient := rawhttp.NewClient(&rawhttp.Options{
-		Timeout:                3 * time.Second,
+		Timeout:                5 * time.Second,
 		FollowRedirects:        false,
 		MaxRedirects:           0,
 		AutomaticHostHeader:    true,
 		AutomaticContentLength: true,
 		ForceReadAllBody:       false,
 	})
-	data := RandString(64)
+	data := RandString(32)
 	ch := make(chan []byte, 1)
 	ch <- []byte(data)
 	go func() {
 		// timeout
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 3)
 		close(ch)
 	}()
 	req, err := http.NewRequest(method, target, netrans.NewChannelReader(ch))
