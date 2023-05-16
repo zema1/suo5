@@ -1,7 +1,6 @@
 name: Run go tests
 on:
   push:
-  pull_request:
 permissions:
   contents: read
 jobs:
@@ -126,7 +125,41 @@ jobs:
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
 
-
+  websphere-test:
+    name: WebSphere
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - websphere-liberty:23.0.0.3-full-java8-ibmjava
+          - websphere-liberty:23.0.0.4-full-java11-openj9
+          - websphere-liberty:22.0.0.9-full-java11-openj9
+          - websphere-liberty:22.0.0.12-full-java17-openj9
+        deploy:
+          - /config/dropins
+    env:
+      SUO5_URL: http://127.0.0.1:9080/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+        with:
+          jar: true
+      - run: |
+          set -ex
+          docker run -it --rm -d -p9080:9080 --name webshpere-test \
+            -v ${{ github.workspace }}/assets:${{ matrix.deploy }} \
+            ${{ matrix.image }}
+          docker ps -a
+          bash ./.github/workflows/ready.sh http://127.0.0.1:9080 60
+          sleep 10
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
+          
 
   weblogic-test:
     name: Weblogic
