@@ -36,6 +36,9 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	if err != nil {
 		return err
 	}
+	if config.DisableGzip {
+		config.Header.Set("Accept-Encoding", "identity")
+	}
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{

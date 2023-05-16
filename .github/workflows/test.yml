@@ -159,7 +159,38 @@ jobs:
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
-          
+
+  tongweb-test:
+    name: TongWeb
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: boyingking/tongweb-auto
+            deploy: /home/tw6/tongweb6/applications/console/assets
+    env:
+      SUO5_URL: http://127.0.0.1:9060/console/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+        with:
+          jar: true
+      - run: |
+          set -ex
+          docker run -it --rm -d -p9060:9060 --name tongweb-test \
+            -v ${{ github.workspace }}/assets:${{ matrix.deploy }} \
+            ${{ matrix.image }}
+          docker ps -a
+          bash ./.github/workflows/ready.sh http://127.0.0.1:9060 30
+          sleep 10
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -no-gzip
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full -no-gzip
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half -no-gzip
+        
 
   weblogic-test:
     name: Weblogic
