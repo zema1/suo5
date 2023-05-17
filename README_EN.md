@@ -26,7 +26,7 @@ Its key features include:
 - Simultaneously supports full duplex and half duplex modes, with transmission performance similar to FRP.
 - Supports usage in Nginx reverse proxy and load balancing scenarios.
 - Perfect connection control and concurrency management for smooth and seamless usage.
-- Supports common middleware such as Tomcat, Jetty, Weblogic, Resin, etc.
+- Supports common middleware such as Tomcat, Jetty, Weblogic, WebSphere, Resin, etc.
 - Supports all versions of Java4 to Java 19.
 - Provides both command line and graphical interfaces simultaneously.
  

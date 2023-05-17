@@ -26,8 +26,8 @@
 - 同时支持全双工与半双工模式，传输性能接近 FRP
 - 支持在 Nginx 反向代理和负载均衡场景使用
 - 完善的连接控制和并发管理，使用流畅丝滑
-- 支持 Tomcat Jetty Weblogic Resin 等主流中间件
-- 支持 Java4 ~ Java 19 全版本
+- 支持 Tomcat Jetty Weblogic WebSphere Resin 等主流中间件
+- 支持 Java4 ~ Java 19 全版本, 兼容性拉满
 - 同时提供提供命令行和图形化界面
 
 原理介绍 [https://koalr.me/posts/suo5-a-hign-performace-http-socks/](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
@@ -55,7 +55,7 @@ USAGE:
    suo5 [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.6.0
+   v0.7.0
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command
@@ -72,9 +72,10 @@ GLOBAL OPTIONS:
    --header value, -H value [ --header value, -H value ]  use extra header, ex -H 'Cookie: abc'
    --timeout value                                        http request timeout in seconds (default: 10)
    --buf-size value                                       set the request max body size (default: 327680)
-   --proxy value                                          use upstream socks5 proxy
+   --proxy value                                          use upstream proxy, support both socks5 and http(s), eg: socks5://127.0.0.1:7890
    --debug, -d                                            debug the traffic, print more details (default: false)
    --no-heartbeat, --nh                                   disable heartbeat to the remote server which will send data every 5s (default: false)
+   --no-gzip, --ng                                        disable gzip compression, which will improve compatibility with some old servers (default: false)
    --help, -h                                             show help
    --version, -v                                          print the version
 ```
