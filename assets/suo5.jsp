@@ -231,9 +231,10 @@
                 int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
                 if (port == 0) {
                     try {
-                        port = (Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{});
+                        // Cannot convert Integer to int
+                        port = ((Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
                     } catch (Exception e) {
-                        port = (Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{});
+                        port = ((Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
                     }
                 }
                 sc = new Socket();
@@ -385,9 +386,9 @@
             int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
             if (port == 0) {
                 try {
-                    port = (Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{});
+                    port = ((Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
                 } catch (Exception e) {
-                    port = (Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{});
+                    port = ((Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
                 }
             }
 
