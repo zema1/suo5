@@ -5,7 +5,7 @@
 实战中推荐使用内存马的方式来加载, jsp 的方式容易被安全设备检测到。
 
 - `suo5.jsp` servlet 的实现
-- `Suo5Filter.java` 一个简易的 Filter 实现，可以用于 Filter 内存马注入
+- `Suo5Filter.java` 一个简易的 Filter 实现，可以改造后用于 Filter 型内存马注入
 
 如果想要其他版本的，可以利用 git 的 release tag 进入。
 
@@ -17,10 +17,4 @@
 - Weblogic 10,12,14
 - Jboss 4,6
 - Jetty 9,10,11
-
-除非明确列出不支持，否则基本都没问题，如果有问题，可以提 issue 或加群讨论。
-
-## 暂不支持的中间件
-
-- WebSphere
-
+- WebSphere 8,9,22,23

