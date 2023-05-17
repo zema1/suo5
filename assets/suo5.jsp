@@ -230,7 +230,11 @@
                 String host = new String((byte[]) dataMap.get("h"));
                 int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
                 if (port == 0) {
-                    port = request.getLocalPort();
+                    try {
+                        port = (Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{});
+                    } catch (Exception e) {
+                        port = (Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{});
+                    }
                 }
                 sc = new Socket();
                 sc.connect(new InetSocketAddress(host, port), 5000);
@@ -380,7 +384,11 @@
             String host = new String((byte[]) dataMap.get("h"));
             int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
             if (port == 0) {
-                port = request.getLocalPort();
+                try {
+                    port = (Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{});
+                } catch (Exception e) {
+                    port = (Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{});
+                }
             }
 
             InputStream readFrom;
