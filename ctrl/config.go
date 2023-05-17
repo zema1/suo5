@@ -22,7 +22,7 @@ type Suo5Config struct {
 	RedirectURL      string         `json:"redirect_url"`
 	RawHeader        []string       `json:"raw_header"`
 	DisableHeartbeat bool           `json:"disable_heartbeat"`
-	DisableGzip      bool           `json:"disable-gzip"`
+	DisableGzip      bool           `json:"disable_gzip"`
 
 	Header                  http.Header                          `json:"-"`
 	TestExit                string                               `json:"-"`

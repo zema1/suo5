@@ -15,6 +15,7 @@ export namespace ctrl {
 	    redirect_url: string;
 	    raw_header: string[];
 	    disable_heartbeat: boolean;
+	    disable_gzip: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -36,6 +37,7 @@ export namespace ctrl {
 	        this.redirect_url = source["redirect_url"];
 	        this.raw_header = source["raw_header"];
 	        this.disable_heartbeat = source["disable_heartbeat"];
+	        this.disable_gzip = source["disable_gzip"];
 	    }
 	}
 

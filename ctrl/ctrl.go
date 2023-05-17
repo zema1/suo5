@@ -37,6 +37,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		return err
 	}
 	if config.DisableGzip {
+		log.Infof("disable gzip")
 		config.Header.Set("Accept-Encoding", "identity")
 	}
 

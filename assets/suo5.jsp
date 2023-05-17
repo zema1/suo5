@@ -107,7 +107,6 @@
                     ((bytes[3] & 0xFF) << 0);
         }
 
-        // 并发安全
         synchronized void put(String k, Object v) {
             ctx.put(k, v);
         }
@@ -266,7 +265,6 @@
 
         private void readSocket(InputStream inputStream, OutputStream outputStream, boolean needMarshal) throws IOException {
             byte[] readBuf = new byte[1024 * 8];
-
             while (true) {
                 int n = inputStream.read(readBuf);
                 if (n <= 0) {
@@ -362,7 +360,6 @@
                 OutputStream scOutStream = (OutputStream) o;
                 byte[] data = (byte[]) dataMap.get("dt");
                 if (data.length != 0) {
-//                    System.out.printf("write datat to scOut, length: %d\n", data.length);
                     scOutStream.write(data);
                     scOutStream.flush();
                 }
@@ -400,7 +397,6 @@
                 } catch (Exception e) {
 //                    System.out.printf("connect error %s\n", e);
 //                    e.printStackTrace();
-
                     this.remove(clientId);
                     respOutStream.write(marshal(newStatus((byte) 0x01)));
                     respOutStream.flush();
@@ -408,11 +404,11 @@
                     return;
                 }
             }
-
             try {
                 readSocket(readFrom, respOutStream, !needRedirect);
             } catch (Exception e) {
-                e.printStackTrace();
+//                System.out.println("socket error " + e.toString());
+//                e.printStackTrace();
             } finally {
                 if (sc != null) {
                     sc.close();
