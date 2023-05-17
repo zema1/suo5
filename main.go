@@ -100,6 +100,12 @@ func main() {
 			Usage:   "disable heartbeat to the remote server which will send data every 5s",
 			Value:   defaultConfig.DisableHeartbeat,
 		},
+		&cli.BoolFlag{
+			Name:    "no-gzip",
+			Aliases: []string{"ng"},
+			Usage:   "disable gzip compression, which will improve compatibility with some old servers",
+			Value:   defaultConfig.DisableHeartbeat,
+		},
 		&cli.StringFlag{
 			Name:    "test-exit",
 			Aliases: []string{"T"},
@@ -136,6 +142,7 @@ func Action(c *cli.Context) error {
 	redirect := c.String("redirect")
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
+	noGzip := c.Bool("no-gzip")
 	testExit := c.String("test-exit")
 
 	var username, password string
@@ -175,6 +182,7 @@ func Action(c *cli.Context) error {
 		RedirectURL:      redirect,
 		RawHeader:        header,
 		DisableHeartbeat: noHeartbeat,
+		DisableGzip:      noGzip,
 		TestExit:         testExit,
 	}
 	ctx, cancel := signalCtx()

@@ -1,6 +1,24 @@
 # 更新记录
 
+## [0.7.0] 2023-05-17
+
+### 新增
+
+- 增加 WebSphere 全版本支持
+- 增加东方通（TongWeb）支持, 部分旧版需要禁用 gzip 才行
+- 增加 `-no-gzip` 选项用于禁用响应中的 gzip 压缩
+- 上游代理 `-proxy` 增加 http(s) 的支持，不再仅限于 socks5  [#23](https://github.com/zema1/suo5/issues/23) [#25](https://github.com/zema1/suo5/issues/25)
+- 去除 Session 相关依赖，优化 stream 读写相关的代码, 有效解决部分能连上没数据的问题 [#22](https://github.com/zema1/suo5/issues/22)
+- 增加代理自测试逻辑，如果没有报错那么代理一定可用
+- 重写心跳包逻辑，如果 5s 内有数据读写，就不必发送心跳了
+- 基础连接测试的逻辑融合到全双工的判断中，减少一个测试请求
+
+### 修复
+- 修复 GUI 版界面版本号错误的问题
+- 暂时禁用 darwin 的内存占用显示
+
 ## [0.6.0] - 2023-04-10
+
 
 ### 新增
 
@@ -12,7 +30,7 @@
     - Jetty 9,10,11
 - 更换一个更圆润的图标, 感谢 [@savior-only](https://github.com/savior-only)
 
-## 修复
+### 修复
 
 - 修复 GUI 版本在高版本 Edge 下启动缓慢的问题
 

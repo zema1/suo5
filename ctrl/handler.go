@@ -15,12 +15,12 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"time"
 )
 
 type ConnectionType string
 
 const (
+	Undefined  ConnectionType = "undefined"
 	AutoDuplex ConnectionType = "auto"
 	FullDuplex ConnectionType = "full"
 	HalfDuplex ConnectionType = "half"
@@ -87,7 +87,6 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		req, _ = http.NewRequestWithContext(m.ctx, m.config.Method, m.config.Target, bytes.NewReader(dialData))
 		baseHeader.Set("Content-Type", ContentTypeHalf)
 		req.Header = baseHeader
-		req.Header.Set("Accept-Encoding", "identity")
 		resp, err = m.noTimeoutClient.Do(req)
 	}
 	if err != nil {
@@ -115,7 +114,9 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	}
 	status := serverData["s"]
 	if len(status) != 1 || status[0] != 0x00 {
-		log.Errorf("connection refused to %s", sockReq.Addr)
+		if sockReq.Addr.Port != 0 {
+			log.Errorf("connection refused to %s", sockReq.Addr)
+		}
 		rep := gosocks5.NewReply(gosocks5.ConnRefused, nil)
 		_ = rep.Write(conn)
 		return
@@ -128,23 +129,24 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	}
 	log.Infof("successfully connected to %s", sockReq.Addr)
 
-	var streamRW io.ReadWriter
+	var streamRW io.ReadWriteCloser
 	if m.config.Mode == FullDuplex {
 		streamRW = NewFullChunkedReadWriter(id, chWR, resp.Body)
 	} else {
 		streamRW = NewHalfChunkedReadWriter(m.ctx, id, m.normalClient, m.config.Method, m.config.Target,
 			resp.Body, baseHeader, m.config.RedirectURL)
 	}
-	defer streamRW.(io.Closer).Close()
 
-	ctx, cancel := context.WithCancel(m.ctx)
-	defer cancel()
+	if !m.config.DisableHeartbeat {
+		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, m.config.RedirectURL)
+	}
+
+	defer streamRW.Close()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer cancel()
 		if err := m.pipe(conn, streamRW); err != nil {
 			log.Debugf("local conn closed, %s", sockReq.Addr)
 			_ = streamRW.(io.Closer).Close()
@@ -153,22 +155,11 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer cancel()
 		if err := m.pipe(streamRW, conn); err != nil {
 			log.Debugf("remote readwriter closed, %s", sockReq.Addr)
 			_ = conn.Close()
 		}
 	}()
-
-	if !m.config.DisableHeartbeat {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer cancel()
-			m.heartbeat(ctx, id, m.config.RedirectURL, streamRW.(RawWriter))
-			log.Debugf("heartbeat stopped, %s", sockReq.Addr)
-		}()
-	}
 
 	wg.Wait()
 	log.Infof("connection closed, %s", sockReq.Addr)
@@ -185,27 +176,6 @@ func (m *socks5Handler) pipe(r io.Reader, w io.Writer) error {
 		_, err = w.Write(buf[:n])
 		if err != nil {
 			return err
-		}
-	}
-}
-
-// write data to the remote server to avoid server's ReadTimeout
-// todo: lb still not work
-func (m *socks5Handler) heartbeat(ctx context.Context, id, redirect string, w RawWriter) {
-	t := time.NewTicker(time.Second * 5)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			body := buildBody(newHeartbeat(id, redirect))
-			log.Debugf("send heartbeat, length: %d", len(body))
-			_, err := w.WriteRaw(body)
-			if err != nil {
-				log.Errorf("send heartbeat error %s", err)
-				return
-			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }

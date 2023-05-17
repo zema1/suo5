@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/shirou/gopsutil/v3/process"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zema1/suo5/ctrl"
 	_ "net/http/pprof"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"time"
 )
@@ -38,7 +39,7 @@ func (a *App) startup(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				runtime.EventsEmit(a.ctx, "status", a.GetStatus())
+				wailsRuntime.EventsEmit(a.ctx, "status", a.GetStatus())
 			case <-ctx.Done():
 				return
 			}
@@ -55,7 +56,7 @@ func (a *App) RunSuo5WithConfig(config *ctrl.Suo5Config) {
 	cliCtx, cancel := context.WithCancel(a.ctx)
 	a.cancelSuo5 = cancel
 	config.OnRemoteConnected = func(e *ctrl.ConnectedEvent) {
-		runtime.EventsEmit(a.ctx, "connected", e)
+		wailsRuntime.EventsEmit(a.ctx, "connected", e)
 	}
 	config.OnNewClientConnection = func(event *ctrl.ClientConnectionEvent) {
 		atomic.AddInt32(&a.connCount, 1)
@@ -69,7 +70,7 @@ func (a *App) RunSuo5WithConfig(config *ctrl.Suo5Config) {
 		defer cancel()
 		err := ctrl.Run(cliCtx, config)
 		if err != nil {
-			runtime.EventsEmit(a.ctx, "error", err.Error())
+			wailsRuntime.EventsEmit(a.ctx, "error", err.Error())
 		}
 	}()
 }
@@ -90,11 +91,15 @@ func (a *App) GetStatus() *Status {
 	cpuPercent, _ := newProcess.CPUPercent()
 	status.CPUPercent = fmt.Sprintf("%.2f%%", cpuPercent)
 
-	info, err := newProcess.MemoryInfo()
-	if err != nil {
-		return status
+	if runtime.GOOS != "darwin" {
+		info, err := newProcess.MemoryInfo()
+		if err != nil {
+			return status
+		}
+		status.MemoryUsage = fmt.Sprintf("%.2fMB", float64(info.VMS)/1024/1024)
+	} else {
+		status.MemoryUsage = "unsupported"
 	}
-	status.MemoryUsage = fmt.Sprintf("%.2fMB", float64(info.VMS)/1024/1024)
 	return status
 }
 
@@ -115,6 +120,6 @@ type GuiLogger struct {
 }
 
 func (g *GuiLogger) Write(p []byte) (n int, err error) {
-	runtime.EventsEmit(g.ctx, "log", string(p))
+	wailsRuntime.EventsEmit(g.ctx, "log", string(p))
 	return len(p), nil
 }

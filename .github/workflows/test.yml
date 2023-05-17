@@ -1,7 +1,6 @@
 name: Run go tests
 on:
   push:
-  pull_request:
 permissions:
   contents: read
 jobs:
@@ -126,7 +125,72 @@ jobs:
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
           ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
 
+  websphere-test:
+    name: WebSphere
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - websphere-liberty:23.0.0.3-full-java8-ibmjava
+          - websphere-liberty:23.0.0.4-full-java11-openj9
+          - websphere-liberty:22.0.0.9-full-java11-openj9
+          - websphere-liberty:22.0.0.12-full-java17-openj9
+        deploy:
+          - /config/dropins
+    env:
+      SUO5_URL: http://127.0.0.1:9080/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+        with:
+          jar: true
+      - run: |
+          set -ex
+          docker run -it --rm -d -p9080:9080 --name webshpere-test \
+            -v ${{ github.workspace }}/assets:${{ matrix.deploy }} \
+            ${{ matrix.image }}
+          docker ps -a
+          bash ./.github/workflows/ready.sh http://127.0.0.1:9080 60
+          sleep 10
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half
 
+  tongweb-test:
+    name: TongWeb
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: boyingking/tongweb-auto
+            deploy: /home/tw6/tongweb6/applications/console/assets
+    env:
+      SUO5_URL: http://127.0.0.1:9060/console/assets/suo5.jsp
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions
+        with:
+          jar: true
+      - run: |
+          set -ex
+          docker run -it --rm -d -p9060:9060 --name tongweb-test \
+            -v ${{ github.workspace }}/assets:${{ matrix.deploy }} \
+            ${{ matrix.image }}
+          docker ps -a
+          bash ./.github/workflows/ready.sh http://127.0.0.1:9060 30
+          sleep 10
+          curl -v ${{ env.SUO5_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -no-gzip
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode full -no-gzip
+          ./suo5 -debug -t ${{ env.SUO5_URL }} -T https://www.bing.com -mode half -no-gzip
+        
 
   weblogic-test:
     name: Weblogic
@@ -144,10 +208,9 @@ jobs:
           - container-registry.oracle.com/middleware/weblogic:14.1.1.0-11-ol8
         deploy:
           - /u01/oracle/user_projects/domains/base_domain/autodeploy/
-    # fixme: can't use full mode, why?
-    #        include:
-    #          - image: vulhub/weblogic:10.3.6.0-201
-    #            deploy: /root/Oracle/Middleware/user_projects/domains/base_domain/autodeploy/
+        include:
+          - image: vulhub/weblogic:10.3.6.0-2017
+            deploy: /root/Oracle/Middleware/user_projects/domains/base_domain/autodeploy/
     env:
       SUO5_URL: http://127.0.0.1:7001/assets/suo5.jsp
     steps:

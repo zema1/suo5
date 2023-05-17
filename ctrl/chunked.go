@@ -11,10 +11,6 @@ import (
 	"sync"
 )
 
-type RawWriter interface {
-	WriteRaw(p []byte) (n int, err error)
-}
-
 type fullChunkedReadWriter struct {
 	id         string
 	reqBody    io.WriteCloser
@@ -27,7 +23,7 @@ type fullChunkedReadWriter struct {
 }
 
 // NewFullChunkedReadWriter 全双工读写流
-func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.ReadCloser) io.ReadWriter {
+func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.ReadCloser) io.ReadWriteCloser {
 	rw := &fullChunkedReadWriter{
 		id:         id,
 		reqBody:    reqBody,
@@ -107,7 +103,7 @@ type halfChunkedReadWriter struct {
 
 // NewHalfChunkedReadWriter 半双工读写流, 用发送请求的方式模拟写
 func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, method, target string,
-	serverResp io.ReadCloser, baseHeader http.Header, redirect string) io.ReadWriter {
+	serverResp io.ReadCloser, baseHeader http.Header, redirect string) io.ReadWriteCloser {
 	return &halfChunkedReadWriter{
 		ctx:        ctx,
 		id:         id,
