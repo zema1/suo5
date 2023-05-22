@@ -17,9 +17,9 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:         "HTTP 代理隧道 - Suo5",
+		Title:         "HTTP 代理隧道 - Suo5 - 长亭内部版",
 		Width:         680,
-		Height:        800,
+		Height:        860,
 		DisableResize: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

@@ -2,7 +2,7 @@
   <div class="container">
     <n-card size="small">
       <n-form
-          label-width="70"
+          label-width="80"
           label-placement="left"
           size="medium"
           style="margin-bottom: -12px; margin-top:12px;"
@@ -42,6 +42,16 @@
 
         <n-form-item label="模式选择">
           <n-space justify="space-between" id="mode">
+            <n-radio-group v-model:value="formValue.transport">
+              <n-radio value="http">HTTP</n-radio>
+              <n-radio value="websocket">Websocket</n-radio>
+              <n-radio value="http-multiplex">多路复用</n-radio>
+            </n-radio-group>
+          </n-space>
+        </n-form-item>
+
+        <n-form-item label="模式选择">
+          <n-space justify="space-between" id="mode">
             <n-radio-group v-model:value="formValue.mode">
               <n-radio value="auto">自动</n-radio>
               <n-radio value="full">全双工</n-radio>
@@ -76,7 +86,7 @@
       <span>连接数: {{ status.connection_count }}</span>
       <span>CPU: {{ status.cpu_percent }}</span>
       <span>内存: {{ status.memory_usage }}</span>
-      <span>版本: 1.1.0</span>
+      <span>版本: 1.4.2 (2024-08-06)</span>
     </n-space>
 
     <div class="footer">
@@ -110,7 +120,7 @@
             </n-form-item>
           </n-gi>
           <n-gi span="2">
-            <n-form-item label-width="100" label="禁用Gzip压缩" >
+            <n-form-item label-width="100" label="禁用Gzip压缩">
               <n-checkbox v-model:checked="advancedOptions.disable_gzip"></n-checkbox>
             </n-form-item>
           </n-gi>
@@ -127,12 +137,37 @@
             </n-form-item>
           </n-gi>
         </n-grid>
+        <n-grid :cols="2">
+          <n-gi>
+            <n-form-item label="最大重试次数">
+              <n-input-number v-model:value="advancedOptions.max_retry"/>
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item label="请求间隔(ms)">
+              <n-input-number v-model:value="advancedOptions.request_interval"/>
+            </n-form-item>
+          </n-gi>
+        </n-grid>
+        <n-grid :cols="2">
+          <n-gi>
+            <n-form-item label="最大请求大小(B)">
+              <n-input-number v-model:value="advancedOptions.max_request_size"/>
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item label="脏包大小(B)">
+              <n-input-number v-model:value="advancedOptions.dirty_body_size"/>
+            </n-form-item>
+          </n-gi>
+        </n-grid>
         <n-form-item label="流量集中">
           <n-input v-model:value="advancedOptions.redirect_url"
                    placeholder="用于应对负载均衡，流量将集中转发到这个 url"/>
         </n-form-item>
         <n-form-item label="上游代理">
-          <n-input v-model:value="advancedOptions.upstream_proxy" placeholder="http(s) or socks5, eg: socks5://user:pass@ip:port"/>
+          <n-input v-model:value="advancedOptions.upstream_proxy"
+                   placeholder="http(s) or socks5, eg: socks5://user:pass@ip:port"/>
         </n-form-item>
         <n-form-item label="请求头">
           <n-input type="textarea" v-model:value="header"/>
@@ -179,6 +214,11 @@ const formValue = ref<ctrl.Suo5Config>({
   disable_gzip: false,
   enable_cookiejar: false,
   exclude_domain: [],
+  transport: '',
+  max_retry: 0,
+  dirty_body_size: 0,
+  request_interval: 0,
+  max_request_size: 0,
 })
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
@@ -208,6 +248,10 @@ const confirmAdvanced = () => {
   formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
   formValue.value.disable_gzip = advancedOptions.value.disable_gzip
   formValue.value.enable_cookiejar = advancedOptions.value.enable_cookiejar
+  formValue.value.max_retry = advancedOptions.value.max_retry
+  formValue.value.dirty_body_size = advancedOptions.value.dirty_body_size
+  formValue.value.request_interval = advancedOptions.value.request_interval
+  formValue.value.max_request_size = advancedOptions.value.max_request_size
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)
@@ -346,7 +390,7 @@ const randString = (length: number) => {
   return result;
 }
 
-const link = ref("https://github.com/zema1/suo5")
+const link = ref("内部版本，请勿外传!")
 const openLink = () => {
   BrowserOpenURL(link.value)
 }

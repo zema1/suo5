@@ -8,6 +8,7 @@ export namespace ctrl {
 	    username: string;
 	    password: string;
 	    mode: string;
+	    transport: string;
 	    buffer_size: number;
 	    timeout: number;
 	    debug: boolean;
@@ -18,6 +19,10 @@ export namespace ctrl {
 	    disable_gzip: boolean;
 	    enable_cookiejar: boolean;
 	    exclude_domain: string[];
+	    max_retry: number;
+	    dirty_body_size: number;
+	    request_interval: number;
+	    max_request_size: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -32,6 +37,7 @@ export namespace ctrl {
 	        this.username = source["username"];
 	        this.password = source["password"];
 	        this.mode = source["mode"];
+	        this.transport = source["transport"];
 	        this.buffer_size = source["buffer_size"];
 	        this.timeout = source["timeout"];
 	        this.debug = source["debug"];
@@ -42,6 +48,10 @@ export namespace ctrl {
 	        this.disable_gzip = source["disable_gzip"];
 	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
+	        this.max_retry = source["max_retry"];
+	        this.dirty_body_size = source["dirty_body_size"];
+	        this.request_interval = source["request_interval"];
+	        this.max_request_size = source["max_request_size"];
 	    }
 	}
 
