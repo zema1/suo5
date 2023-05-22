@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	log "github.com/kataras/golog"
-	"github.com/zema1/suo5/netrans"
 	"io"
 	"net/http"
 	"sync"
+
+	log "github.com/kataras/golog"
+	"github.com/zema1/suo5/netrans"
 )
 
 type fullChunkedReadWriter struct {
