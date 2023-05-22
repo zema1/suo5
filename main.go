@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,11 +12,16 @@ import (
 	log "github.com/kataras/golog"
 	"github.com/urfave/cli/v2"
 	"github.com/zema1/suo5/ctrl"
+	_ "net/http/pprof"
 )
 
 var Version = "v0.0.0"
 
 func main() {
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
+
 	log.Default.SetTimeFormat("01-02 15:04")
 	app := cli.NewApp()
 	app.Name = "suo5"
@@ -38,6 +44,12 @@ func main() {
 			Usage:    "the remote server url, ex: http://localhost:8080/suo5.jsp",
 			Value:    defaultConfig.Target,
 			Required: true,
+		},
+		&cli.StringFlag{
+			Name:    "transport",
+			Aliases: []string{"tr"},
+			Usage:   "the transport type, choices are http, websocket",
+			Value:   string(ctrl.TransportHTTP),
 		},
 		&cli.StringFlag{
 			Name:    "listen",
@@ -75,7 +87,7 @@ func main() {
 		&cli.StringFlag{
 			Name:  "ua",
 			Usage: "set the request User-Agent",
-			Value: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3",
+			Value: "",
 		},
 		&cli.StringSliceFlag{
 			Name:    "header",
@@ -120,6 +132,26 @@ func main() {
 			Aliases: []string{"j"},
 			Usage:   "enable cookiejar",
 			Value:   defaultConfig.EnableCookieJar,
+		},
+		&cli.IntFlag{
+			Name:  "max-retry",
+			Usage: "max retry times when send request failed, only works in http-multiplex transport",
+			Value: 20,
+		},
+		&cli.IntFlag{
+			Name:  "request-interval",
+			Usage: "interval between each request in milliseconds, only works in http-multiplex transport",
+			Value: 0,
+		},
+		&cli.IntFlag{
+			Name:  "dirty-body-size",
+			Usage: "dirty body size in bytes, only works in http-multiplex transport",
+			Value: 1024 * 4,
+		},
+		&cli.IntFlag{
+			Name:  "max-request-size",
+			Usage: "max request size in bytes",
+			Value: 1024 * 256,
 		},
 		&cli.StringFlag{
 			Name:    "test-exit",
@@ -173,6 +205,11 @@ func Action(c *cli.Context) error {
 	exclude := c.StringSlice("exclude-domain")
 	excludeFile := c.String("exclude-domain-file")
 	configFile := c.String("config")
+	transport := c.String("transport")
+	maxRetry := c.Int("max-retry")
+	requestInterval := c.Int("request-interval")
+	dirtyBodySize := c.Int("dirty-body-size")
+	maxRequestSize := c.Int("max-request-size")
 
 	var username, password string
 	if auth == "" {
@@ -196,6 +233,9 @@ func Action(c *cli.Context) error {
 	if bufSize < 512 || bufSize > 1024000 {
 		return fmt.Errorf("inproper buffer size, 512~1024000")
 	}
+	if ua == "" {
+		ua = ""
+	}
 	header = append(header, "User-Agent: "+ua)
 
 	if excludeFile != "" {
@@ -210,6 +250,10 @@ func Action(c *cli.Context) error {
 				exclude = append(exclude, line)
 			}
 		}
+	}
+	tr := ctrl.TransportHTTP
+	if transport != "" {
+		tr = ctrl.TransportType(transport)
 	}
 
 	config := &ctrl.Suo5Config{
@@ -231,6 +275,11 @@ func Action(c *cli.Context) error {
 		EnableCookieJar:  jar,
 		TestExit:         testExit,
 		ExcludeDomain:    exclude,
+		Transport:        tr,
+		MaxRetry:         maxRetry,
+		RequestInterval:  requestInterval,
+		DirtyBodySize:    dirtyBodySize,
+		MaxRequestSize:   maxRequestSize,
 	}
 
 	if configFile != "" {

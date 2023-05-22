@@ -2,6 +2,8 @@ module changeme
 
 go 1.20
 
+replace github.com/gorilla/websocket v1.5.3 => github.com/zema1/websocket v0.0.0-20240728051525-7fc49edb27c2
+
 require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/wailsapp/wails/v2 v2.9.1
@@ -17,6 +19,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/kataras/golog v0.1.8 // indirect
 	github.com/kataras/pio v0.0.11 // indirect

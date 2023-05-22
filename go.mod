@@ -2,9 +2,12 @@ module github.com/zema1/suo5
 
 go 1.20
 
+replace github.com/gorilla/websocket v1.5.3 => github.com/zema1/websocket v0.0.0-20240728051525-7fc49edb27c2
+
 require (
 	github.com/go-gost/gosocks5 v0.3.0
 	github.com/gobwas/glob v0.2.3
+	github.com/gorilla/websocket v1.5.3
 	github.com/kataras/golog v0.1.8
 	github.com/kataras/pio v0.0.11
 	github.com/pkg/errors v0.9.1

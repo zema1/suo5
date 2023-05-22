@@ -6,16 +6,14 @@
           label-placement="left"
           size="medium">
         <n-form-item label="目标" required>
-          <n-flex :size="16">
-            <n-input v-model:value="formValue.method" style="width: 64px"/>
-            <n-input v-model:value="formValue.target" style="width: 340px;" placeholder="https://example.com/1.jsp"/>
-            <n-button style="flex:1" :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
-            </n-button>
-          </n-flex>
+          <n-input v-model:value="formValue.method" style="width: 85px; margin-right: 14px"/>
+          <n-input v-model:value="formValue.target" placeholder="https://example.com/suo5.jsp"/>
+          <n-button style="margin-left: 14px" :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
+          </n-button>
         </n-form-item>
 
         <n-form-item label="代理" required>
-          <n-flex class="full-width" :size="16">
+          <n-flex :size="16">
             <n-input v-model:value="formValue.listen" style="width: 290px;" placeholder="监听地址"/>
             <n-input v-model:value="formValue.username" style="width: 100px;"
                      placeholder="用户名"/>
@@ -24,15 +22,39 @@
           </n-flex>
         </n-form-item>
 
-        <n-form-item label="模式">
+        <n-form-item label="传输">
           <n-space justify="space-between" id="mode">
+            <n-radio-group v-model:value="formValue.transport">
+              <n-radio value="http">HTTP</n-radio>
+              <n-radio value="websocket">Websocket</n-radio>
+              <n-radio value="http-multiplex">多路复用</n-radio>
+            </n-radio-group>
+          </n-space>
+        </n-form-item>
+
+        <template v-if="formValue.transport == 'http'">
+          <n-form-item label="模式">
             <n-radio-group v-model:value="formValue.mode">
               <n-radio value="auto">自动</n-radio>
               <n-radio value="full">全双工</n-radio>
               <n-radio value="half">半双工</n-radio>
             </n-radio-group>
-          </n-space>
-        </n-form-item>
+          </n-form-item>
+        </template>
+        <template v-if="formValue.transport == 'http-multiplex'">
+          <n-form
+              inline
+              label-width="100"
+              label-placement="left"
+              size="small">
+            <n-form-item label="最大请求(B)">
+              <n-input-number v-model:value="advancedOptions.max_request_size"/>
+            </n-form-item>
+            <n-form-item label="脏包填充(B)">
+              <n-input-number v-model:value="advancedOptions.dirty_body_size"/>
+            </n-form-item>
+          </n-form>
+        </template>
       </n-form>
       <n-flex justify="end">
         <n-button secondary strong @click="importConfig">导入配置</n-button>
@@ -58,13 +80,14 @@
           </n-icon>
         </n-button>
       </template>
-      <n-log :log="log" ref="logInst" :font-size="12" language="accesslog" :rows="20"/>
+      <n-log :log="log" ref="logInst" :font-size="12" language="accesslog"
+             :rows="formValue.transport == 'websocket' ? 24 : 20"/>
     </n-card>
     <n-space justify="space-between" style="margin-top:20px">
       <span>连接数: {{ status.connection_count }}</span>
       <span>CPU: {{ status.cpu_percent }}</span>
       <span>内存: {{ status.memory_usage }}</span>
-      <span>版本: 1.3.1</span>
+      <span>版本: 1.6.2 (2024-11-07)</span>
     </n-space>
 
     <n-modal v-model:show="showAdvanced"
@@ -109,6 +132,18 @@
           <n-gi>
             <n-form-item label="缓冲区(B)">
               <n-input-number v-model:value="advancedOptions.buffer_size"/>
+            </n-form-item>
+          </n-gi>
+        </n-grid>
+        <n-grid :cols="2">
+          <n-gi>
+            <n-form-item label="最大重试次数">
+              <n-input-number v-model:value="advancedOptions.max_retry"/>
+            </n-form-item>
+          </n-gi>
+          <n-gi>
+            <n-form-item label="请求间隔(ms)">
+              <n-input-number v-model:value="advancedOptions.request_interval"/>
             </n-form-item>
           </n-gi>
         </n-grid>
@@ -164,6 +199,11 @@ const formValue = ref<ctrl.Suo5Config>({
   disable_gzip: false,
   enable_cookiejar: false,
   exclude_domain: [],
+  transport: '',
+  max_retry: 0,
+  dirty_body_size: 0,
+  request_interval: 0,
+  max_request_size: 0,
 })
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
@@ -193,6 +233,10 @@ const confirmAdvanced = () => {
   formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
   formValue.value.disable_gzip = advancedOptions.value.disable_gzip
   formValue.value.enable_cookiejar = advancedOptions.value.enable_cookiejar
+  formValue.value.max_retry = advancedOptions.value.max_retry
+  formValue.value.dirty_body_size = advancedOptions.value.dirty_body_size
+  formValue.value.request_interval = advancedOptions.value.request_interval
+  formValue.value.max_request_size = advancedOptions.value.max_request_size
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)
@@ -331,7 +375,7 @@ const randString = (length: number) => {
   return result;
 }
 
-const link = ref("https://github.com/zema1/suo5")
+const link = ref("内部版本，请勿外传!")
 const openLink = () => {
   BrowserOpenURL(link.value)
 }
