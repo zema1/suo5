@@ -323,6 +323,7 @@ jobs:
     env:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
+      SUO5_WEBSOCKET_URL: http://127.0.0.1:8080/assets/suo5ws.jsp
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions
@@ -332,6 +333,7 @@ jobs:
           bash ./.github/workflows/ready.sh ${{ env.SUO5_JSP_URL }} 30
           curl -v ${{ env.SUO5_JSP_URL }}
           chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_WEBSOCKET_URL }} -T https://www.bing.com --transport websocket
           ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
           ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
           ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half

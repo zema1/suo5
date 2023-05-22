@@ -5,20 +5,20 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/go-gost/gosocks5"
+	log "github.com/kataras/golog"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/go-gost/gosocks5"
-	log "github.com/kataras/golog"
-	"github.com/zema1/rawhttp"
-	"github.com/zema1/suo5/netrans"
 )
 
 type ConnectionType string
+type TransportType string
 
 const (
 	Undefined  ConnectionType = "undefined"
@@ -28,10 +28,23 @@ const (
 )
 
 const (
-	HeaderKey           = "Content-Type"
-	HeaderValueChecking = "application/plain"
-	HeaderValueFull     = "application/octet-stream"
-	HeaderValueHalf     = "application/x-binary"
+	TransportHTTP          TransportType = "http"
+	TransportWebsocket     TransportType = "websocket"
+	TransportHTTPMultiplex TransportType = "http-multiplex"
+)
+
+const (
+	HeaderKey           = "Accept-Language"
+	HeaderValueChecking = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"
+	HeaderValueFull     = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.6,en-US;q=0.5"
+	HeaderValueHalf     = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.5,en-US;q=0.4"
+
+	HeaderValuePlexChecking = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.1"
+	HeaderValuePlexHalf     = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.6,en-US;q=0.2"
+)
+
+var (
+	SessionId = ""
 )
 
 type socks5Handler struct {
@@ -42,6 +55,7 @@ type socks5Handler struct {
 	rawClient       *rawhttp.Client
 	pool            *sync.Pool
 	selector        gosocks5.Selector
+	multiplex       MultiPlexer
 }
 
 func (m *socks5Handler) Handle(conn net.Conn) error {
@@ -62,7 +76,11 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 	log.Infof("start connection to %s", req.Addr.String())
 	switch req.Cmd {
 	case gosocks5.CmdConnect:
-		m.handleConnect(conn, req)
+		if m.config.Transport == TransportWebsocket || m.config.Transport == TransportHTTPMultiplex {
+			m.handleMultiplex(conn, req)
+		} else {
+			m.handleConnect(conn, req)
+		}
 		return nil
 	default:
 		return fmt.Errorf("%d: unsupported command", gosocks5.CmdUnsupported)
@@ -77,6 +95,15 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	var resp *http.Response
 
 	dialData := buildBody(newActionCreate(id, sockReq.Addr.Host, sockReq.Addr.Port, m.config.RedirectURL))
+	// append 一些个 heartbeat, 防止数据长度一样
+	n := rander.Intn(20)
+	if n == 0 {
+		n = 1
+	}
+	for i := 0; i < n; i++ {
+		dialData = append(dialData, buildBody(newHeartbeat(id, m.config.RedirectURL))...)
+	}
+
 	ch, chWR := netrans.NewChannelWriteCloser(m.ctx)
 	defer chWR.Close()
 
@@ -98,13 +125,14 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		resp, err = m.noTimeoutClient.Do(req)
 	}
 	if err != nil {
-		log.Debugf("request error to target, %s", err)
+		log.Errorf("request error to target, %s", err)
 		rep := gosocks5.NewReply(gosocks5.HostUnreachable, nil)
 		_ = rep.Write(conn)
 		return
 	}
 	defer resp.Body.Close()
 	// skip offset
+	m.config.Offset = 674
 	if m.config.Offset > 0 {
 		log.Debugf("skipping offset %d", m.config.Offset)
 		_, err = io.CopyN(io.Discard, resp.Body, int64(m.config.Offset))
@@ -182,6 +210,79 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	log.Infof("connection closed, %s", sockReq.Addr)
 }
 
+func (m *socks5Handler) handleMultiplex(conn net.Conn, sockReq *gosocks5.Request) {
+	id := RandString(8)
+	dialData := buildBody(newActionCreate(id, sockReq.Addr.Host, sockReq.Addr.Port, m.config.RedirectURL))
+	wsConn, err := m.multiplex.Spawn(id)
+	if err != nil {
+		m.replyError(conn, fmt.Errorf("failed to spawn ws conn, %s", err))
+		return
+	}
+	defer wsConn.Close()
+	_, err = wsConn.WriteRaw(dialData)
+	if err != nil {
+		m.replyError(conn, fmt.Errorf("failed to send dial data, %s", err))
+		return
+	}
+
+	// recv dial status
+	serverData, err := wsConn.ReadUnmarshal()
+	if err != nil {
+		m.replyError(conn, fmt.Errorf("failed to receive dial response, %s", err))
+		return
+	}
+
+	status := serverData["s"]
+	if len(status) != 1 || status[0] != 0x00 {
+		if sockReq.Addr.Port != 0 {
+			log.Errorf("connection refused to %s", sockReq.Addr)
+		}
+		rep := gosocks5.NewReply(gosocks5.ConnRefused, nil)
+		_ = rep.Write(conn)
+		return
+	}
+	rep := gosocks5.NewReply(gosocks5.Succeeded, nil)
+	err = rep.Write(conn)
+	if err != nil {
+		log.Errorf("write data failed, %w", err)
+		return
+	}
+	log.Infof("successfully connected to %s", sockReq.Addr)
+
+	streamRW := io.ReadWriteCloser(wsConn)
+	if !m.config.DisableHeartbeat {
+		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, m.config.RedirectURL)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer streamRW.Close()
+		if err := m.pipe(conn, streamRW); err != nil {
+			log.Debugf("local conn closed, %s %s", sockReq.Addr, err)
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer conn.Close()
+		if err := m.pipe(streamRW, conn); err != nil {
+			log.Debugf("remote readwriter closed, %s, %s", sockReq.Addr, err)
+		}
+	}()
+
+	wg.Wait()
+	log.Infof("connection closed to %s", sockReq.Addr)
+
+}
+
+func (m *socks5Handler) replyError(conn net.Conn, err error) {
+	log.Error(err)
+	rep := gosocks5.NewReply(gosocks5.Failure, nil)
+	_ = rep.Write(conn)
+}
+
 func (m *socks5Handler) pipe(r io.Reader, w io.Writer) error {
 	buf := m.pool.Get().([]byte)
 	defer m.pool.Put(buf) //nolint:staticcheck
@@ -251,9 +352,23 @@ func newHeartbeat(id string, redirect string) map[string][]byte {
 	return m
 }
 
+func newStatus(id string, redirect string, status byte) map[string][]byte {
+	m := make(map[string][]byte)
+	m["s"] = []byte{status}
+	m["id"] = []byte(id)
+	if len(redirect) != 0 {
+		m["r"] = []byte(redirect)
+	}
+	return m
+}
+
 // 定义一个最简的序列化协议，k,v 交替，每一项是len+data
 // 其中 k 最长 255，v 最长 MaxUInt32
 func marshal(m map[string][]byte) []byte {
+	// todo: refactor
+	if SessionId != "" {
+		m["sid"] = []byte(SessionId)
+	}
 	var buf bytes.Buffer
 	u32Buf := make([]byte, 4)
 	for k, v := range m {
