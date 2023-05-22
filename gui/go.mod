@@ -3,7 +3,7 @@ module changeme
 go 1.18
 
 require (
-	github.com/shirou/gopsutil/v3 v3.23.3
+	github.com/shirou/gopsutil/v3 v3.23.4
 	github.com/wailsapp/wails/v2 v2.5.1
 	github.com/zema1/suo5 v0.0.0-00010101000000-000000000000
 )
@@ -31,8 +31,8 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
-	github.com/projectdiscovery/retryablehttp-go v1.0.14 // indirect
-	github.com/projectdiscovery/utils v0.0.19 // indirect
+	github.com/projectdiscovery/retryablehttp-go v1.0.16 // indirect
+	github.com/projectdiscovery/utils v0.0.31 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/samber/lo v1.38.1 // indirect
@@ -47,8 +47,8 @@ require (
 	github.com/zema1/rawhttp v0.0.0-20221102031338-134c5669760c // indirect
 	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
-	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/net v0.10.0 // indirect
+	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 )
 
