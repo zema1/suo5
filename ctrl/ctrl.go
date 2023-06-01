@@ -89,7 +89,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	log.Infof("header: %s", config.headerString())
 	log.Infof("method: %s", config.Method)
 	log.Infof("connecting to target %s", config.Target)
-	result, err := checkConnectMode(config.Method, config.Target, config.Header.Clone())
+	result, err := checkConnectMode(config.Method, config.Target, config.Header.Clone(), config.UpstreamProxy)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	return nil
 }
 
-func checkConnectMode(method string, target string, baseHeader http.Header) (ConnectionType, error) {
+func checkConnectMode(method string, target string, baseHeader http.Header, proxy string) (ConnectionType, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	rawClient := rawhttp.NewClient(&rawhttp.Options{
 		Timeout:                5 * time.Second,
@@ -203,6 +203,7 @@ func checkConnectMode(method string, target string, baseHeader http.Header) (Con
 		AutomaticHostHeader:    true,
 		AutomaticContentLength: true,
 		ForceReadAllBody:       false,
+		Proxy:                  proxy,
 	})
 	data := RandString(32)
 	ch := make(chan []byte, 1)
