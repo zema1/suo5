@@ -25,6 +25,7 @@ type Suo5Config struct {
 	DisableGzip      bool           `json:"disable_gzip"`
 	TestExit         string         `json:"-"`
 
+	Offset                  int                                  `json:"-"`
 	Header                  http.Header                          `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`

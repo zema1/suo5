@@ -96,6 +96,17 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		return
 	}
 	defer resp.Body.Close()
+	// skip offset
+	if m.config.Offset > 0 {
+		log.Debugf("skipping offset %d", m.config.Offset)
+		_, err = io.CopyN(io.Discard, resp.Body, int64(m.config.Offset))
+		if err != nil {
+			log.Errorf("failed to skip offset, %s", err)
+			rep := gosocks5.NewReply(gosocks5.Failure, nil)
+			_ = rep.Write(conn)
+			return
+		}
+	}
 	fr, err := netrans.ReadFrame(resp.Body)
 	if err != nil {
 		log.Errorf("error read response frame, %+v, connection goes to shutdown", err)

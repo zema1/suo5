@@ -89,7 +89,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	log.Infof("header: %s", config.headerString())
 	log.Infof("method: %s", config.Method)
 	log.Infof("connecting to target %s", config.Target)
-	result, err := checkConnectMode(config.Method, config.Target, config.Header.Clone(), config.UpstreamProxy)
+	result, offset, err := checkConnectMode(config.Method, config.Target, config.Header.Clone(), config.UpstreamProxy)
 	if err != nil {
 		return err
 	}
@@ -107,6 +107,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 			return fmt.Errorf("the target doesn't support full duplex, you should use HalfDuplex or AutoDuplex mode")
 		}
 	}
+	config.Offset = offset
 
 	log.Infof("starting tunnel at %s", config.Listen)
 	if config.OnRemoteConnected != nil {
@@ -194,7 +195,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	return nil
 }
 
-func checkConnectMode(method string, target string, baseHeader http.Header, proxy string) (ConnectionType, error) {
+func checkConnectMode(method string, target string, baseHeader http.Header, proxy string) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	rawClient := rawhttp.NewClient(&rawhttp.Options{
 		Timeout:                5 * time.Second,
@@ -210,7 +211,7 @@ func checkConnectMode(method string, target string, baseHeader http.Header, prox
 	ch <- []byte(data)
 	req, err := http.NewRequest(method, target, netrans.NewChannelReader(ch))
 	if err != nil {
-		return Undefined, err
+		return Undefined, 0, err
 	}
 	req.Header = baseHeader.Clone()
 	req.Header.Set("Content-Type", ContentTypeChecking)
@@ -223,29 +224,30 @@ func checkConnectMode(method string, target string, baseHeader http.Header, prox
 	}()
 	resp, err := rawClient.Do(req)
 	if err != nil {
-		return Undefined, err
+		return Undefined, 0, err
 	}
 	defer resp.Body.Close()
 
 	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return Undefined, err
+		return Undefined, 0, err
 	}
 	duration := time.Since(now).Milliseconds()
 
-	b := strings.TrimRight(string(body), "\r\n")
-	if len(b) >= 32 && strings.HasPrefix(data, b) {
-		if duration < 3000 {
-			return FullDuplex, nil
-		} else {
-			return HalfDuplex, nil
-		}
+	offset := strings.Index(string(body), data)
+	if offset == -1 {
+		header, _ := httputil.DumpResponse(resp, false)
+		log.Errorf("response are as follows:\n%s", string(header)+string(body))
+		return Undefined, 0, fmt.Errorf("got unexpected body, remote server test failed")
 	}
+	log.Infof("got data offset, %d", offset)
 
-	header, _ := httputil.DumpResponse(resp, false)
-	log.Errorf("response are as follows:\n%s", string(header)+string(body))
-	return Undefined, fmt.Errorf("got unexpected body, remote server test failed")
+	if duration < 3000 {
+		return FullDuplex, offset, nil
+	} else {
+		return HalfDuplex, offset, nil
+	}
 }
 
 // 检查代理是否真正有效, 只要能按有响应即可，尝试连一下 server 的 LocalPort, 这里写 0，在 jsp 里有判断
