@@ -231,7 +231,8 @@ func checkConnectMode(method string, target string, baseHeader http.Header, prox
 	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return Undefined, 0, err
+		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
+		log.Warnf("got error %s", err)
 	}
 	duration := time.Since(now).Milliseconds()
 

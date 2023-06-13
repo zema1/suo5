@@ -43,7 +43,7 @@ func (s *Suo5Config) parseHeader() error {
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid header value %s", value)
 		}
-		s.Header.Set(parts[0], parts[1])
+		s.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	}
 	return nil
 }
