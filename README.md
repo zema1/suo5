@@ -55,7 +55,7 @@ USAGE:
    suo5 [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.7.0
+   v0.9.0
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command

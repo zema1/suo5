@@ -23,4 +23,4 @@ runs:
     - if: inputs.jar == 'true'
       shell: bash
       working-directory: ./assets
-      run: jar cvf assets.war suo5.jsp
+      run: jar cvf assets.war suo5.jsp suo5.jspx
