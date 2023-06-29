@@ -50,32 +50,33 @@ Windows 11 and MacOS already come with this component, other systems will have a
 ### Command line
 
 ```text
-NAME:
-   suo5 - A super http proxy tunnel
-
 USAGE:
    suo5 [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.3.0
+   v0.9.0
 
 COMMANDS:
-   help, h Shows a list of commands or help for one command
+   help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --target value, -t value set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/
-   --listen value, -l value set the listen address of socks5 server (default: "127.0.0.1:1111")
-   --method value, -m value http request method (default: "POST")
-   --no-auth disable socks5 authentication (default: true)
-   --auth value socks5 creds, username:password, leave empty to auto generate
-   --mode value connection mode, choices are auto, full, half (default: "auto")
-   --ua value the user-agent used to send request (default: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3")
-   --timeout value http request timeout in seconds (default: 10)
-   --buf-size value set the request max body size (default: 327680)
-   --proxy value use upstream socks5 proxy
-   --debug, -d debug the traffic, print more details (default: false)
-   --help, -h show help
-   --version, -v print the version
+   --target value, -t value                               set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/
+   --listen value, -l value                               set the listen address of socks5 server (default: "127.0.0.1:1111")
+   --method value, -m value                               http request method (default: "POST")
+   --redirect value, -r value                             redirect to the url if host not matched, used to bypass load balance
+   --no-auth                                              disable socks5 authentication (default: true)
+   --auth value                                           socks5 creds, username:password, leave empty to auto generate
+   --mode value                                           connection mode, choices are auto, full, half (default: "auto")
+   --ua value                                             the user-agent used to send request (default: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3")
+   --header value, -H value [ --header value, -H value ]  use extra header, ex -H 'Cookie: abc'
+   --timeout value                                        http request timeout in seconds (default: 10)
+   --buf-size value                                       set the request max body size (default: 327680)
+   --proxy value                                          use upstream proxy, support both socks5 and http(s), eg: socks5://127.0.0.1:7890
+   --debug, -d                                            debug the traffic, print more details (default: false)
+   --no-heartbeat, --nh                                   disable heartbeat to the remote server which will send data every 5s (default: false)
+   --no-gzip, --ng                                        disable gzip compression, which will improve compatibility with some old servers (default: false)
+   --help, -h                                             show help
+   --version, -v                                          print the version
 ```
 
 The command line version is exactly the same as the GUI version, You can refer to the GUI version to use it. The
