@@ -101,7 +101,7 @@ $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
 负载均衡场景下将流量转发到某一个固定的 url 解决请求被分散的问题 (需要尽可能的在每一个后端服务中上传 suo5)
 
 ```bash
-$ ./suo5 -t https://example.com/proxy.jsp -t http://172.0.3.2/code/proxy.jsp
+$ ./suo5 -t https://example.com/proxy.jsp -r http://172.0.3.2/code/proxy.jsp
 ```
 
 ### 特别提醒
