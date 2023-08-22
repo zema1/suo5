@@ -49,7 +49,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		},
 	}
 	if config.UpstreamProxy != "" {
-		proxy := strings.TrimSpace(strings.ToLower(config.UpstreamProxy))
+		proxy := strings.TrimSpace(config.UpstreamProxy)
 		if !strings.HasPrefix(proxy, "socks5") && !strings.HasPrefix(proxy, "http") {
 			return fmt.Errorf("invalid proxy, both socks5 and http(s) are supported, eg: socks5://127.0.0.1:1080")
 		}
@@ -69,12 +69,12 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		log.Infof("using redirect url %v", config.RedirectURL)
 	}
 	noTimeoutClient := &http.Client{
-		Transport: tr,
+		Transport: tr.Clone(),
 		Timeout:   0,
 	}
 	normalClient := &http.Client{
 		Timeout:   time.Duration(config.Timeout) * time.Second,
-		Transport: tr,
+		Transport: tr.Clone(),
 	}
 	rawClient := rawhttp.NewClient(&rawhttp.Options{
 		Proxy:                  config.UpstreamProxy,
