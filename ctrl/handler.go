@@ -27,9 +27,10 @@ const (
 )
 
 const (
-	ContentTypeChecking = "application/plain"
-	ContentTypeFull     = "application/octet-stream"
-	ContentTypeHalf     = "application/x-binary"
+	HeaderKey           = "Content-Type"
+	HeaderValueChecking = "application/plain"
+	HeaderValueFull     = "application/octet-stream"
+	HeaderValueHalf     = "application/x-binary"
 )
 
 type socks5Handler struct {
@@ -80,12 +81,12 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 			ioutil.NopCloser(netrans.NewChannelReader(ch)),
 		)
 		req, _ = http.NewRequestWithContext(m.ctx, m.config.Method, m.config.Target, body)
-		baseHeader.Set("Content-Type", ContentTypeFull)
+		baseHeader.Set(HeaderKey, HeaderValueFull)
 		req.Header = baseHeader
 		resp, err = m.rawClient.Do(req)
 	} else {
 		req, _ = http.NewRequestWithContext(m.ctx, m.config.Method, m.config.Target, bytes.NewReader(dialData))
-		baseHeader.Set("Content-Type", ContentTypeHalf)
+		baseHeader.Set(HeaderKey, HeaderValueHalf)
 		req.Header = baseHeader
 		resp, err = m.noTimeoutClient.Do(req)
 	}

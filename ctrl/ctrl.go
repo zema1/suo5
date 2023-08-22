@@ -210,7 +210,7 @@ func checkConnectMode(method string, target string, baseHeader http.Header, prox
 		return Undefined, 0, err
 	}
 	req.Header = baseHeader.Clone()
-	req.Header.Set("Content-Type", ContentTypeChecking)
+	req.Header.Set(HeaderKey, HeaderValueChecking)
 
 	now := time.Now()
 	go func() {
