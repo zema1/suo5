@@ -44,12 +44,12 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	github.com/zema1/rawhttp v0.0.0-20230522111911-f77d0fdd732e // indirect
-	golang.org/x/crypto v0.8.0 // indirect
+	github.com/zema1/rawhttp v0.0.0-20230822073911-623d3e35433f // indirect
+	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
-	golang.org/x/net v0.10.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/net v0.14.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.2.0 => C:\Users\Koalr\go\pkg\mod

@@ -10,6 +10,7 @@ import (
 	log "github.com/kataras/golog"
 	"github.com/kataras/pio"
 	"github.com/pkg/errors"
+	utls "github.com/refraction-networking/utls"
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
 	"io/ioutil"
@@ -47,6 +48,17 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := net.DialTimeout(network, addr, 5*time.Second)
+			if err != nil {
+				return nil, err
+			}
+			uTlsConn := utls.UClient(conn, &utls.Config{InsecureSkipVerify: true}, utls.HelloRandomized)
+			if err = uTlsConn.HandshakeContext(ctx); err != nil {
+				return nil, err
+			}
+			return uTlsConn, nil
+		},
 	}
 	if config.UpstreamProxy != "" {
 		proxy := strings.TrimSpace(config.UpstreamProxy)
@@ -76,15 +88,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		Timeout:   time.Duration(config.Timeout) * time.Second,
 		Transport: tr.Clone(),
 	}
-	rawClient := rawhttp.NewClient(&rawhttp.Options{
-		Proxy:                  config.UpstreamProxy,
-		Timeout:                0,
-		FollowRedirects:        false,
-		MaxRedirects:           0,
-		AutomaticHostHeader:    true,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       false,
-	})
+	rawClient := newRawClient(config.UpstreamProxy, 0)
 
 	log.Infof("header: %s", config.headerString())
 	log.Infof("method: %s", config.Method)
@@ -197,15 +201,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 
 func checkConnectMode(method string, target string, baseHeader http.Header, proxy string) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
-	rawClient := rawhttp.NewClient(&rawhttp.Options{
-		Timeout:                5 * time.Second,
-		FollowRedirects:        false,
-		MaxRedirects:           0,
-		AutomaticHostHeader:    true,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       false,
-		Proxy:                  proxy,
-	})
+	rawClient := newRawClient(proxy, time.Second*5)
 	data := RandString(32)
 	ch := make(chan []byte, 1)
 	ch <- []byte(data)
@@ -323,4 +319,24 @@ func RandString(n int) string {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return string(b)
+}
+
+func newRawClient(upstream string, timeout time.Duration) *rawhttp.Client {
+	return rawhttp.NewClient(&rawhttp.Options{
+		Proxy:                  upstream,
+		Timeout:                timeout,
+		FollowRedirects:        false,
+		MaxRedirects:           0,
+		AutomaticHostHeader:    true,
+		AutomaticContentLength: true,
+		ForceReadAllBody:       false,
+		TLSHandshake: func(conn net.Conn, addr string, options *rawhttp.Options) (net.Conn, error) {
+			uTlsConn := utls.UClient(conn, &utls.Config{InsecureSkipVerify: true}, utls.HelloRandomized)
+			if err := uTlsConn.Handshake(); err != nil {
+				return nil, err
+			}
+			return uTlsConn, nil
+		},
+	})
+
 }
