@@ -5,7 +5,6 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"io"
-	"io/ioutil"
 	"strings"
 	"testing"
 	"time"
@@ -83,8 +82,8 @@ func TestChannelReader(t *testing.T) {
 func TestMultiReaderClosed(t *testing.T) {
 	assert := require.New(t)
 
-	rc := MultiReadCloser(ioutil.NopCloser(strings.NewReader("hello")), ioutil.NopCloser(strings.NewReader("world")))
-	data, err := ioutil.ReadAll(rc)
+	rc := MultiReadCloser(io.NopCloser(strings.NewReader("hello")), io.NopCloser(strings.NewReader("world")))
+	data, err := io.ReadAll(rc)
 	assert.Nil(err)
 	assert.Equal(data, []byte("helloworld"))
 	assert.Nil(rc.Close())

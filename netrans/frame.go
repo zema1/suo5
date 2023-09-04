@@ -1,16 +1,11 @@
 package netrans
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math/rand"
-	"time"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 type DataFrame struct {
 	Length uint32
@@ -20,7 +15,7 @@ type DataFrame struct {
 
 func NewDataFrame(data []byte) *DataFrame {
 	b := make([]byte, 1)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return &DataFrame{
 		Length: uint32(len(data)),
 		Obs:    b[0],
