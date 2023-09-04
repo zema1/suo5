@@ -46,6 +46,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
+			MinVersion:         tls.VersionTLS10,
 			InsecureSkipVerify: true,
 		},
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -331,7 +332,10 @@ func newRawClient(upstream string, timeout time.Duration) *rawhttp.Client {
 		AutomaticContentLength: true,
 		ForceReadAllBody:       false,
 		TLSHandshake: func(conn net.Conn, addr string, options *rawhttp.Options) (net.Conn, error) {
-			uTlsConn := utls.UClient(conn, &utls.Config{InsecureSkipVerify: true}, utls.HelloRandomized)
+			uTlsConn := utls.UClient(conn, &utls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS10,
+			}, utls.HelloRandomized)
 			if err := uTlsConn.Handshake(); err != nil {
 				return nil, err
 			}
