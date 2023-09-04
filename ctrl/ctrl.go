@@ -13,7 +13,7 @@ import (
 	utls "github.com/refraction-networking/utls"
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -226,7 +226,7 @@ func checkConnectMode(method string, target string, baseHeader http.Header, prox
 	defer resp.Body.Close()
 
 	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
 		log.Warnf("got error %s", err)

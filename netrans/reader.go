@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"sync"
 	"time"
 )
@@ -28,7 +27,7 @@ type TimeoutReader struct {
 }
 
 func NewTimeoutReader(ctx context.Context, r io.Reader, timeout time.Duration) io.Reader {
-	return NewTimeoutReadCloser(ctx, ioutil.NopCloser(r), timeout)
+	return NewTimeoutReadCloser(ctx, io.NopCloser(r), timeout)
 }
 
 func NewTimeoutReadCloser(ctx context.Context, rc io.ReadCloser, timeout time.Duration) io.ReadCloser {

@@ -18,7 +18,7 @@ jobs:
         with:
           go-version: '1.20'
       - run: go mod download
-      - uses: golangci/golangci-lint-action@v3.4.0
+      - uses: golangci/golangci-lint-action@v3
         with:
           skip-cache: true
           skip-pkg-cache: true

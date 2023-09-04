@@ -10,7 +10,6 @@ import (
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -77,8 +76,8 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 
 	if m.config.Mode == FullDuplex {
 		body := netrans.MultiReadCloser(
-			ioutil.NopCloser(bytes.NewReader(dialData)),
-			ioutil.NopCloser(netrans.NewChannelReader(ch)),
+			io.NopCloser(bytes.NewReader(dialData)),
+			io.NopCloser(netrans.NewChannelReader(ch)),
 		)
 		req, _ = http.NewRequestWithContext(m.ctx, m.config.Method, m.config.Target, body)
 		baseHeader.Set(HeaderKey, HeaderValueFull)
