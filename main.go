@@ -17,7 +17,7 @@ func main() {
 	log.Default.SetTimeFormat("01-02 15:04")
 	app := cli.NewApp()
 	app.Name = "suo5"
-	app.Usage = "A super http proxy tunnel"
+	app.Usage = "A high-performance http tunnel"
 	app.Version = Version
 
 	defaultConfig := ctrl.DefaultSuo5Config()
@@ -26,14 +26,14 @@ func main() {
 		&cli.StringFlag{
 			Name:     "target",
 			Aliases:  []string{"t"},
-			Usage:    "set the remote server url, ex: http://localhost:8080/tomcat_debug_war_exploded/",
+			Usage:    "the remote server url, ex: http://localhost:8080/suo5.jsp",
 			Value:    defaultConfig.Target,
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:    "listen",
 			Aliases: []string{"l"},
-			Usage:   "set the listen address of socks5 server",
+			Usage:   "listen address of socks5 server",
 			Value:   defaultConfig.Listen,
 		},
 		&cli.StringFlag{
@@ -65,8 +65,8 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "ua",
-			Usage: "the user-agent used to send request",
-			Value: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3",
+			Usage: "set the request User-Agent",
+			Value: "",
 		},
 		&cli.StringSliceFlag{
 			Name:    "header",
@@ -75,17 +75,17 @@ func main() {
 		},
 		&cli.IntFlag{
 			Name:  "timeout",
-			Usage: "http request timeout in seconds",
+			Usage: "request timeout in seconds",
 			Value: defaultConfig.Timeout,
 		},
 		&cli.IntFlag{
 			Name:  "buf-size",
-			Usage: "set the request max body size",
+			Usage: "request max body size",
 			Value: defaultConfig.BufferSize,
 		},
 		&cli.StringFlag{
 			Name:  "proxy",
-			Usage: "use upstream proxy, support both socks5 and http(s), eg: socks5://127.0.0.1:7890",
+			Usage: "set upstream proxy, support socks5/http(s), eg: socks5://127.0.0.1:7890",
 			Value: defaultConfig.UpstreamProxy,
 		},
 		&cli.BoolFlag{
@@ -105,6 +105,12 @@ func main() {
 			Aliases: []string{"ng"},
 			Usage:   "disable gzip compression, which will improve compatibility with some old servers",
 			Value:   defaultConfig.DisableHeartbeat,
+		},
+		&cli.BoolFlag{
+			Name:    "no-jar",
+			Aliases: []string{"nj"},
+			Usage:   "disable cookiejar",
+			Value:   defaultConfig.DisableCookiejar,
 		},
 		&cli.StringFlag{
 			Name:    "test-exit",

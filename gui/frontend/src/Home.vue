@@ -91,20 +91,27 @@
       <n-form label-width="85"
               label-placement="left"
               size="small">
-        <n-grid :cols="6">
-          <n-gi span="1">
+        <n-grid :cols="2">
+          <n-gi span="2">
             <n-form-item label="调试模式">
               <n-checkbox v-model:checked="advancedOptions.debug"></n-checkbox>
             </n-form-item>
           </n-gi>
-          <n-gi span="2" offset="1">
-              <n-form-item label-width="100" label="禁用gzip压缩" >
-                  <n-checkbox v-model:checked="advancedOptions.disable_gzip"></n-checkbox>
-              </n-form-item>
-          </n-gi>
+        </n-grid>
+        <n-grid :cols="6">
           <n-gi span="1">
             <n-form-item label="禁用心跳包">
               <n-checkbox v-model:checked="advancedOptions.disable_heartbeat"></n-checkbox>
+            </n-form-item>
+          </n-gi>
+          <n-gi span="2" offset="1">
+            <n-form-item label-width="120" label="禁用CookieJar">
+              <n-checkbox v-model:checked="advancedOptions.disable_cookiejar"></n-checkbox>
+            </n-form-item>
+          </n-gi>
+          <n-gi span="2">
+            <n-form-item label-width="100" label="禁用Gzip压缩" >
+              <n-checkbox v-model:checked="advancedOptions.disable_gzip"></n-checkbox>
             </n-form-item>
           </n-gi>
         </n-grid>
@@ -170,6 +177,7 @@ const formValue = ref<ctrl.Suo5Config>({
   raw_header: [],
   disable_heartbeat: false,
   disable_gzip: false,
+  disable_cookiejar: false,
 })
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
@@ -198,6 +206,7 @@ const confirmAdvanced = () => {
   formValue.value.redirect_url = advancedOptions.value.redirect_url
   formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
   formValue.value.disable_gzip = advancedOptions.value.disable_gzip
+  formValue.value.disable_cookiejar = advancedOptions.value.disable_cookiejar
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)
