@@ -45,6 +45,28 @@ func (s *Suo5Config) parseHeader() error {
 		}
 		s.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	}
+
+	if s.Header.Get("Cache-Control") == "" {
+		s.Header.Set("Cache-Control", "no-cache")
+	}
+	if s.Header.Get("Pragma") == "" {
+		s.Header.Set("Pragma", "no-cache")
+	}
+	if s.Header.Get("Referer") == "" {
+		n := strings.LastIndex(s.Target, "/")
+		if n == -1 {
+			s.Header.Set("Referer", s.Target)
+		} else {
+			s.Header.Set("Referer", s.Target[:n+1])
+		}
+	}
+	if s.Header.Get("Accept") == "" {
+		s.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+	}
+	if s.Header.Get("Accept-Language") == "" {
+		s.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
+	}
+
 	return nil
 }
 

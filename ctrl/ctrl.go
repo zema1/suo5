@@ -203,7 +203,11 @@ func Run(ctx context.Context, config *Suo5Config) error {
 func checkConnectMode(method string, target string, baseHeader http.Header, proxy string) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	rawClient := newRawClient(proxy, time.Second*5)
-	data := RandString(32)
+	randLen := rand.Intn(1024)
+	if randLen <= 32 {
+		randLen += 32
+	}
+	data := RandString(randLen)
 	ch := make(chan []byte, 1)
 	ch <- []byte(data)
 	req, err := http.NewRequest(method, target, netrans.NewChannelReader(ch))
@@ -233,7 +237,7 @@ func checkConnectMode(method string, target string, baseHeader http.Header, prox
 	}
 	duration := time.Since(now).Milliseconds()
 
-	offset := strings.Index(string(body), data)
+	offset := strings.Index(string(body), data[:32])
 	if offset == -1 {
 		header, _ := httputil.DumpResponse(resp, false)
 		log.Errorf("response are as follows:\n%s", string(header)+string(body))
