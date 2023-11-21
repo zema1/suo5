@@ -66,7 +66,7 @@ func main() {
 		&cli.StringFlag{
 			Name:  "ua",
 			Usage: "set the request User-Agent",
-			Value: "",
+			Value: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3",
 		},
 		&cli.StringSliceFlag{
 			Name:    "header",
@@ -149,12 +149,15 @@ func Action(c *cli.Context) error {
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
 	noGzip := c.Bool("no-gzip")
+	noJar := c.Bool("no-jar")
 	testExit := c.String("test-exit")
 
 	var username, password string
 	if auth == "" {
-		username = "suo5"
-		password = ctrl.RandString(8)
+		if !noAuth {
+			username = "suo5"
+			password = ctrl.RandString(8)
+		}
 	} else {
 		parts := strings.Split(auth, ":")
 		if len(parts) != 2 {
@@ -189,6 +192,7 @@ func Action(c *cli.Context) error {
 		RawHeader:        header,
 		DisableHeartbeat: noHeartbeat,
 		DisableGzip:      noGzip,
+		DisableCookiejar: noJar,
 		TestExit:         testExit,
 	}
 	ctx, cancel := signalCtx()

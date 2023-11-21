@@ -3,7 +3,7 @@ module github.com/zema1/suo5
 go 1.20
 
 require (
-	github.com/go-gost/gosocks5 v0.4.0
+	github.com/go-gost/gosocks5 v0.3.0
 	github.com/kataras/golog v0.1.8
 	github.com/kataras/pio v0.0.11
 	github.com/pkg/errors v0.9.1
