@@ -242,6 +242,7 @@ const status = ref<Status>({
 });
 
 const log = ref('')
+const logCount = ref(0)
 const logInst = ref()
 const clearLog = () => {
   log.value = ''
@@ -274,6 +275,12 @@ onMounted(() => {
   })
 
   EventsOn("log", (e) => {
+    logCount.value += 1
+    // 防止日志太多 OOM
+    if (logCount.value == 1000) {
+      log.value = ''
+      logCount.value = 0
+    }
     log.value += e
   })
 
