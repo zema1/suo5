@@ -77,12 +77,15 @@ jobs:
           - jetty:9.4-jdk8
           - jetty:9.4-jdk11
           - jetty:9.4-jdk17
+          - jetty:9.4-jdk21
           - jetty:10.0.1-jdk11
           - jetty:10.0-jdk11
           - jetty:10.0-jdk17
+          - jetty:10.0-jdk21
           - jetty:11.0.1-jdk11
           - jetty:11.0-jdk11
           - jetty:11.0-jdk17
+          - jetty:11.0-jdk21
         mount:
           - /var/lib/jetty/webapps/ROOT/assets
     env:
@@ -292,10 +295,12 @@ jobs:
           - tomcat:8.5-jre8
           - tomcat:8.5-jre11
           - tomcat:8.5-jre17
+          - tomcat:8.5-jre21
           - tomcat:9.0.1-jre8
           - tomcat:9.0-jre8
           - tomcat:9.0-jre11
           - tomcat:9.0-jre17
+          - tomcat:9.0-jre21
           - tomcat:10.0.0-jdk8
           - tomcat:10.0-jre8
           - tomcat:10.0-jre11
@@ -303,6 +308,7 @@ jobs:
           - tomcat:10.1.0-jre11
           - tomcat:10.1-jre11
           - tomcat:10.1-jre17
+          - tomcat:10.1-jre21
         mount:
           - /usr/local/tomcat/webapps/ROOT/assets
         jspx:
