@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	log "github.com/kataras/golog"
-	"github.com/urfave/cli/v2"
-	"github.com/zema1/suo5/ctrl"
 	"os"
 	"os/signal"
 	"strings"
+
+	log "github.com/kataras/golog"
+	"github.com/urfave/cli/v2"
+	"github.com/zema1/suo5/ctrl"
 )
 
 var Version = "v0.0.0"
@@ -107,10 +108,10 @@ func main() {
 			Value:   defaultConfig.DisableHeartbeat,
 		},
 		&cli.BoolFlag{
-			Name:    "no-jar",
-			Aliases: []string{"nj"},
-			Usage:   "disable cookiejar",
-			Value:   defaultConfig.DisableCookiejar,
+			Name:    "jar",
+			Aliases: []string{"j"},
+			Usage:   "enable cookiejar",
+			Value:   defaultConfig.EnableCookiejar,
 		},
 		&cli.StringFlag{
 			Name:    "test-exit",
@@ -149,7 +150,7 @@ func Action(c *cli.Context) error {
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
 	noGzip := c.Bool("no-gzip")
-	noJar := c.Bool("no-jar")
+	useJar := c.Bool("jar")
 	testExit := c.String("test-exit")
 
 	var username, password string
@@ -192,7 +193,7 @@ func Action(c *cli.Context) error {
 		RawHeader:        header,
 		DisableHeartbeat: noHeartbeat,
 		DisableGzip:      noGzip,
-		DisableCookiejar: noJar,
+		EnableCookiejar:  useJar,
 		TestExit:         testExit,
 	}
 	ctx, cancel := signalCtx()

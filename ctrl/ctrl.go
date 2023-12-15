@@ -82,8 +82,8 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		}
 		log.Infof("using redirect url %v", config.RedirectURL)
 	}
-	var jar *cookiejar.Jar
-	if !config.DisableCookiejar {
+	var jar http.CookieJar
+	if config.EnableCookiejar {
 		jar, _ = cookiejar.New(nil)
 	}
 
@@ -97,7 +97,6 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		Jar:       jar,
 		Transport: tr.Clone(),
 	}
-	// todo: support cookiejar
 	rawClient := newRawClient(config.UpstreamProxy, 0)
 
 	log.Infof("header: %s", config.headerString())

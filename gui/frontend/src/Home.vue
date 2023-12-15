@@ -105,8 +105,8 @@
             </n-form-item>
           </n-gi>
           <n-gi span="2" offset="1">
-            <n-form-item label-width="120" label="禁用CookieJar">
-              <n-checkbox v-model:checked="advancedOptions.disable_cookiejar"></n-checkbox>
+            <n-form-item label-width="120" label="启用CookieJar">
+              <n-checkbox v-model:checked="advancedOptions.enable_cookiejar"></n-checkbox>
             </n-form-item>
           </n-gi>
           <n-gi span="2">
@@ -177,7 +177,7 @@ const formValue = ref<ctrl.Suo5Config>({
   raw_header: [],
   disable_heartbeat: false,
   disable_gzip: false,
-  disable_cookiejar: false,
+  enable_cookiejar: false,
 })
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
@@ -206,7 +206,7 @@ const confirmAdvanced = () => {
   formValue.value.redirect_url = advancedOptions.value.redirect_url
   formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
   formValue.value.disable_gzip = advancedOptions.value.disable_gzip
-  formValue.value.disable_cookiejar = advancedOptions.value.disable_cookiejar
+  formValue.value.enable_cookiejar = advancedOptions.value.enable_cookiejar
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)
