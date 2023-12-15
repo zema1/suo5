@@ -176,7 +176,7 @@ public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509Trust
         ByteBuffer dbuf = ByteBuffer.allocate(5 + data.length);
         dbuf.putInt(data.length);
         // xor key
-        byte key = data[data.length / 2];
+        byte key = (byte) ((Math.random() * 255) + 1);
         dbuf.put(key);
         for (int i = 0; i < data.length; i++) {
             data[i] = (byte) (data[i] ^ key);
