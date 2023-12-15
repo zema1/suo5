@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type ConnectionType string
@@ -44,6 +45,7 @@ type socks5Handler struct {
 
 func (m *socks5Handler) Handle(conn net.Conn) error {
 	log.Infof("new connection from %s", conn.RemoteAddr())
+	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
 	req, err := gosocks5.ReadRequest(conn)
 	if err != nil {

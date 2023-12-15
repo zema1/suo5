@@ -4,15 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/go-gost/gosocks5"
-	"github.com/go-gost/gosocks5/client"
-	"github.com/go-gost/gosocks5/server"
-	log "github.com/kataras/golog"
-	"github.com/kataras/pio"
-	"github.com/pkg/errors"
-	utls "github.com/refraction-networking/utls"
-	"github.com/zema1/rawhttp"
-	"github.com/zema1/suo5/netrans"
 	"io"
 	"math/rand"
 	"net"
@@ -24,6 +15,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-gost/gosocks5"
+	"github.com/go-gost/gosocks5/client"
+	"github.com/go-gost/gosocks5/server"
+	log "github.com/kataras/golog"
+	"github.com/kataras/pio"
+	"github.com/pkg/errors"
+	utls "github.com/refraction-networking/utls"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 )
 
 func Run(ctx context.Context, config *Suo5Config) error {
@@ -82,8 +83,8 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		}
 		log.Infof("using redirect url %v", config.RedirectURL)
 	}
-	var jar *cookiejar.Jar
-	if !config.DisableCookiejar {
+	var jar http.CookieJar
+	if config.EnableCookiejar {
 		jar, _ = cookiejar.New(nil)
 	}
 
@@ -97,7 +98,6 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		Jar:       jar,
 		Transport: tr.Clone(),
 	}
-	// todo: support cookiejar
 	rawClient := newRawClient(config.UpstreamProxy, 0)
 
 	log.Infof("header: %s", config.headerString())
@@ -185,7 +185,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		})
 	}()
 	log.Infof("creating a test connection to the remote target")
-	ok := testTunnel(config.Listen, config.Username, config.Password, time.Second*2)
+	ok := testTunnel(config.Listen, config.Username, config.Password, time.Second*10)
 	time.Sleep(time.Millisecond * 500)
 	if !ok {
 		if !config.DisableGzip {

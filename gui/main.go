@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -16,7 +17,7 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:         "HTTP 代理隧道 - suo5",
+		Title:         "HTTP 代理隧道 - Suo5",
 		Width:         680,
 		Height:        800,
 		DisableResize: true,
