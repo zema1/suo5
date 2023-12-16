@@ -44,7 +44,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.21'
       - run: go build -trimpath -ldflags "-w -s -extldflags '-static' -X main.Version=${{ github.ref_name }}" -o target/${{ matrix.output }}
       - uses: actions/upload-artifact@v3
         with:
@@ -87,7 +87,7 @@ jobs:
           build-name: ${{ matrix.output }}
           build-platform: ${{ matrix.platform }}
           app-working-directory: gui
-          go-version: '1.20'
+          go-version: '1.21'
           package: false
       - if: runner.os == 'macOS'
         shell: bash

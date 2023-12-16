@@ -2,8 +2,6 @@ module changeme
 
 go 1.21
 
-toolchain go1.21.5
-
 require (
 	github.com/shirou/gopsutil/v3 v3.23.4
 	github.com/wailsapp/wails/v2 v2.7.1
