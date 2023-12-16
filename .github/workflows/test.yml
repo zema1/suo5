@@ -8,7 +8,7 @@ jobs:
     name: Go Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-go@v4
@@ -23,7 +23,7 @@ jobs:
     env:
       CGO_ENABLED: 0
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-go@v4
@@ -49,7 +49,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -92,7 +92,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -123,7 +123,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -156,7 +156,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:9080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:9080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
         with:
           jar: true
@@ -191,7 +191,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:9060/console/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:9060/console/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
         with:
           jar: true
@@ -236,7 +236,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:7001/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:7001/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
         with:
           jar: true
@@ -324,7 +324,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -352,27 +352,27 @@ jobs:
           - image: junalmeida/mono-web:latest
             mount: /var/www/sample-app
     env:
-      SUO5_ASPX_URL: http://127.0.0.1:8080/assets/suo5.aspx
+      SUO5_ASPX_URL: http://127.0.0.1:8080/suo5.aspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
           mkdir -p config
           cat << EOF > ./config/sample.webapp
-            <?xml version="1.0" encoding="UTF-8"?>
-            <apps>
-                <web-application>
-                    <name>root</name>
-                    <vhost>*</vhost>
-                    <vport>-1</vport>
-                    <vpath>/</vpath>
-                    <path>/var/www/sample-app/</path>
-                </web-application> 
-            </apps>
+          <?xml version="1.0" encoding="UTF-8"?>
+          <apps>
+            <web-application>
+            <name>root</name>
+            <vhost>*</vhost>
+            <vport>-1</vport>
+            <vpath>/</vpath>
+            <path>/var/www/sample-app/</path>
+            </web-application> 
+          </apps>
           EOF
           cat config/sample.webapp
-          docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/config:/etc/mono/pools -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/config:/etc/mono/pools -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_ASPX_URL }} 30
           curl -v ${{ env.SUO5_ASPX_URL }}
           chmod +x ./suo5
