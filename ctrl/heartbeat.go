@@ -2,10 +2,11 @@ package ctrl
 
 import (
 	"context"
-	log "github.com/kataras/golog"
 	"io"
 	"sync/atomic"
 	"time"
+
+	log "github.com/kataras/golog"
 )
 
 type RawReadWriteCloser interface {
@@ -49,7 +50,7 @@ func (h *heartbeatRW) Close() error {
 
 // write data to the remote server to avoid server's ReadTimeout
 func (h *heartbeatRW) heartbeat(ctx context.Context) {
-	t := time.NewTicker(time.Second * 5)
+	t := time.NewTicker(time.Second * 10)
 	defer t.Stop()
 	for {
 		select {

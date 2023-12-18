@@ -8,12 +8,12 @@ jobs:
     name: Go Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.21'
       - run: go mod download
       - run: go test $(go list ./... | grep -v /gui/ | grep -v /tests/)
 
@@ -23,12 +23,12 @@ jobs:
     env:
       CGO_ENABLED: 0
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.21'
       - run: go build -trimpath -ldflags "-w -s -extldflags '-static'" -o suo5
       - uses: actions/upload-artifact@v3
         with:
@@ -49,7 +49,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -92,7 +92,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -123,7 +123,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -156,7 +156,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:9080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:9080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
         with:
           jar: true
@@ -191,7 +191,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:9060/console/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:9060/console/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
         with:
           jar: true
@@ -236,7 +236,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:7001/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:7001/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
         with:
           jar: true
@@ -324,7 +324,7 @@ jobs:
       SUO5_JSP_URL: http://127.0.0.1:8080/assets/suo5.jsp
       SUO5_JSPX_URL: http://127.0.0.1:8080/assets/suo5.jspx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions
       - run: |
           set -ex
@@ -340,3 +340,41 @@ jobs:
             ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
             ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
           fi
+
+  donet-test:
+    name: DoNet
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: junalmeida/mono-web:latest
+            mount: /var/www/sample-app
+    env:
+      SUO5_ASPX_URL: http://127.0.0.1:8080/suo5.aspx
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions
+      - run: |
+          set -ex
+          mkdir -p config
+          cat << EOF > ./config/sample.webapp
+          <?xml version="1.0" encoding="UTF-8"?>
+          <apps>
+            <web-application>
+            <name>root</name>
+            <vhost>*</vhost>
+            <vport>-1</vport>
+            <vpath>/</vpath>
+            <path>/var/www/sample-app/</path>
+            </web-application> 
+          </apps>
+          EOF
+          cat config/sample.webapp
+          docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/config:/etc/mono/pools -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          bash ./.github/workflows/ready.sh ${{ env.SUO5_ASPX_URL }} 30
+          curl -v ${{ env.SUO5_ASPX_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode half

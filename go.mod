@@ -1,6 +1,6 @@
 module github.com/zema1/suo5
 
-go 1.20
+go 1.21
 
 require (
 	github.com/go-gost/gosocks5 v0.3.0

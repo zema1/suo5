@@ -16,7 +16,7 @@ runs:
       with:
         docker_buildx: false
     - if: inputs.jar == 'true'
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'corretto'
         java-version: '8'

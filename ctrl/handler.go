@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/go-gost/gosocks5"
-	log "github.com/kataras/golog"
-	"github.com/zema1/rawhttp"
-	"github.com/zema1/suo5/netrans"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/go-gost/gosocks5"
+	log "github.com/kataras/golog"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 )
 
 type ConnectionType string
@@ -44,7 +45,6 @@ type socks5Handler struct {
 }
 
 func (m *socks5Handler) Handle(conn net.Conn) error {
-	log.Infof("new connection from %s", conn.RemoteAddr())
 	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
 	req, err := gosocks5.ReadRequest(conn)
@@ -52,7 +52,7 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 		return err
 	}
 
-	log.Infof("handshake success %s", conn.RemoteAddr())
+	log.Infof("start connection to %s", req.Addr.String())
 	switch req.Cmd {
 	case gosocks5.CmdConnect:
 		m.handleConnect(conn, req)
@@ -154,23 +154,21 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, m.config.RedirectURL)
 	}
 
-	defer streamRW.Close()
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer streamRW.Close()
 		if err := m.pipe(conn, streamRW); err != nil {
 			log.Debugf("local conn closed, %s", sockReq.Addr)
-			_ = streamRW.(io.Closer).Close()
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer conn.Close()
 		if err := m.pipe(streamRW, conn); err != nil {
 			log.Debugf("remote readwriter closed, %s", sockReq.Addr)
-			_ = conn.Close()
 		}
 	}()
 
