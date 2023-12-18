@@ -45,7 +45,6 @@ type socks5Handler struct {
 }
 
 func (m *socks5Handler) Handle(conn net.Conn) error {
-	log.Infof("new connection from %s", conn.RemoteAddr())
 	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
 	req, err := gosocks5.ReadRequest(conn)
@@ -53,7 +52,7 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 		return err
 	}
 
-	log.Infof("handshake success %s", conn.RemoteAddr())
+	log.Infof("start connection to %s", req.Addr.String())
 	switch req.Cmd {
 	case gosocks5.CmdConnect:
 		m.handleConnect(conn, req)
