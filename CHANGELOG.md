@@ -5,7 +5,7 @@
 ## 新增
 
 - 增加 `aspx` 脚本支持，最低支持 .Net Framework 2.0
-- 增加 `WebFlex` 响应式支持，并贴心的提供一键注入 SpringCloudGateWay 的代码
+- 增加 `WebFlex` 响应式支持，并贴心的提供一键注入 SpringCloudGateway 的代码
 - 增加 `cookiejar` 支持，默认不启用
 - 增加 `JDK21` 兼容性测试, 完美支持 `JDK21`
 - 增加本地写超时的限制，解决某些情况连接数膨胀的问题
