@@ -70,6 +70,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 			}
 			uTlsConn := utls.UClient(conn, tlsConfig, utls.HelloRandomizedNoALPN)
 			if err = uTlsConn.HandshakeContext(ctx); err != nil {
+				_ = conn.Close()
 				return nil, err
 			}
 			return uTlsConn, nil
@@ -368,6 +369,7 @@ func newRawClient(upstream string, timeout time.Duration) *rawhttp.Client {
 				MinVersion:         tls.VersionTLS10,
 			}, utls.HelloRandomizedNoALPN)
 			if err := uTlsConn.Handshake(); err != nil {
+				_ = conn.Close()
 				return nil, err
 			}
 			return uTlsConn, nil
