@@ -27,6 +27,8 @@ import (
 	"github.com/zema1/suo5/netrans"
 )
 
+var rander = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 func Run(ctx context.Context, config *Suo5Config) error {
 	if config.GuiLog != nil {
 		// 防止多次执行出错
@@ -56,7 +58,17 @@ func Run(ctx context.Context, config *Suo5Config) error {
 			if err != nil {
 				return nil, err
 			}
-			uTlsConn := utls.UClient(conn, &utls.Config{InsecureSkipVerify: true}, utls.HelloRandomized)
+			colonPos := strings.LastIndex(addr, ":")
+			if colonPos == -1 {
+				colonPos = len(addr)
+			}
+			hostname := addr[:colonPos]
+			tlsConfig := &utls.Config{
+				ServerName:         hostname,
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS10,
+			}
+			uTlsConn := utls.UClient(conn, tlsConfig, utls.HelloRandomizedNoALPN)
 			if err = uTlsConn.HandshakeContext(ctx); err != nil {
 				return nil, err
 			}
@@ -212,7 +224,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 func checkConnectMode(method string, target string, baseHeader http.Header, proxy string) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	rawClient := newRawClient(proxy, time.Second*5)
-	randLen := rand.Intn(1024)
+	randLen := rander.Intn(1024)
 	if randLen <= 32 {
 		randLen += 32
 	}
@@ -330,7 +342,7 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456
 func RandString(n int) string {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+		b[i] = letterBytes[rander.Intn(len(letterBytes))]
 	}
 	return string(b)
 }
@@ -345,10 +357,16 @@ func newRawClient(upstream string, timeout time.Duration) *rawhttp.Client {
 		AutomaticContentLength: true,
 		ForceReadAllBody:       false,
 		TLSHandshake: func(conn net.Conn, addr string, options *rawhttp.Options) (net.Conn, error) {
+			colonPos := strings.LastIndex(addr, ":")
+			if colonPos == -1 {
+				colonPos = len(addr)
+			}
+			hostname := addr[:colonPos]
 			uTlsConn := utls.UClient(conn, &utls.Config{
 				InsecureSkipVerify: true,
+				ServerName:         hostname,
 				MinVersion:         tls.VersionTLS10,
-			}, utls.HelloRandomized)
+			}, utls.HelloRandomizedNoALPN)
 			if err := uTlsConn.Handshake(); err != nil {
 				return nil, err
 			}
