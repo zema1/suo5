@@ -12,6 +12,9 @@ runs:
       with:
         name: test-target
         path: .
+    - shell: bash
+      working-directory: ./assets
+      run: cp -r ./java/* ./
     - uses: docker-practice/actions-setup-docker@master
       with:
         docker_buildx: false
