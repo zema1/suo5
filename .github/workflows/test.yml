@@ -372,6 +372,7 @@ jobs:
           </apps>
           EOF
           cat config/sample.webapp
+          cp ./assets/.net/suo5.aspx ./assets/suo5.aspx
           docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/config:/etc/mono/pools -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_ASPX_URL }} 30
           curl -v ${{ env.SUO5_ASPX_URL }}
