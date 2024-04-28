@@ -51,6 +51,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion:         tls.VersionTLS10,
+			Renegotiation:      tls.RenegotiateOnceAsClient,
 			InsecureSkipVerify: true,
 		},
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -66,7 +67,8 @@ func Run(ctx context.Context, config *Suo5Config) error {
 			tlsConfig := &utls.Config{
 				ServerName:         hostname,
 				InsecureSkipVerify: true,
-				MinVersion:         tls.VersionTLS10,
+				Renegotiation:      utls.RenegotiateOnceAsClient,
+				MinVersion:         utls.VersionTLS10,
 			}
 			uTlsConn := utls.UClient(conn, tlsConfig, utls.HelloRandomizedNoALPN)
 			if err = uTlsConn.HandshakeContext(ctx); err != nil {
@@ -366,7 +368,8 @@ func newRawClient(upstream string, timeout time.Duration) *rawhttp.Client {
 			uTlsConn := utls.UClient(conn, &utls.Config{
 				InsecureSkipVerify: true,
 				ServerName:         hostname,
-				MinVersion:         tls.VersionTLS10,
+				MinVersion:         utls.VersionTLS10,
+				Renegotiation:      utls.RenegotiateOnceAsClient,
 			}, utls.HelloRandomizedNoALPN)
 			if err := uTlsConn.Handshake(); err != nil {
 				_ = conn.Close()
