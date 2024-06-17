@@ -8,7 +8,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,12 +46,31 @@ type socks5Handler struct {
 	selector        gosocks5.Selector
 }
 
+var BlackUrl = []string{}
+
 func (m *socks5Handler) Handle(conn net.Conn) error {
 	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
 	req, err := gosocks5.ReadRequest(conn)
 	if err != nil {
 		return err
+	}
+
+	var SuccessLevel log.Level = 6
+
+	log.Levels[SuccessLevel] = &log.LevelMetadata{
+		Name:      "success",
+		Title:     "[SUCC]",
+		ColorCode: 32,
+	}
+
+	sucLog := log.New()
+	sucLog.SetLevel("success")
+	sucLog.SetTimeFormat("01-02 15:04")
+
+	if slices.Contains(BlackUrl, strings.Split(req.Addr.String(), ":")[0]) {
+		sucLog.Logf(SuccessLevel, "drop connecction to %s", req.Addr.String())
+		return nil
 	}
 
 	log.Infof("start connection to %s", req.Addr.String())
@@ -258,7 +279,6 @@ func marshal(m map[string][]byte) []byte {
 		buf.Write(v)
 	}
 	return buf.Bytes()
-
 }
 
 func unmarshal(bs []byte) (map[string][]byte, error) {

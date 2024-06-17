@@ -119,6 +119,11 @@ func main() {
 			Usage:   "test a real connection, if success exit(0), else exit(1)",
 			Hidden:  true,
 		},
+		&cli.StringFlag{
+			Name:    "black-list",
+			Aliases: []string{"B"},
+			Usage:   "Black list certaint website, ex -B 'portswigger.net'",
+		},
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
@@ -152,6 +157,8 @@ func Action(c *cli.Context) error {
 	noGzip := c.Bool("no-gzip")
 	useJar := c.Bool("jar")
 	testExit := c.String("test-exit")
+
+	ctrl.BlackUrl = strings.Split(c.String("black-list"), ",")
 
 	var username, password string
 	if auth == "" {
