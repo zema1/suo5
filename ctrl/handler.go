@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -46,8 +45,6 @@ type socks5Handler struct {
 	selector        gosocks5.Selector
 }
 
-var BlackUrl = []string{}
-
 func (m *socks5Handler) Handle(conn net.Conn) error {
 	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
@@ -56,20 +53,9 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 		return err
 	}
 
-	var SuccessLevel log.Level = 6
-
-	log.Levels[SuccessLevel] = &log.LevelMetadata{
-		Name:      "success",
-		Title:     "[SUCC]",
-		ColorCode: 32,
-	}
-
-	sucLog := log.New()
-	sucLog.SetLevel("success")
-	sucLog.SetTimeFormat("01-02 15:04")
-
-	if slices.Contains(BlackUrl, strings.Split(req.Addr.String(), ":")[0]) {
-		sucLog.Logf(SuccessLevel, "drop connecction to %s", req.Addr.String())
+	if slices.Contains(m.config.ExcludeDomain, req.Addr.Host) {
+		defer conn.Close()
+		log.Infof("drop connection to %s", req.Addr.Host)
 		return nil
 	}
 

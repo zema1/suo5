@@ -119,10 +119,10 @@ func main() {
 			Usage:   "test a real connection, if success exit(0), else exit(1)",
 			Hidden:  true,
 		},
-		&cli.StringFlag{
-			Name:    "black-list",
-			Aliases: []string{"B"},
-			Usage:   "Black list certaint website, ex -B 'portswigger.net'",
+		&cli.StringSliceFlag{
+			Name:    "exclude_domain",
+			Aliases: []string{"E"},
+			Usage:   "Exclude certain domain name for proxy, ex -E 'portswigger.net'",
 		},
 	}
 	app.Before = func(c *cli.Context) error {
@@ -157,8 +157,7 @@ func Action(c *cli.Context) error {
 	noGzip := c.Bool("no-gzip")
 	useJar := c.Bool("jar")
 	testExit := c.String("test-exit")
-
-	ctrl.BlackUrl = strings.Split(c.String("black-list"), ",")
+	exclude := c.StringSlice("exclude_domain")
 
 	var username, password string
 	if auth == "" {
@@ -202,6 +201,7 @@ func Action(c *cli.Context) error {
 		DisableGzip:      noGzip,
 		EnableCookiejar:  useJar,
 		TestExit:         testExit,
+		ExcludeDomain:    exclude,
 	}
 	ctx, cancel := signalCtx()
 	defer cancel()

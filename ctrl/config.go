@@ -25,6 +25,7 @@ type Suo5Config struct {
 	DisableGzip      bool           `json:"disable_gzip"`
 	EnableCookiejar  bool           `json:"enable_cookiejar"`
 	TestExit         string         `json:"-"`
+	ExcludeDomain    []string       `json:"exclude_domain"`
 
 	Offset                  int                                  `json:"-"`
 	Header                  http.Header                          `json:"-"`
