@@ -178,6 +178,7 @@ const formValue = ref<ctrl.Suo5Config>({
   disable_heartbeat: false,
   disable_gzip: false,
   enable_cookiejar: false,
+  exclude_domain: [],
 })
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
