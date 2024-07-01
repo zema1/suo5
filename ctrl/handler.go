@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -50,6 +51,12 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 	req, err := gosocks5.ReadRequest(conn)
 	if err != nil {
 		return err
+	}
+
+	if slices.Contains(m.config.ExcludeDomain, req.Addr.Host) {
+		defer conn.Close()
+		log.Infof("drop connection to %s", req.Addr.Host)
+		return nil
 	}
 
 	log.Infof("start connection to %s", req.Addr.String())
@@ -258,7 +265,6 @@ func marshal(m map[string][]byte) []byte {
 		buf.Write(v)
 	}
 	return buf.Bytes()
-
 }
 
 func unmarshal(bs []byte) (map[string][]byte, error) {

@@ -119,6 +119,11 @@ func main() {
 			Usage:   "test a real connection, if success exit(0), else exit(1)",
 			Hidden:  true,
 		},
+		&cli.StringSliceFlag{
+			Name:    "exclude_domain",
+			Aliases: []string{"E"},
+			Usage:   "Exclude certain domain name for proxy, ex -E 'portswigger.net'",
+		},
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
@@ -152,6 +157,7 @@ func Action(c *cli.Context) error {
 	noGzip := c.Bool("no-gzip")
 	useJar := c.Bool("jar")
 	testExit := c.String("test-exit")
+	exclude := c.StringSlice("exclude_domain")
 
 	var username, password string
 	if auth == "" {
@@ -195,6 +201,7 @@ func Action(c *cli.Context) error {
 		DisableGzip:      noGzip,
 		EnableCookiejar:  useJar,
 		TestExit:         testExit,
+		ExcludeDomain:    exclude,
 	}
 	ctx, cancel := signalCtx()
 	defer cancel()
