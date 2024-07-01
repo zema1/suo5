@@ -120,9 +120,14 @@ func main() {
 			Hidden:  true,
 		},
 		&cli.StringSliceFlag{
-			Name:    "exclude_domain",
+			Name:    "exclude-domain",
 			Aliases: []string{"E"},
-			Usage:   "Exclude certain domain name for proxy, ex -E 'portswigger.net'",
+			Usage:   "exclude certain domain name for proxy, ex -E 'portswigger.net'",
+		},
+		&cli.StringFlag{
+			Name:    "exclude-domain-file",
+			Aliases: []string{"ef"},
+			Usage:   "exclude certain domains for proxy in a file, one domain per line",
 		},
 	}
 	app.Before = func(c *cli.Context) error {
@@ -157,7 +162,8 @@ func Action(c *cli.Context) error {
 	noGzip := c.Bool("no-gzip")
 	useJar := c.Bool("jar")
 	testExit := c.String("test-exit")
-	exclude := c.StringSlice("exclude_domain")
+	exclude := c.StringSlice("exclude-domain")
+	excludeFile := c.String("exclude-domain-file")
 
 	var username, password string
 	if auth == "" {
@@ -182,6 +188,20 @@ func Action(c *cli.Context) error {
 		return fmt.Errorf("inproper buffer size, 512~1024000")
 	}
 	header = append(header, "User-Agent: "+ua)
+
+	if excludeFile != "" {
+		data, err := os.ReadFile(excludeFile)
+		if err != nil {
+			return err
+		}
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				exclude = append(exclude, line)
+			}
+		}
+	}
 
 	config := &ctrl.Suo5Config{
 		Listen:           listen,

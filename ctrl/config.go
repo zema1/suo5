@@ -24,15 +24,28 @@ type Suo5Config struct {
 	DisableHeartbeat bool           `json:"disable_heartbeat"`
 	DisableGzip      bool           `json:"disable_gzip"`
 	EnableCookiejar  bool           `json:"enable_cookiejar"`
-	TestExit         string         `json:"-"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 
+	TestExit                string                               `json:"-"`
+	ExcludeDomainMap        map[string]bool                      `json:"-"`
 	Offset                  int                                  `json:"-"`
 	Header                  http.Header                          `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`
 	GuiLog                  io.Writer                            `json:"-"`
+}
+
+func (s *Suo5Config) Parse() error {
+	s.parseExcludeDomain()
+	return s.parseHeader()
+}
+
+func (s *Suo5Config) parseExcludeDomain() {
+	s.ExcludeDomainMap = make(map[string]bool)
+	for _, domain := range s.ExcludeDomain {
+		s.ExcludeDomainMap[strings.ToLower(strings.TrimSpace(domain))] = true
+	}
 }
 
 func (s *Suo5Config) parseHeader() error {
@@ -72,7 +85,7 @@ func (s *Suo5Config) parseHeader() error {
 	return nil
 }
 
-func (s *Suo5Config) headerString() string {
+func (s *Suo5Config) HeaderString() string {
 	ret := ""
 	for k := range s.Header {
 		ret += fmt.Sprintf("\n%s: %s", k, s.Header.Get(k))

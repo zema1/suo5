@@ -93,15 +93,30 @@ $ ./suo5 -m GET -t https://example.com/proxy.jsp
 $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
 ```
 
-负载均衡场景下将流量转发到某一个固定的 url 解决请求被分散的问题 (需要尽可能的在每一个后端服务中上传 suo5)
+负载均衡场景下将流量转发到某一个固定的 url 解决请求被分散的问题，需要尽可能的在每一个后端服务中上传 suo5。
+它的原理是判断 `-r` 中 URL 的 IP 是否与服务器的网卡 IP 匹配，不匹配则转发。
 
 ```bash
 $ ./suo5 -t https://example.com/proxy.jsp -r http://172.0.3.2/code/proxy.jsp
 ```
 
+配置域名/IP过滤规则，避免无意义的域名被代理, 命中规则的连接会直接被 reset 掉
+
+```bash
+# example.com 和 google.com 这两个域名不走代理
+$ ./suo5 -t https://example.com/proxy.jsp -E example.com -E google.com
+
+# 也可以将域名列表放在文件里，一行一个
+$ ./suo5 -t https://example.com/proxy.jsp -ef ./excludes.txt
+
+# 注意: 如果你配置的是域名，你需要确保 suo5 代理拿到的是域名，而不是解析好的 ip, 否则不会生效, 例如:
+# 已经解析成 IP:  curl -v -x 'socks5://127.0.0.1:1111' https://example.com
+# 仍然是域名:  curl -v -x 'socks5h://127.0.0.1:1111' https://example.com
+```
+
 ### 特别提醒
 
-`User-Agent` (`ua`) 的配置本地端与服务端是绑定的，如果修改了其中一个，另一个也必须对应修改才能连接上。
+`User-Agent` (`ua`) 的配置本地端与服务端是绑定的，如果修改了其中一个，另一个也必须对应修改才能连接上, 你可以将这个作为连接密码使用。
 
 ## 常见问题
 

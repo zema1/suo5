@@ -29,8 +29,9 @@ Its key features include:
 - Supports common middleware such as Tomcat, Jetty, Weblogic, WebSphere, Resin, etc.
 - Supports all versions of Java4 to Java 19.
 - Provides both command line and graphical interfaces simultaneously.
- 
-The principle: [https://koalr.me/posts/suo5-a-hign-performace-http-socks/](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
+
+The
+principle: [https://koalr.me/posts/suo5-a-hign-performace-http-socks/](https://koalr.me/posts/suo5-a-hign-performace-http-socks/)
 
 ## Install and run
 
@@ -98,6 +99,29 @@ set the socks5 server listen on `0.0.0.0:7788` and set the authentication to `te
 $ ./suo5 -t https://example.com/proxy.jsp -l 0.0.0.0:7788 --auth test:test123
 ```
 
+In the load balancing scenario, you can redirect traffic to a fixed URL to solve the problem. It is
+needed to upload `suo5` to each backend service as much as possible. The background of it is to check whether the IP in
+`-r` matches the IP of the server's network interface, if not, redirect.
+
+```bash
+$ ./suo5 -t https://example.com/proxy.jsp -r http://172.0.3.2/code/proxy.jsp`
+```
+
+Configure domain/IP filtering rules to avoid meaningless domains being proxied, connections that match the rules will be
+reset directly.
+
+```bash
+# example.com and google.com do not use the proxy
+$ ./suo5 -t https://example.com/proxy.jsp -E example.com -E google.com
+
+# You can also put the domain list in a file, one per line
+$ ./suo5 -t https://example.com/proxy.jsp -E domains.txt
+
+# Notice: If you have configured a domain, you need to ensure that the suo5 proxy gets the domain itself, not the resolved IP, otherwise it will not take effect, for example:
+# Already resolved to IP:  curl -v -x 'socks5://127.0.0.1:1111' https://example.com
+# Still a domain:  curl -v -x 'socks5h://127.0.0.1:1111' https://example.com
+```
+
 ### Notice
 
 The `User-Agent` (`ua`) configuration is bound to the server side, if you modify one of them, the other one must be
@@ -107,14 +131,19 @@ modified to connect as well.
 
 1. What is full-duplex and half-duplex?
 
-   **Full-duplex** An HTTP tunnel can be constructed by sending a single HTTP request, enabling bi-directional communication over TCP. This request can be interpreted as both an upload and a download request, it will keep downloading and uploading, so it can be used for bi-directional communication.
+   **Full-duplex** An HTTP tunnel can be constructed by sending a single HTTP request, enabling bi-directional
+   communication over TCP. This request can be interpreted as both an upload and a download request, it will keep
+   downloading and uploading, so it can be used for bi-directional communication.
 
    **Half-duplex** In some scenarios where `full-duplex` mode is not supported (e.g., there is a reverse proxy),
-   it will fall back to half-duplex mode, send a request to build a downstream tunnel, and use the general http request to send upstream data.
+   it will fall back to half-duplex mode, send a request to build a downstream tunnel, and use the general http request
+   to send upstream data.
 
 2. `suo5` vs `Neo-reGeorg`?
 
-   If the target is a Java-based website, in most cases, `suo5` is more stable and faster than `neo`. However, `neo` provides a wide range of server-side support, good compatibility, and also supports some features that `suo5` is still developing. Additionally, `neo` also supports more flexible customization.
+   If the target is a Java-based website, in most cases, `suo5` is more stable and faster than `neo`. However, `neo`
+   provides a wide range of server-side support, good compatibility, and also supports some features that `suo5` is
+   still developing. Additionally, `neo` also supports more flexible customization.
 
 ## Next
 
