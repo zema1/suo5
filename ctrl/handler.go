@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -46,6 +45,8 @@ type socks5Handler struct {
 }
 
 func (m *socks5Handler) Handle(conn net.Conn) error {
+	defer conn.Close()
+
 	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
 	req, err := gosocks5.ReadRequest(conn)
@@ -53,8 +54,7 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 		return err
 	}
 
-	if slices.Contains(m.config.ExcludeDomain, req.Addr.Host) {
-		defer conn.Close()
+	if m.config.ExcludeDomainMap[req.Addr.Host] {
 		log.Infof("drop connection to %s", req.Addr.Host)
 		return nil
 	}
@@ -70,7 +70,6 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 }
 
 func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) {
-	defer conn.Close()
 	id := RandString(8)
 
 	var req *http.Request
