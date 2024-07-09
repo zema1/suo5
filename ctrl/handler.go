@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +45,24 @@ type socks5Handler struct {
 	selector        gosocks5.Selector
 }
 
+func IsExcludeDomain(m *socks5Handler, d string) bool {
+	// Default Exclude
+	if m.config.ExcludeDomainMap[d] {
+		return true
+	}
+
+	// WildCard Exclude
+	ntld := strings.Count(d, ".")
+	for ntld > 0 && !m.config.ExcludeDomainWCMap[d] {
+		d = strings.SplitN(d, ".", 2)[1]
+		ntld--
+	}
+	if ntld != 0 {
+		return true
+	}
+	return false
+}
+
 func (m *socks5Handler) Handle(conn net.Conn) error {
 	defer conn.Close()
 
@@ -54,7 +73,7 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 		return err
 	}
 
-	if m.config.ExcludeDomainMap[req.Addr.Host] {
+	if IsExcludeDomain(m, req.Addr.Host) {
 		log.Infof("drop connection to %s", req.Addr.Host)
 		return nil
 	}

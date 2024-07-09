@@ -28,6 +28,7 @@ type Suo5Config struct {
 
 	TestExit                string                               `json:"-"`
 	ExcludeDomainMap        map[string]bool                      `json:"-"`
+	ExcludeDomainWCMap      map[string]bool                      `json:"-"`
 	Offset                  int                                  `json:"-"`
 	Header                  http.Header                          `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
@@ -43,8 +44,14 @@ func (s *Suo5Config) Parse() error {
 
 func (s *Suo5Config) parseExcludeDomain() {
 	s.ExcludeDomainMap = make(map[string]bool)
+	s.ExcludeDomainWCMap = make(map[string]bool)
 	for _, domain := range s.ExcludeDomain {
-		s.ExcludeDomainMap[strings.ToLower(strings.TrimSpace(domain))] = true
+		domain = strings.ToLower(strings.TrimSpace(domain))
+		if domain[0] == '*' {
+			s.ExcludeDomainWCMap[domain[2:]] = true
+		} else {
+			s.ExcludeDomainMap[domain] = true
+		}
 	}
 }
 
