@@ -22,6 +22,7 @@ func main() {
 	app.Version = Version
 
 	defaultConfig := ctrl.DefaultSuo5Config()
+	app.DisableSliceFlagSeparator = true
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
