@@ -208,12 +208,8 @@ func Run(ctx context.Context, config *Suo5Config) error {
 	ok := testTunnel(config.Listen, config.Username, config.Password, time.Second*10)
 	time.Sleep(time.Millisecond * 500)
 	if !ok {
-		if !config.DisableGzip {
-			log.Warnf("tunnel test failed")
-			log.Warnf("you can still use the tunnel or retry with --no-gzip to improve compatibility")
-		} else {
-			log.Warnf("tunnel test failed, suo5 can not work on this server, there may be other reverse proxies running on the target")
-		}
+		log.Errorf("tunnel created, but failed to establish connection")
+		return fmt.Errorf("suo5 can not work on this server")
 	} else {
 		log.Infof("congratulations! everything works fine")
 	}

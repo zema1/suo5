@@ -117,7 +117,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	}
 	fr, err := netrans.ReadFrame(resp.Body)
 	if err != nil {
-		log.Errorf("error read response frame, %+v, connection goes to shutdown", err)
+		log.Errorf("failed to read response frame, may be the target has load balancing?")
 		rep := gosocks5.NewReply(gosocks5.HostUnreachable, nil)
 		_ = rep.Write(conn)
 		return
