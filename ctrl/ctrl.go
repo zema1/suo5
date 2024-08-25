@@ -104,7 +104,7 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		log.Infof("using redirect url %v", config.RedirectURL)
 	}
 	var jar http.CookieJar
-	if config.EnableCookiejar {
+	if !config.DisableCookiejar {
 		jar, _ = cookiejar.New(nil)
 	}
 
