@@ -6,8 +6,16 @@ export function DefaultSuo5Config() {
   return window['go']['main']['App']['DefaultSuo5Config']();
 }
 
+export function ExportConfig(arg1) {
+  return window['go']['main']['App']['ExportConfig'](arg1);
+}
+
 export function GetStatus() {
   return window['go']['main']['App']['GetStatus']();
+}
+
+export function ImportConfig() {
+  return window['go']['main']['App']['ImportConfig']();
 }
 
 export function RunSuo5WithConfig(arg1) {

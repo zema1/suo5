@@ -5,7 +5,11 @@ import {main} from '../models';
 
 export function DefaultSuo5Config():Promise<ctrl.Suo5Config>;
 
+export function ExportConfig(arg1:ctrl.Suo5Config):Promise<void>;
+
 export function GetStatus():Promise<main.Status>;
+
+export function ImportConfig():Promise<ctrl.Suo5Config>;
 
 export function RunSuo5WithConfig(arg1:ctrl.Suo5Config):Promise<void>;
 
