@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -25,6 +26,12 @@ func main() {
 	app.DisableSliceFlagSeparator = true
 
 	app.Flags = []cli.Flag{
+		&cli.StringFlag{
+			Name:    "config",
+			Aliases: []string{"c"},
+			Usage:   "the filepath for json config file",
+			Value:   "",
+		},
 		&cli.StringFlag{
 			Name:     "target",
 			Aliases:  []string{"t"},
@@ -165,6 +172,7 @@ func Action(c *cli.Context) error {
 	testExit := c.String("test-exit")
 	exclude := c.StringSlice("exclude-domain")
 	excludeFile := c.String("exclude-domain-file")
+	configFile := c.String("config")
 
 	var username, password string
 	if auth == "" {
@@ -224,6 +232,19 @@ func Action(c *cli.Context) error {
 		TestExit:         testExit,
 		ExcludeDomain:    exclude,
 	}
+
+	if configFile != "" {
+		log.Infof("loading config from %s", configFile)
+		data, err := os.ReadFile(configFile)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(data, config)
+		if err != nil {
+			return err
+		}
+	}
+
 	ctx, cancel := signalCtx()
 	defer cancel()
 	return ctrl.Run(ctx, config)

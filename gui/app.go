@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/shirou/gopsutil/v3/process"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zema1/suo5/ctrl"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"runtime"
 	"sync/atomic"
@@ -101,6 +103,75 @@ func (a *App) GetStatus() *Status {
 		status.MemoryUsage = "unsupported"
 	}
 	return status
+}
+
+func (a *App) ImportConfig() (*ctrl.Suo5Config, error) {
+	options := wailsRuntime.OpenDialogOptions{
+		DefaultDirectory: "",
+		DefaultFilename:  "",
+		Title:            "导入 Suo5 配置",
+		Filters: []wailsRuntime.FileFilter{
+			{
+				DisplayName: "json",
+				Pattern:     "*.json",
+			},
+		},
+	}
+	filepath, err := wailsRuntime.OpenFileDialog(a.ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	// user canceled
+	if filepath == "" {
+		return nil, nil
+	}
+	var config ctrl.Suo5Config
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, err
+	}
+	if config.Listen == "" {
+		return nil, fmt.Errorf("invalid config")
+	}
+	return &config, nil
+}
+
+func (a *App) ExportConfig(config *ctrl.Suo5Config) error {
+	filename := "suo5-config.json"
+	if config.Target != "" {
+		u, err := url.Parse(config.Target)
+		if err == nil {
+			filename = u.Hostname() + ".json"
+		}
+	}
+
+	options := wailsRuntime.SaveDialogOptions{
+		DefaultFilename: filename,
+		Title:           "导出 Suo5 配置",
+		Filters: []wailsRuntime.FileFilter{
+			{
+				DisplayName: "json",
+				Pattern:     "*.json",
+			},
+		},
+	}
+	filepath, err := wailsRuntime.SaveFileDialog(a.ctx, options)
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filepath, data, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *App) Stop() {

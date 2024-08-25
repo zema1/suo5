@@ -2,62 +2,50 @@
   <div class="container">
     <n-card size="small">
       <n-form
-          label-width="70"
+          label-width="60"
           label-placement="left"
-          size="medium"
-          style="margin-bottom: -12px; margin-top:12px;"
-      >
+          size="medium">
         <n-form-item label="目标" required>
-          <n-input v-model:value="formValue.method" style="width: 85px; margin-right: 10px"/>
-          <n-input v-model:value="formValue.target" placeholder="https://example.com/1.jsp"/>
-          <n-button style="margin-left: 18px" :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
-          </n-button>
+          <n-flex :size="16">
+            <n-input v-model:value="formValue.method" style="width: 64px"/>
+            <n-input v-model:value="formValue.target" style="width: 370px;" placeholder="https://example.com/1.jsp"/>
+            <n-button :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
+            </n-button>
+          </n-flex>
         </n-form-item>
 
-        <n-form-item label="Socks5" style="margin-bottom: -24px" required>
-          <n-space vertical class="full-width" :size="0">
-            <n-input v-model:value="formValue.listen" placeholder="监听地址"/>
-            <n-form inline>
-              <n-form-item>
-                <n-checkbox style="width: 80px"
-                            @update:checked="authChange"
-                            size="large">认证
-                </n-checkbox>
-              </n-form-item>
-              <n-form-item>
-                <n-input v-model:value="formValue.username"
-                         :disabled="formValue.no_auth"
-                         style="width: 210px"
-                         placeholder="用户名"/>
-              </n-form-item>
-              <n-form-item>
-                <n-input v-model:value="formValue.password"
-                         :disabled="formValue.no_auth"
-                         style="width: 210px"
-                         placeholder="密码"/>
-              </n-form-item>
-            </n-form>
-          </n-space>
+        <n-form-item label="代理" required>
+          <n-flex class="full-width" :size="16">
+            <n-input v-model:value="formValue.listen" style="width: 290px;" placeholder="监听地址"/>
+            <n-input v-model:value="formValue.username" style="width: 100px;"
+                     placeholder="用户名"/>
+            <n-input v-model:value="formValue.password" style="width: 100px;"
+                     placeholder="密码"/>
+          </n-flex>
         </n-form-item>
 
-        <n-form-item label="模式选择">
+        <n-form-item label="模式">
           <n-space justify="space-between" id="mode">
             <n-radio-group v-model:value="formValue.mode">
               <n-radio value="auto">自动</n-radio>
               <n-radio value="full">全双工</n-radio>
               <n-radio value="half">半双工</n-radio>
             </n-radio-group>
-            <n-button secondary style="float: right" strong @click="showAdvanced = true">高级配置</n-button>
           </n-space>
         </n-form-item>
       </n-form>
+      <n-flex justify="end">
+        <n-button secondary strong @click="importConfig">导入配置</n-button>
+        <n-button secondary strong @click="exportConfig">导出配置</n-button>
+        <n-button secondary strong @click="showAdvanced = true">高级配置</n-button>
+      </n-flex>
     </n-card>
 
-    <n-alert :type="alertType" :bordered="false" style="margin-top: 24px">
+    <n-alert :type="alertType" :bordered="false" style="margin-top: 18px">
       {{ alertContent }}
     </n-alert>
 
-    <n-card title="运行日志" size="small" style="margin-top: 24px" embedded>
+    <n-card title="运行日志" size="small" style="margin-top: 18px" embedded>
       <template #header-extra>
         <n-button text type="primary" @click="clearLog">
           <n-icon size="20">
@@ -70,17 +58,14 @@
           </n-icon>
         </n-button>
       </template>
-      <n-log :log="log" ref="logInst" :font-size="12" language="accesslog" :rows="18"/>
+      <n-log :log="log" ref="logInst" :font-size="12" language="accesslog" :rows="20"/>
     </n-card>
     <n-space justify="space-between" style="margin-top:20px">
       <span>连接数: {{ status.connection_count }}</span>
       <span>CPU: {{ status.cpu_percent }}</span>
       <span>内存: {{ status.memory_usage }}</span>
-      <span>版本: 1.1.0</span>
+      <span>版本: 1.3.0</span>
     </n-space>
-
-    <div class="footer">
-    </div>
 
     <n-modal v-model:show="showAdvanced"
              preset="dialog"
@@ -152,7 +137,7 @@
 <script lang="ts" setup>
 
 import {ctrl, main} from "../wailsjs/go/models";
-import {DefaultSuo5Config, RunSuo5WithConfig, Stop} from "../wailsjs/go/main/App";
+import {DefaultSuo5Config, RunSuo5WithConfig, Stop, ImportConfig, ExportConfig} from "../wailsjs/go/main/App";
 import {BrowserOpenURL, EventsOn} from "../wailsjs/runtime";
 import {AlertProps} from "naive-ui/es/alert/src/Alert";
 import {ButtonProps, FormInst, useMessage} from 'naive-ui'
@@ -184,7 +169,7 @@ const formValue = ref<ctrl.Suo5Config>({
 
 const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
 
-onBeforeMount(async () => {
+onMounted(async () => {
   formValue.value = await DefaultSuo5Config();
   advancedOptions.value = await DefaultSuo5Config();
 })
@@ -352,6 +337,28 @@ const openLink = () => {
   BrowserOpenURL(link.value)
 }
 
+const importConfig = async () => {
+  try {
+    let config = await ImportConfig()
+    if (config) {
+      formValue.value = config
+      advancedOptions.value = Object.assign({}, config)
+    }
+    message.success("导入配置成功")
+  } catch (e) {
+    message.error(`导入配置失败, ${e}`)
+  }
+}
+
+const exportConfig = async () => {
+  try {
+    await ExportConfig(formValue.value)
+    message.success("导出配置成功")
+  } catch (e) {
+    message.error(`导出配置失败, ${e}`)
+  }
+}
+
 
 </script>
 <style lang="less" scoped>
@@ -360,23 +367,4 @@ const openLink = () => {
 .container {
   padding: 12px @common-padding @common-padding @common-padding;
 }
-
-#param {
-  width: 500px
-}
-
-#mode {
-  align-items: center;
-  width: 100%;
-}
-
-.footer {
-  position: absolute;
-  bottom: 1px;
-}
-
-.line-block {
-  display: inline-block;
-}
-
 </style>

@@ -118,6 +118,37 @@ $ ./suo5 -t https://example.com/proxy.jsp -ef ./excludes.txt
 
 `User-Agent` (`ua`) 的配置本地端与服务端是绑定的，如果修改了其中一个，另一个也必须对应修改才能连接上, 你可以将这个作为连接密码使用。
 
+## 配置文件
+
+配置文件的定义来自 `ctrl.Suo5Config`, 完整的配置如下:
+
+```json
+{
+  "method": "POST",
+  "listen": "127.0.0.1:1111",
+  "target": "",
+  "no_auth": true,
+  "username": "",
+  "password": "",
+  "mode": "auto",
+  "buffer_size": 327680,
+  "timeout": 10,
+  "debug": false,
+  "upstream_proxy": "",
+  "redirect_url": "",
+  "raw_header": [
+    "User-Agent: Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3"
+  ],
+  "disable_heartbeat": false,
+  "disable_gzip": false,
+  "disable_cookiejar": true,
+  "exclude_domain": null
+}
+```
+
+GUI 版本可以使用界面 `导入配置` 和 `导出配置` 功能来导入和导出配置文件。cli 版本可以使用 `-c` 参数来指定配置文件。
+GUI 导出的配置文件也可以给命令行使用，两者的格式是一样的。
+
 ## 常见问题
 
 1. 什么是全双工和半双工?
