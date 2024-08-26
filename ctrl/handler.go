@@ -103,6 +103,11 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		_ = rep.Write(conn)
 		return
 	}
+
+	if resp.Header.Get("Set-Cookie") != "" && !m.config.DisableCookiejar {
+		log.Infof("update cookie with %s", resp.Header.Get("Set-Cookie"))
+	}
+
 	defer resp.Body.Close()
 	// skip offset
 	if m.config.Offset > 0 {
