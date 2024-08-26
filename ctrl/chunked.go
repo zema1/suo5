@@ -143,6 +143,8 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 		return s.readBuf.Read(p)
 	case ActionDelete:
 		return 0, io.EOF
+	case ActionHeartbeat:
+		return 0, nil
 	default:
 		return 0, fmt.Errorf("unpected action when read %v", action)
 	}
