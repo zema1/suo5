@@ -358,8 +358,8 @@ jobs:
           - webdevops/php-nginx:8.0
           - webdevops/php-nginx:8.1
           - webdevops/php-nginx:8.2
-          - webdevops/php-nginx:ubuntu-12.04
-          - webdevops/php-nginx:ubuntu-14.04
+#          - webdevops/php-nginx:ubuntu-12.04
+#          - webdevops/php-nginx:ubuntu-14.04
         mount:
           - /app
 

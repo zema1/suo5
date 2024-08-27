@@ -36,7 +36,7 @@ User-Agent: Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/5
 
 - [Java](java)
 - [.Net](.net)
-- ~~PHP~~
+- [PHP](php)
 
 ## 测试通过的服务
 
