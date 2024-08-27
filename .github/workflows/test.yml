@@ -341,6 +341,43 @@ jobs:
             ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
           fi
 
+  php-test:
+    name: PHP
+    needs: build-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - webdevops/php-nginx:5.6
+          - webdevops/php-nginx:7.0
+          - webdevops/php-nginx:7.1
+          - webdevops/php-nginx:7.2
+          - webdevops/php-nginx:7.3
+          - webdevops/php-nginx:7.4
+          - webdevops/php-nginx:8.0
+          - webdevops/php-nginx:8.1
+          - webdevops/php-nginx:8.2
+          - webdevops/php-nginx:ubuntu-12.04
+          - webdevops/php-nginx:ubuntu-14.04
+        mount:
+          - /app
+
+    env:
+      SUO5_PHP_URL: http://127.0.0.1:8080/suo5.php
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions
+      - run: |
+          set -ex
+          docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
+          bash ./.github/workflows/ready.sh ${{ env.SUO5_PHP_URL }} 30
+          curl -v ${{ env.SUO5_PHP_URL }}
+          chmod +x ./suo5
+          ./suo5 -debug -t ${{ env.SUO5_PHP_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_PHP_URL }} -T https://www.bing.com -mode half
+
+
   donet-test:
     name: DoNet
     needs: build-binary
