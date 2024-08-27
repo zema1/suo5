@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/go-gost/gosocks5 v0.3.0
+	github.com/gobwas/glob v0.2.3
 	github.com/kataras/golog v0.1.8
 	github.com/kataras/pio v0.0.11
 	github.com/pkg/errors v0.9.1
@@ -11,7 +12,6 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/zema1/rawhttp v0.1.1
-	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
 )
 
 require (

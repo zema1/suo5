@@ -25,7 +25,6 @@ import (
 	utls "github.com/refraction-networking/utls"
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
-	"golang.org/x/exp/maps"
 )
 
 var rander = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -49,8 +48,8 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		config.Header.Set("Accept-Encoding", "identity")
 	}
 
-	if len(config.ExcludeDomainMap) != 0 {
-		log.Infof("exclude domains: %v", maps.Keys(config.ExcludeDomainMap))
+	if len(config.ExcludeDomain) != 0 {
+		log.Infof("exclude domains: %v", config.ExcludeDomain)
 	}
 
 	tr := &http.Transport{
