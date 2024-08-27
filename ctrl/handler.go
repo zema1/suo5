@@ -54,9 +54,13 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 		return err
 	}
 
-	if m.config.ExcludeDomainMap[req.Addr.Host] {
-		log.Infof("drop connection to %s", req.Addr.Host)
-		return nil
+	if len(m.config.ExcludeGlobs) != 0 {
+		for _, g := range m.config.ExcludeGlobs {
+			if g.Match(req.Addr.Host) {
+				log.Debugf("drop connection to %s", req.Addr.Host)
+				return nil
+			}
+		}
 	}
 
 	log.Infof("start connection to %s", req.Addr.String())

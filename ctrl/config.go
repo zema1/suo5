@@ -2,6 +2,7 @@ package ctrl
 
 import (
 	"fmt"
+	"github.com/gobwas/glob"
 	"io"
 	"net/http"
 	"strings"
@@ -27,7 +28,7 @@ type Suo5Config struct {
 	ExcludeDomain    []string       `json:"exclude_domain"`
 
 	TestExit                string                               `json:"-"`
-	ExcludeDomainMap        map[string]bool                      `json:"-"`
+	ExcludeGlobs            []glob.Glob                          `json:"-"`
 	Offset                  int                                  `json:"-"`
 	Header                  http.Header                          `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
@@ -37,15 +38,22 @@ type Suo5Config struct {
 }
 
 func (s *Suo5Config) Parse() error {
-	s.parseExcludeDomain()
+	if err := s.parseExcludeDomain(); err != nil {
+		return err
+	}
 	return s.parseHeader()
 }
 
-func (s *Suo5Config) parseExcludeDomain() {
-	s.ExcludeDomainMap = make(map[string]bool)
+func (s *Suo5Config) parseExcludeDomain() error {
+	s.ExcludeGlobs = make([]glob.Glob, 0)
 	for _, domain := range s.ExcludeDomain {
-		s.ExcludeDomainMap[strings.ToLower(strings.TrimSpace(domain))] = true
+		g, err := glob.Compile(domain)
+		if err != nil {
+			return err
+		}
+		s.ExcludeGlobs = append(s.ExcludeGlobs, g)
 	}
+	return nil
 }
 
 func (s *Suo5Config) parseHeader() error {
