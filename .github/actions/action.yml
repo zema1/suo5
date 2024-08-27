@@ -14,7 +14,9 @@ runs:
         path: .
     - shell: bash
       working-directory: ./assets
-      run: cp -r ./java/* ./
+      run: |
+        cp -r ./java/* ./
+        cp -r ./php/* ./
     - uses: docker-practice/actions-setup-docker@master
       with:
         docker_buildx: false
