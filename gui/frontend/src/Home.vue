@@ -343,8 +343,8 @@ const importConfig = async () => {
     if (config) {
       formValue.value = config
       advancedOptions.value = Object.assign({}, config)
+      message.success("导入配置成功")
     }
-    message.success("导入配置成功")
   } catch (e) {
     message.error(`导入配置失败, ${e}`)
   }

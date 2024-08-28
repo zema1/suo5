@@ -163,6 +163,9 @@ func (a *App) ExportConfig(config *ctrl.Suo5Config) error {
 	if err != nil {
 		return err
 	}
+	if filepath == "" {
+		return fmt.Errorf("user canceled")
+	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
