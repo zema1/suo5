@@ -8,8 +8,8 @@
         <n-form-item label="目标" required>
           <n-flex :size="16">
             <n-input v-model:value="formValue.method" style="width: 64px"/>
-            <n-input v-model:value="formValue.target" style="width: 370px;" placeholder="https://example.com/1.jsp"/>
-            <n-button :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
+            <n-input v-model:value="formValue.target" style="width: 340px;" placeholder="https://example.com/1.jsp"/>
+            <n-button style="flex:1" :type="btnType" @click="runAction" :loading="runLoading">{{ btnName }}
             </n-button>
           </n-flex>
         </n-form-item>
