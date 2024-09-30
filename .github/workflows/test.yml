@@ -358,8 +358,8 @@ jobs:
           - webdevops/php-nginx:8.0
           - webdevops/php-nginx:8.1
           - webdevops/php-nginx:8.2
-#          - webdevops/php-nginx:ubuntu-12.04
-#          - webdevops/php-nginx:ubuntu-14.04
+        #          - webdevops/php-nginx:ubuntu-12.04
+        #          - webdevops/php-nginx:ubuntu-14.04
         mount:
           - /app
 
@@ -414,5 +414,5 @@ jobs:
           bash ./.github/workflows/ready.sh ${{ env.SUO5_ASPX_URL }} 30
           curl -v ${{ env.SUO5_ASPX_URL }}
           chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com --no-jar
-          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode half --no-jar
+          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com
+          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode half
