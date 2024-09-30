@@ -103,8 +103,11 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		log.Infof("using redirect url %v", config.RedirectURL)
 	}
 	var jar http.CookieJar
-	if !config.DisableCookiejar {
+	if config.EnableCookieJar {
 		jar, _ = cookiejar.New(nil)
+	} else {
+		// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
+		jar = NewSwitchableCookieJar([]string{"PHPSESSID"})
 	}
 
 	noTimeoutClient := &http.Client{

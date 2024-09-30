@@ -108,7 +108,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 		return
 	}
 
-	if resp.Header.Get("Set-Cookie") != "" && !m.config.DisableCookiejar {
+	if resp.Header.Get("Set-Cookie") != "" && m.config.EnableCookieJar {
 		log.Infof("update cookie with %s", resp.Header.Get("Set-Cookie"))
 	}
 

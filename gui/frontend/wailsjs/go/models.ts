@@ -16,7 +16,7 @@ export namespace ctrl {
 	    raw_header: string[];
 	    disable_heartbeat: boolean;
 	    disable_gzip: boolean;
-	    disable_cookiejar: boolean;
+	    enable_cookiejar: boolean;
 	    exclude_domain: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -40,7 +40,7 @@ export namespace ctrl {
 	        this.raw_header = source["raw_header"];
 	        this.disable_heartbeat = source["disable_heartbeat"];
 	        this.disable_gzip = source["disable_gzip"];
-	        this.disable_cookiejar = source["disable_cookiejar"];
+	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
 	    }
 	}
