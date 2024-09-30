@@ -9,7 +9,7 @@ require (
 	github.com/kataras/pio v0.0.11
 	github.com/pkg/errors v0.9.1
 	github.com/refraction-networking/utls v1.6.4
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/zema1/rawhttp v0.1.1
 )
