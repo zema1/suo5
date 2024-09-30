@@ -90,8 +90,8 @@
             </n-form-item>
           </n-gi>
           <n-gi span="2" offset="1">
-            <n-form-item label-width="120" label="禁用CookieJar">
-              <n-checkbox v-model:checked="advancedOptions.disable_cookiejar"></n-checkbox>
+            <n-form-item label-width="120" label="启用CookieJar">
+              <n-checkbox v-model:checked="advancedOptions.enable_cookiejar"></n-checkbox>
             </n-form-item>
           </n-gi>
           <n-gi span="2">
@@ -137,11 +137,10 @@
 <script lang="ts" setup>
 
 import {ctrl, main} from "../wailsjs/go/models";
-import {DefaultSuo5Config, RunSuo5WithConfig, Stop, ImportConfig, ExportConfig} from "../wailsjs/go/main/App";
+import {DefaultSuo5Config, ExportConfig, ImportConfig, RunSuo5WithConfig, Stop} from "../wailsjs/go/main/App";
 import {BrowserOpenURL, EventsOn} from "../wailsjs/runtime";
 import {AlertProps} from "naive-ui/es/alert/src/Alert";
 import {ButtonProps, FormInst, useMessage} from 'naive-ui'
-import {onBeforeMount} from "vue";
 import Status = main.Status;
 
 const message = useMessage()
@@ -163,7 +162,7 @@ const formValue = ref<ctrl.Suo5Config>({
   raw_header: [],
   disable_heartbeat: false,
   disable_gzip: false,
-  disable_cookiejar: false,
+  enable_cookiejar: false,
   exclude_domain: [],
 })
 
@@ -193,7 +192,7 @@ const confirmAdvanced = () => {
   formValue.value.redirect_url = advancedOptions.value.redirect_url
   formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
   formValue.value.disable_gzip = advancedOptions.value.disable_gzip
-  formValue.value.disable_cookiejar = advancedOptions.value.disable_cookiejar
+  formValue.value.enable_cookiejar = advancedOptions.value.enable_cookiejar
   showAdvanced.value = false
 }
 const formRef = ref<FormInst | null>(null)

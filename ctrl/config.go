@@ -24,7 +24,7 @@ type Suo5Config struct {
 	RawHeader        []string       `json:"raw_header"`
 	DisableHeartbeat bool           `json:"disable_heartbeat"`
 	DisableGzip      bool           `json:"disable_gzip"`
-	DisableCookiejar bool           `json:"disable_cookiejar"`
+	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 
 	TestExit                string                               `json:"-"`
@@ -105,6 +105,6 @@ func DefaultSuo5Config() *Suo5Config {
 		RedirectURL:      "",
 		RawHeader:        []string{"User-Agent: Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3"},
 		DisableHeartbeat: false,
-		DisableCookiejar: false,
+		EnableCookieJar:  false,
 	}
 }
