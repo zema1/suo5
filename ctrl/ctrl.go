@@ -2,25 +2,35 @@ package ctrl
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
-	"github.com/zema1/suo5/suo5"
+	"io"
+	"math/rand"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/chainreactors/proxyclient"
 	"github.com/go-gost/gosocks5"
 	"github.com/go-gost/gosocks5/client"
 	"github.com/go-gost/gosocks5/server"
 	log "github.com/kataras/golog"
 	"github.com/kataras/pio"
 	"github.com/pkg/errors"
+	utls "github.com/refraction-networking/utls"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 )
 
-func Run(ctx context.Context, config *suo5.Suo5Config) error {
+var rander = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func Run(ctx context.Context, config *Suo5Config) error {
 	if config.GuiLog != nil {
 		// 防止多次执行出错
 		log.Default = log.New()
@@ -30,13 +40,121 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		log.SetLevel("debug")
 	}
 
-	suo5Client, err := config.Init()
+	err := config.Parse()
 	if err != nil {
 		return err
 	}
+	if config.DisableGzip {
+		log.Infof("disable gzip")
+		config.Header.Set("Accept-Encoding", "identity")
+	}
+
+	if len(config.ExcludeDomain) != 0 {
+		log.Infof("exclude domains: %v", config.ExcludeDomain)
+	}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion:         tls.VersionTLS10,
+			Renegotiation:      tls.RenegotiateOnceAsClient,
+			InsecureSkipVerify: true,
+		},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := net.DialTimeout(network, addr, 5*time.Second)
+			if err != nil {
+				return nil, err
+			}
+			colonPos := strings.LastIndex(addr, ":")
+			if colonPos == -1 {
+				colonPos = len(addr)
+			}
+			hostname := addr[:colonPos]
+			tlsConfig := &utls.Config{
+				ServerName:         hostname,
+				InsecureSkipVerify: true,
+				Renegotiation:      utls.RenegotiateOnceAsClient,
+				MinVersion:         utls.VersionTLS10,
+			}
+			uTlsConn := utls.UClient(conn, tlsConfig, utls.HelloRandomizedNoALPN)
+			if err = uTlsConn.HandshakeContext(ctx); err != nil {
+				_ = conn.Close()
+				return nil, err
+			}
+			return uTlsConn, nil
+		},
+	}
+	if len(config.UpstreamProxy) > 0 {
+		proxies, err := proxyclient.ParseProxyURLs(config.UpstreamProxy)
+		if err != nil {
+			return err
+		}
+		log.Infof("using upstream proxy %v", proxies)
+
+		config.ProxyClient, err = proxyclient.NewClientChain(proxies)
+		if err != nil {
+			return err
+		}
+		tr.DialContext = config.ProxyClient.DialContext
+	}
+	if config.RedirectURL != "" {
+		_, err := url.Parse(config.RedirectURL)
+		if err != nil {
+			return fmt.Errorf("failed to parse redirect url, %s", err)
+		}
+		log.Infof("using redirect url %v", config.RedirectURL)
+	}
+	var jar http.CookieJar
+	if config.EnableCookieJar {
+		jar, _ = cookiejar.New(nil)
+	} else {
+		// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
+		jar = NewSwitchableCookieJar([]string{"PHPSESSID"})
+	}
+
+	noTimeoutClient := &http.Client{
+		Transport: tr.Clone(),
+		Jar:       jar,
+		Timeout:   0,
+	}
+	normalClient := &http.Client{
+		Timeout:   time.Duration(config.Timeout) * time.Second,
+		Jar:       jar,
+		Transport: tr.Clone(),
+	}
+
+	var rawClient *rawhttp.Client
+	if config.ProxyClient != nil {
+		rawClient = newRawClient(config.ProxyClient.DialContext, 0)
+	} else {
+		rawClient = newRawClient(nil, 0)
+	}
+
+	log.Infof("header: %s", config.HeaderString())
+	log.Infof("method: %s", config.Method)
+	log.Infof("connecting to target %s", config.Target)
+	result, offset, err := checkConnectMode(config)
+	if err != nil {
+		return err
+	}
+	if config.Mode == AutoDuplex {
+		config.Mode = result
+		if result == FullDuplex {
+			log.Infof("wow, you can run the proxy on FullDuplex mode")
+		} else {
+			log.Warnf("the target may behind a reverse proxy, fallback to HalfDuplex mode")
+		}
+	} else {
+		if result == FullDuplex && config.Mode == HalfDuplex {
+			log.Infof("the target support full duplex, you can try FullDuplex mode to obtain better performance")
+		} else if result == HalfDuplex && config.Mode == FullDuplex {
+			return fmt.Errorf("the target doesn't support full duplex, you should use HalfDuplex or AutoDuplex mode")
+		}
+	}
+	config.Offset = offset
+
 	log.Infof("starting tunnel at %s", config.Listen)
 	if config.OnRemoteConnected != nil {
-		config.OnRemoteConnected(&suo5.ConnectedEvent{Mode: config.Mode})
+		config.OnRemoteConnected(&ConnectedEvent{Mode: config.Mode})
 	}
 
 	fmt.Println()
@@ -79,14 +197,17 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	}
 
 	handler := &socks5Handler{
-		Suo5Client: suo5Client,
-		ctx:        ctx,
-		pool:       trPool,
-		selector:   selector,
+		ctx:             ctx,
+		config:          config,
+		normalClient:    normalClient,
+		noTimeoutClient: noTimeoutClient,
+		rawClient:       rawClient,
+		pool:            trPool,
+		selector:        selector,
 	}
 
 	go func() {
-		_ = srv.Serve(&suo5.ClientEventHandler{
+		_ = srv.Serve(&ClientEventHandler{
 			Inner:                   handler,
 			OnNewClientConnection:   config.OnNewClientConnection,
 			OnClientConnectionClose: config.OnClientConnectionClose,
@@ -111,6 +232,66 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 
 	<-ctx.Done()
 	return nil
+}
+
+func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
+	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
+	proxies, err := proxyclient.ParseProxyURLs(config.UpstreamProxy)
+	if err != nil {
+		return Undefined, 0, err
+	}
+	chain, err := proxyclient.NewClientChain(proxies)
+	if err != nil {
+		return Undefined, 0, err
+	}
+	rawClient := newRawClient(chain.DialContext, time.Second*5)
+	randLen := rander.Intn(1024)
+	if randLen <= 32 {
+		randLen += 32
+	}
+	data := RandString(randLen)
+	ch := make(chan []byte, 1)
+	ch <- []byte(data)
+	req, err := http.NewRequest(config.Method, config.Target, netrans.NewChannelReader(ch))
+	if err != nil {
+		return Undefined, 0, err
+	}
+	req.Header = config.Header.Clone()
+	req.Header.Set(HeaderKey, HeaderValueChecking)
+
+	now := time.Now()
+	go func() {
+		// timeout
+		time.Sleep(time.Second * 3)
+		close(ch)
+	}()
+	resp, err := rawClient.Do(req)
+	if err != nil {
+		return Undefined, 0, err
+	}
+	defer resp.Body.Close()
+
+	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
+		log.Warnf("got error %s", err)
+	}
+	duration := time.Since(now).Milliseconds()
+
+	offset := strings.Index(string(body), data[:32])
+	if offset == -1 {
+		header, _ := httputil.DumpResponse(resp, false)
+		log.Errorf("response are as follows:\n%s", string(header)+string(body))
+		return Undefined, 0, fmt.Errorf("got unexpected body, remote server test failed")
+	}
+	log.Infof("got data offset, %d", offset)
+
+	if duration < 3000 {
+		return FullDuplex, offset, nil
+	} else {
+		return HalfDuplex, offset, nil
+	}
 }
 
 // 检查代理是否真正有效, 只要能按有响应即可，尝试连一下 server 的 LocalPort, 这里写 0，在 jsp 里有判断
@@ -175,4 +356,45 @@ func testAndExit(socks5 string, remote string, timeout time.Duration) error {
 	}
 	log.Debugf("test connection got response for %s (without body)\n%s", remote, string(data))
 	return nil
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func RandString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rander.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func newRawClient(upstream rawhttp.ContextDialFunc, timeout time.Duration) *rawhttp.Client {
+	return rawhttp.NewClient(&rawhttp.Options{
+		Proxy:                  upstream,
+		Timeout:                timeout,
+		FollowRedirects:        false,
+		MaxRedirects:           0,
+		AutomaticHostHeader:    true,
+		AutomaticContentLength: true,
+		ForceReadAllBody:       false,
+		TLSHandshake: func(conn net.Conn, addr string, options *rawhttp.Options) (net.Conn, error) {
+			colonPos := strings.LastIndex(addr, ":")
+			if colonPos == -1 {
+				colonPos = len(addr)
+			}
+			hostname := addr[:colonPos]
+			uTlsConn := utls.UClient(conn, &utls.Config{
+				InsecureSkipVerify: true,
+				ServerName:         hostname,
+				MinVersion:         utls.VersionTLS10,
+				Renegotiation:      utls.RenegotiateOnceAsClient,
+			}, utls.HelloRandomizedNoALPN)
+			if err := uTlsConn.Handshake(); err != nil {
+				_ = conn.Close()
+				return nil, err
+			}
+			return uTlsConn, nil
+		},
+	})
+
 }
