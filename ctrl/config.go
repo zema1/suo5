@@ -2,6 +2,7 @@ package ctrl
 
 import (
 	"fmt"
+	"github.com/chainreactors/proxyclient"
 	"github.com/gobwas/glob"
 	"io"
 	"net/http"
@@ -19,7 +20,7 @@ type Suo5Config struct {
 	BufferSize       int            `json:"buffer_size"`
 	Timeout          int            `json:"timeout"`
 	Debug            bool           `json:"debug"`
-	UpstreamProxy    string         `json:"upstream_proxy"`
+	UpstreamProxy    []string       `json:"upstream_proxy"`
 	RedirectURL      string         `json:"redirect_url"`
 	RawHeader        []string       `json:"raw_header"`
 	DisableHeartbeat bool           `json:"disable_heartbeat"`
@@ -27,10 +28,11 @@ type Suo5Config struct {
 	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 
-	TestExit                string                               `json:"-"`
-	ExcludeGlobs            []glob.Glob                          `json:"-"`
-	Offset                  int                                  `json:"-"`
-	Header                  http.Header                          `json:"-"`
+	TestExit                string      `json:"-"`
+	ExcludeGlobs            []glob.Glob `json:"-"`
+	Offset                  int         `json:"-"`
+	Header                  http.Header `json:"-"`
+	ProxyClient             proxyclient.Dial
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`
@@ -101,7 +103,7 @@ func DefaultSuo5Config() *Suo5Config {
 		BufferSize:       1024 * 320,
 		Timeout:          10,
 		Debug:            false,
-		UpstreamProxy:    "",
+		UpstreamProxy:    []string{},
 		RedirectURL:      "",
 		RawHeader:        []string{"User-Agent: Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3"},
 		DisableHeartbeat: false,

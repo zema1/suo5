@@ -92,10 +92,10 @@ func main() {
 			Usage: "request max body size",
 			Value: defaultConfig.BufferSize,
 		},
-		&cli.StringFlag{
+		&cli.StringSliceFlag{
 			Name:  "proxy",
 			Usage: "set upstream proxy, support socks5/http(s), eg: socks5://127.0.0.1:7890",
-			Value: defaultConfig.UpstreamProxy,
+			Value: cli.NewStringSlice(defaultConfig.UpstreamProxy...),
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
@@ -162,7 +162,7 @@ func Action(c *cli.Context) error {
 	bufSize := c.Int("buf-size")
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
-	proxy := c.String("proxy")
+	proxy := c.StringSlice("proxy")
 	method := c.String("method")
 	redirect := c.String("redirect")
 	header := c.StringSlice("header")

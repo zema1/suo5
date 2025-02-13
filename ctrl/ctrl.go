@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chainreactors/proxyclient"
 	"github.com/go-gost/gosocks5"
 	"github.com/go-gost/gosocks5/client"
 	"github.com/go-gost/gosocks5/server"
@@ -82,18 +83,18 @@ func Run(ctx context.Context, config *Suo5Config) error {
 			return uTlsConn, nil
 		},
 	}
-	if config.UpstreamProxy != "" {
-		proxy := strings.TrimSpace(config.UpstreamProxy)
-		if !strings.HasPrefix(proxy, "socks5") && !strings.HasPrefix(proxy, "http") {
-			return fmt.Errorf("invalid proxy, both socks5 and http(s) are supported, eg: socks5://127.0.0.1:1080")
-		}
-		config.UpstreamProxy = proxy
-		u, err := url.Parse(config.UpstreamProxy)
+	if len(config.UpstreamProxy) > 0 {
+		proxies, err := proxyclient.ParseProxyURLs(config.UpstreamProxy)
 		if err != nil {
 			return err
 		}
-		log.Infof("using upstream proxy %v", proxy)
-		tr.Proxy = http.ProxyURL(u)
+		log.Infof("using upstream proxy %v", proxies)
+
+		config.ProxyClient, err = proxyclient.NewClientChain(proxies)
+		if err != nil {
+			return err
+		}
+		tr.DialContext = config.ProxyClient.DialContext
 	}
 	if config.RedirectURL != "" {
 		_, err := url.Parse(config.RedirectURL)
@@ -120,7 +121,13 @@ func Run(ctx context.Context, config *Suo5Config) error {
 		Jar:       jar,
 		Transport: tr.Clone(),
 	}
-	rawClient := newRawClient(config.UpstreamProxy, 0)
+
+	var rawClient *rawhttp.Client
+	if config.ProxyClient != nil {
+		rawClient = newRawClient(config.ProxyClient.DialContext, 0)
+	} else {
+		rawClient = newRawClient(nil, 0)
+	}
 
 	log.Infof("header: %s", config.HeaderString())
 	log.Infof("method: %s", config.Method)
@@ -229,7 +236,15 @@ func Run(ctx context.Context, config *Suo5Config) error {
 
 func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
-	rawClient := newRawClient(config.UpstreamProxy, time.Second*5)
+	proxies, err := proxyclient.ParseProxyURLs(config.UpstreamProxy)
+	if err != nil {
+		return Undefined, 0, err
+	}
+	chain, err := proxyclient.NewClientChain(proxies)
+	if err != nil {
+		return Undefined, 0, err
+	}
+	rawClient := newRawClient(chain.DialContext, time.Second*5)
 	randLen := rander.Intn(1024)
 	if randLen <= 32 {
 		randLen += 32
@@ -353,7 +368,7 @@ func RandString(n int) string {
 	return string(b)
 }
 
-func newRawClient(upstream string, timeout time.Duration) *rawhttp.Client {
+func newRawClient(upstream rawhttp.ContextDialFunc, timeout time.Duration) *rawhttp.Client {
 	return rawhttp.NewClient(&rawhttp.Options{
 		Proxy:                  upstream,
 		Timeout:                timeout,
