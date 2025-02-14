@@ -28,8 +28,7 @@ func NewSuo5Conn(ctx context.Context, client *Suo5Client) *Suo5Conn {
 
 type Suo5Conn struct {
 	io.ReadWriteCloser
-	ctx    context.Context
-	closed bool
+	ctx context.Context
 	*Suo5Client
 }
 
