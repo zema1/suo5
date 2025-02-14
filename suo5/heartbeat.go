@@ -1,4 +1,4 @@
-package ctrl
+package suo5
 
 import (
 	"context"
@@ -59,7 +59,7 @@ func (h *heartbeatRW) heartbeat(ctx context.Context) {
 				h.lastHaveWrite.Store(false)
 				continue
 			}
-			body := buildBody(newHeartbeat(h.id, h.redirect))
+			body := BuildBody(NewHeartbeat(h.id, h.redirect))
 			log.Debugf("send heartbeat, length: %d", len(body))
 			_, err := h.rw.WriteRaw(body)
 			if err != nil {

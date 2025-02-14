@@ -45,7 +45,7 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.10 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	github.com/zema1/rawhttp v0.1.1 // indirect
+	github.com/zema1/rawhttp v0.2.0 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect

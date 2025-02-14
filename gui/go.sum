@@ -89,6 +89,7 @@ github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 github.com/zema1/rawhttp v0.1.1 h1:L8OWJRfHf0KP5qyZiTWH9hU+mTqnVS3rGI1cy/Mnpfs=
 github.com/zema1/rawhttp v0.1.1/go.mod h1:EYBmBgSu01yb/kLh6lgjJWa6kDV+DrSO8nbgmEzuG6E=
+github.com/zema1/rawhttp v0.2.0/go.mod h1:EYBmBgSu01yb/kLh6lgjJWa6kDV+DrSO8nbgmEzuG6E=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.12.0/go.mod h1:NF0Gs7EO5K4qLn+Ylc+fih8BSTeIjAP05siRnAh98yw=
