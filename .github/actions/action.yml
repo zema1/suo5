@@ -8,7 +8,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: test-target
         path: .
@@ -17,9 +17,9 @@ runs:
       run: |
         cp -r ./java/* ./
         cp -r ./php/* ./
-    - uses: docker-practice/actions-setup-docker@master
+    - uses: docker/setup-docker-action@v4
       with:
-        docker_buildx: false
+        version: 25.0.5
     - if: inputs.jar == 'true'
       uses: actions/setup-java@v4
       with:
