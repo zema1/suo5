@@ -46,9 +46,9 @@ jobs:
         with:
           go-version: '1.20'
       - run: go build -trimpath -ldflags "-w -s -extldflags '-static' -X main.Version=${{ github.ref_name }}" -o target/${{ matrix.output }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: target
+          name: target-binary
           path: target/*
 
   build-gui:
@@ -98,9 +98,9 @@ jobs:
           ditto -c -k --keepParent ./build/bin/${{matrix.output}}.app ./build/bin/${{matrix.output}}.app.zip
           rm -rf ./build/bin/${{ matrix.output }}.app
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: target
+          name: target-gui
           path: gui/build/bin/*
 
   collect-release:
@@ -111,9 +111,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: target
+          name: target-binary
+          merge-multiple: true
+          path: target
+      - uses: actions/download-artifact@v4
+        with:
+          name: target-gui
+          merge-multiple: true
           path: target
       - run: ls -al target && ls -R target/
       - working-directory: target
@@ -122,7 +128,7 @@ jobs:
           rm -rf suo5.pkg
           mv suo5.app.zip suo5-gui-darwin.app.zip
       - run: ls -al target && ls -R target/ && file target/
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: target-release
           path: target/*
