@@ -82,13 +82,14 @@ jobs:
         run: node version.js ${{ github.ref_name }}
       - run: npm install && npm run build
         working-directory: gui/frontend
-      - uses: dAppServer/wails-build-action@v2.2
+      - uses: dAppServer/wails-build-action@main
         with:
           build-name: ${{ matrix.output }}
           build-platform: ${{ matrix.platform }}
           app-working-directory: gui
           nsis: false
           go-version: '1.20'
+          wails-version: 'v2.9.1'
           package: false
       - if: runner.os == 'macOS'
         shell: bash
