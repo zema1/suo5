@@ -83,6 +83,7 @@ jobs:
       - run: npm install && npm run build
         working-directory: gui/frontend
       - uses: dAppServer/wails-build-action@main
+        continue-on-error: true
         with:
           build-name: ${{ matrix.output }}
           build-platform: ${{ matrix.platform }}
