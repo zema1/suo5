@@ -3,7 +3,7 @@ module github.com/zema1/suo5
 go 1.20
 
 require (
-	github.com/chainreactors/proxyclient v1.0.1
+	github.com/chainreactors/proxyclient v1.0.2
 	github.com/go-gost/gosocks5 v0.3.0
 	github.com/gobwas/glob v0.2.3
 	github.com/kataras/golog v0.1.8
@@ -31,4 +31,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/zema1/suo5 => ./
+//replace github.com/zema1/suo5 => ./
