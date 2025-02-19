@@ -32,11 +32,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.20'
-      - run: go build -trimpath -ldflags "-w -s -extldflags '-static'" -o suo5
+      - run: go build -trimpath -ldflags "-w -s -extldflags '-static'" -o suo5_test
       - uses: actions/upload-artifact@v4
         with:
           name: test-target
-          path: suo5
+          path: suo5_test
 
   resin-test:
     name: Resin
@@ -59,13 +59,13 @@ jobs:
           docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_JSP_URL }} 30
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
 
   jetty-test:
     name: Jetty
@@ -102,13 +102,13 @@ jobs:
           docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_JSP_URL }} 30
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half 
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half 
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half 
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half 
 
   jboss-test:
     name: JBoss
@@ -133,13 +133,13 @@ jobs:
           docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_JSP_URL }} 30
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
 
   websphere-test:
     name: WebSphere
@@ -172,13 +172,13 @@ jobs:
           bash ./.github/workflows/ready.sh http://127.0.0.1:9080 60
           sleep 10
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
 
   tongweb-test:
     name: TongWeb
@@ -207,13 +207,13 @@ jobs:
           bash ./.github/workflows/ready.sh http://127.0.0.1:9060 30
           sleep 10
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -no-gzip
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full -no-gzip
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half -no-gzip
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -no-gzip
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full -no-gzip
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half -no-gzip
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -no-gzip
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full -no-gzip
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half -no-gzip
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -no-gzip
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full -no-gzip
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half -no-gzip
   
 
   weblogic-test:
@@ -261,13 +261,13 @@ jobs:
           docker cp ./assets/assets.war weblogic-test:${{ matrix.deploy }}
           sleep 10
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
 
   tomcat-test:
     name: Tomcat
@@ -334,14 +334,14 @@ jobs:
           docker run -it --rm -d -p8080:8080 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_JSP_URL }} 30
           curl -v ${{ env.SUO5_JSP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
-          ./suo5 -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode full
+          ./suo5_test -debug -t ${{ env.SUO5_JSP_URL }} -T https://www.bing.com -mode half
           if [ "${{ matrix.jspx }}" = "true" ]; then
-            ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
-            ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
-            ./suo5 -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
+            ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com
+            ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode full
+            ./suo5_test -debug -t ${{ env.SUO5_JSPX_URL }} -T https://www.bing.com -mode half
           fi
 
   php-test:
@@ -376,9 +376,9 @@ jobs:
           docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_PHP_URL }} 30
           curl -v ${{ env.SUO5_PHP_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_PHP_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_PHP_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_PHP_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_PHP_URL }} -T https://www.bing.com -mode half
 
 
   donet-test:
@@ -416,6 +416,6 @@ jobs:
           docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/config:/etc/mono/pools -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
           bash ./.github/workflows/ready.sh ${{ env.SUO5_ASPX_URL }} 30
           curl -v ${{ env.SUO5_ASPX_URL }}
-          chmod +x ./suo5
-          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com
-          ./suo5 -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode half
+          chmod +x ./suo5_test
+          ./suo5_test -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com
+          ./suo5_test -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode half
