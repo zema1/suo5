@@ -48,7 +48,7 @@ jobs:
       - run: go build -trimpath -ldflags "-w -s -extldflags '-static' -X main.Version=${{ github.ref_name }}" -o target/${{ matrix.output }}
       - uses: actions/upload-artifact@v4
         with:
-          name: target-binary
+          name: target-binary-${{ matrix.os }}-${{ matrix.arch }}
           path: target/*
 
   build-gui:
@@ -82,13 +82,15 @@ jobs:
         run: node version.js ${{ github.ref_name }}
       - run: npm install && npm run build
         working-directory: gui/frontend
-      - uses: dAppServer/wails-build-action@v2.2
+      - uses: dAppServer/wails-build-action@main
+        continue-on-error: true
         with:
           build-name: ${{ matrix.output }}
           build-platform: ${{ matrix.platform }}
           app-working-directory: gui
           nsis: false
           go-version: '1.20'
+          wails-version: 'v2.9.1'
           package: false
       - if: runner.os == 'macOS'
         shell: bash
@@ -100,7 +102,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: target-gui
+          name: target-gui-${{ matrix.os }}
           path: gui/build/bin/*
 
   collect-release:
@@ -113,12 +115,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: target-binary
+          pattern: target-binary-*
           merge-multiple: true
           path: target
       - uses: actions/download-artifact@v4
         with:
-          name: target-gui
+          pattern: target-gui-*
           merge-multiple: true
           path: target
       - run: ls -al target && ls -R target/
@@ -130,8 +132,7 @@ jobs:
       - run: ls -al target && ls -R target/ && file target/
       - uses: actions/upload-artifact@v4
         with:
-          name: target-release
-          merge-multiple: true
+          name: final-release
           path: target/*
 
       # release assets

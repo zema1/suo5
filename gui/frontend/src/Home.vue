@@ -117,7 +117,7 @@
                    placeholder="用于应对负载均衡，流量将集中转发到这个 url"/>
         </n-form-item>
         <n-form-item label="上游代理">
-          <n-input v-model:value="advancedOptions.upstream_proxy"
+          <n-input v-model:value="upstream_proxy_single"
                    placeholder="http(s) or socks5, eg: socks5://user:pass@ip:port"/>
         </n-form-item>
         <n-form-item label="请求头">
@@ -136,7 +136,7 @@
 
 <script lang="ts" setup>
 
-import {ctrl, main} from "../wailsjs/go/models";
+import {suo5, main} from "../wailsjs/go/models";
 import {DefaultSuo5Config, ExportConfig, ImportConfig, RunSuo5WithConfig, Stop} from "../wailsjs/go/main/App";
 import {BrowserOpenURL, EventsOn} from "../wailsjs/runtime";
 import {AlertProps} from "naive-ui/es/alert/src/Alert";
@@ -146,7 +146,7 @@ import Status = main.Status;
 const message = useMessage()
 
 
-const formValue = ref<ctrl.Suo5Config>({
+const formValue = ref<suo5.Suo5Config>({
   listen: '',
   target: '',
   no_auth: false,
@@ -156,7 +156,7 @@ const formValue = ref<ctrl.Suo5Config>({
   buffer_size: 0,
   timeout: 0,
   debug: false,
-  upstream_proxy: '',
+  upstream_proxy: [],
   method: '',
   redirect_url: '',
   raw_header: [],
@@ -166,7 +166,9 @@ const formValue = ref<ctrl.Suo5Config>({
   exclude_domain: [],
 })
 
-const advancedOptions = ref<ctrl.Suo5Config>(Object.assign({}, formValue.value))
+const upstream_proxy_single = ref("")
+
+const advancedOptions = ref<suo5.Suo5Config>(Object.assign({}, formValue.value))
 
 onMounted(async () => {
   formValue.value = await DefaultSuo5Config();
@@ -187,7 +189,11 @@ const confirmAdvanced = () => {
   formValue.value.debug = advancedOptions.value.debug
   formValue.value.timeout = advancedOptions.value.timeout
   formValue.value.buffer_size = advancedOptions.value.buffer_size
-  formValue.value.upstream_proxy = advancedOptions.value.upstream_proxy
+  if (upstream_proxy_single.value.trim() != "") {
+    formValue.value.upstream_proxy = [upstream_proxy_single.value]
+  } else {
+    formValue.value.upstream_proxy = []
+  }
   formValue.value.raw_header = advancedOptions.value.raw_header
   formValue.value.redirect_url = advancedOptions.value.redirect_url
   formValue.value.disable_heartbeat = advancedOptions.value.disable_heartbeat
