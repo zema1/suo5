@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/zema1/suo5/suo5"
 	"os"
 	"os/signal"
 	"strings"
@@ -22,7 +23,7 @@ func main() {
 	app.Usage = "A high-performance http tunnel"
 	app.Version = Version
 
-	defaultConfig := ctrl.DefaultSuo5Config()
+	defaultConfig := suo5.DefaultSuo5Config()
 	app.DisableSliceFlagSeparator = true
 
 	app.Flags = []cli.Flag{
@@ -92,10 +93,10 @@ func main() {
 			Usage: "request max body size",
 			Value: defaultConfig.BufferSize,
 		},
-		&cli.StringFlag{
+		&cli.StringSliceFlag{
 			Name:  "proxy",
 			Usage: "set upstream proxy, support socks5/http(s), eg: socks5://127.0.0.1:7890",
-			Value: defaultConfig.UpstreamProxy,
+			Value: cli.NewStringSlice(defaultConfig.UpstreamProxy...),
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
@@ -157,12 +158,12 @@ func Action(c *cli.Context) error {
 	target := c.String("target")
 	noAuth := c.Bool("no-auth")
 	auth := c.String("auth")
-	mode := ctrl.ConnectionType(c.String("mode"))
+	mode := suo5.ConnectionType(c.String("mode"))
 	ua := c.String("ua")
 	bufSize := c.Int("buf-size")
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
-	proxy := c.String("proxy")
+	proxy := c.StringSlice("proxy")
 	method := c.String("method")
 	redirect := c.String("redirect")
 	header := c.StringSlice("header")
@@ -178,7 +179,7 @@ func Action(c *cli.Context) error {
 	if auth == "" {
 		if !noAuth {
 			username = "suo5"
-			password = ctrl.RandString(8)
+			password = suo5.RandString(8)
 		}
 	} else {
 		parts := strings.Split(auth, ":")
@@ -189,7 +190,7 @@ func Action(c *cli.Context) error {
 		password = parts[1]
 		noAuth = false
 	}
-	if !(mode == ctrl.AutoDuplex || mode == ctrl.FullDuplex || mode == ctrl.HalfDuplex) {
+	if !(mode == suo5.AutoDuplex || mode == suo5.FullDuplex || mode == suo5.HalfDuplex) {
 		return fmt.Errorf("invalid mode, expected auto or full or half")
 	}
 
@@ -212,7 +213,7 @@ func Action(c *cli.Context) error {
 		}
 	}
 
-	config := &ctrl.Suo5Config{
+	config := &suo5.Suo5Config{
 		Listen:           listen,
 		Target:           target,
 		NoAuth:           noAuth,

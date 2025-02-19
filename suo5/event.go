@@ -1,4 +1,4 @@
-package ctrl
+package suo5
 
 import (
 	"github.com/go-gost/gosocks5/server"

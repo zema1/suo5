@@ -7,6 +7,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zema1/suo5/ctrl"
+	"github.com/zema1/suo5/suo5"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
@@ -54,16 +55,16 @@ func (a *App) shutdown(_ context.Context) {
 	a.cancel()
 }
 
-func (a *App) RunSuo5WithConfig(config *ctrl.Suo5Config) {
+func (a *App) RunSuo5WithConfig(config *suo5.Suo5Config) {
 	cliCtx, cancel := context.WithCancel(a.ctx)
 	a.cancelSuo5 = cancel
-	config.OnRemoteConnected = func(e *ctrl.ConnectedEvent) {
+	config.OnRemoteConnected = func(e *suo5.ConnectedEvent) {
 		wailsRuntime.EventsEmit(a.ctx, "connected", e)
 	}
-	config.OnNewClientConnection = func(event *ctrl.ClientConnectionEvent) {
+	config.OnNewClientConnection = func(event *suo5.ClientConnectionEvent) {
 		atomic.AddInt32(&a.connCount, 1)
 	}
-	config.OnClientConnectionClose = func(event *ctrl.ClientConnectCloseEvent) {
+	config.OnClientConnectionClose = func(event *suo5.ClientConnectCloseEvent) {
 		atomic.AddInt32(&a.connCount, -1)
 	}
 
@@ -77,8 +78,8 @@ func (a *App) RunSuo5WithConfig(config *ctrl.Suo5Config) {
 	}()
 }
 
-func (a *App) DefaultSuo5Config() *ctrl.Suo5Config {
-	return ctrl.DefaultSuo5Config()
+func (a *App) DefaultSuo5Config() *suo5.Suo5Config {
+	return suo5.DefaultSuo5Config()
 }
 
 func (a *App) GetStatus() *Status {
@@ -105,7 +106,7 @@ func (a *App) GetStatus() *Status {
 	return status
 }
 
-func (a *App) ImportConfig() (*ctrl.Suo5Config, error) {
+func (a *App) ImportConfig() (*suo5.Suo5Config, error) {
 	options := wailsRuntime.OpenDialogOptions{
 		DefaultDirectory: "",
 		DefaultFilename:  "",
@@ -125,7 +126,7 @@ func (a *App) ImportConfig() (*ctrl.Suo5Config, error) {
 	if filepath == "" {
 		return nil, nil
 	}
-	var config ctrl.Suo5Config
+	var config suo5.Suo5Config
 	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
@@ -140,7 +141,7 @@ func (a *App) ImportConfig() (*ctrl.Suo5Config, error) {
 	return &config, nil
 }
 
-func (a *App) ExportConfig(config *ctrl.Suo5Config) error {
+func (a *App) ExportConfig(config *suo5.Suo5Config) error {
 	filename := "suo5-config.json"
 	if config.Target != "" {
 		u, err := url.Parse(config.Target)

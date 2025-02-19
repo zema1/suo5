@@ -1,4 +1,4 @@
-package ctrl
+package suo5
 
 import (
 	"bytes"
@@ -43,7 +43,7 @@ func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	m, err := unmarshal(fr.Data)
+	m, err := Unmarshal(fr.Data)
 	if err != nil {
 		return 0, err
 	}
@@ -66,7 +66,7 @@ func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
 
 func (s *fullChunkedReadWriter) Write(p []byte) (n int, err error) {
 	log.Debugf("write socket data, length: %d", len(p))
-	body := buildBody(newActionData(s.id, p, ""))
+	body := BuildBody(NewActionData(s.id, p, ""))
 	return s.WriteRaw(body)
 }
 
@@ -77,7 +77,7 @@ func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
 func (s *fullChunkedReadWriter) Close() error {
 	s.once.Do(func() {
 		defer s.reqBody.Close()
-		body := buildBody(newDelete(s.id, ""))
+		body := BuildBody(NewDelete(s.id, ""))
 		_, _ = s.reqBody.Write(body)
 		_ = s.serverResp.Close()
 	})
@@ -127,7 +127,7 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
-	m, err := unmarshal(fr.Data)
+	m, err := Unmarshal(fr.Data)
 	if err != nil {
 		return 0, err
 	}
@@ -151,7 +151,7 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 }
 
 func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
-	body := buildBody(newActionData(s.id, p, s.redirect))
+	body := BuildBody(NewActionData(s.id, p, s.redirect))
 	log.Debugf("send request, length: %d", len(body))
 	return s.WriteRaw(body)
 }
@@ -181,7 +181,7 @@ func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
 
 func (s *halfChunkedReadWriter) Close() error {
 	s.once.Do(func() {
-		body := buildBody(newDelete(s.id, s.redirect))
+		body := BuildBody(NewDelete(s.id, s.redirect))
 		req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
 		if err != nil {
 			log.Error(err)
