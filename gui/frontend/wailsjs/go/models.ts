@@ -1,4 +1,25 @@
-export namespace ctrl {
+export namespace main {
+	
+	export class Status {
+	    connection_count: number;
+	    memory_usage: string;
+	    cpu_percent: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connection_count = source["connection_count"];
+	        this.memory_usage = source["memory_usage"];
+	        this.cpu_percent = source["cpu_percent"];
+	    }
+	}
+
+}
+
+export namespace suo5 {
 	
 	export class Suo5Config {
 	    method: string;
@@ -11,7 +32,7 @@ export namespace ctrl {
 	    buffer_size: number;
 	    timeout: number;
 	    debug: boolean;
-	    upstream_proxy: string;
+	    upstream_proxy: string[];
 	    redirect_url: string;
 	    raw_header: string[];
 	    disable_heartbeat: boolean;
@@ -42,27 +63,6 @@ export namespace ctrl {
 	        this.disable_gzip = source["disable_gzip"];
 	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
-	    }
-	}
-
-}
-
-export namespace main {
-	
-	export class Status {
-	    connection_count: number;
-	    memory_usage: string;
-	    cpu_percent: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Status(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.connection_count = source["connection_count"];
-	        this.memory_usage = source["memory_usage"];
-	        this.cpu_percent = source["cpu_percent"];
 	    }
 	}
 

@@ -40,11 +40,11 @@ type Suo5Config struct {
 	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 
-	TestExit                string      `json:"-"`
-	ExcludeGlobs            []glob.Glob `json:"-"`
-	Offset                  int         `json:"-"`
-	Header                  http.Header `json:"-"`
-	ProxyClient             proxyclient.Dial
+	TestExit                string                               `json:"-"`
+	ExcludeGlobs            []glob.Glob                          `json:"-"`
+	Offset                  int                                  `json:"-"`
+	Header                  http.Header                          `json:"-"`
+	ProxyClient             proxyclient.Dial                     `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`
