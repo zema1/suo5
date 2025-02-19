@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/chainreactors/proxyclient"
-	"github.com/chainreactors/proxyclient/suo5"
 	"github.com/gobwas/glob"
 	log "github.com/kataras/golog"
 	utls "github.com/refraction-networking/utls"
@@ -164,7 +163,7 @@ func (config *Suo5Config) Init() (*Suo5Client, error) {
 		jar, _ = cookiejar.New(nil)
 	} else {
 		// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
-		jar = suo5.NewSwitchableCookieJar([]string{"PHPSESSID"})
+		jar = NewSwitchableCookieJar([]string{"PHPSESSID"})
 	}
 
 	noTimeoutClient := &http.Client{
@@ -263,7 +262,7 @@ func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 		return Undefined, 0, err
 	}
 	req.Header = config.Header.Clone()
-	req.Header.Set(suo5.HeaderKey, suo5.HeaderValueChecking)
+	req.Header.Set(HeaderKey, HeaderValueChecking)
 
 	now := time.Now()
 	go func() {
