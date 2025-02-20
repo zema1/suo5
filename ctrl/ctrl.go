@@ -3,7 +3,6 @@ package ctrl
 import (
 	"context"
 	"fmt"
-	"github.com/zema1/suo5/suo5"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -18,6 +17,7 @@ import (
 	log "github.com/kataras/golog"
 	"github.com/kataras/pio"
 	"github.com/pkg/errors"
+	"github.com/zema1/suo5/suo5"
 )
 
 func Run(ctx context.Context, config *suo5.Suo5Config) error {
