@@ -38,6 +38,7 @@ type Suo5Config struct {
 	DisableGzip      bool           `json:"disable_gzip"`
 	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
+	ForwardTarget    string         `json:"forward_target"`
 
 	TestExit                string                               `json:"-"`
 	ExcludeGlobs            []glob.Glob                          `json:"-"`
@@ -239,6 +240,7 @@ func DefaultSuo5Config() *Suo5Config {
 		RawHeader:        []string{"User-Agent: Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3"},
 		DisableHeartbeat: false,
 		EnableCookieJar:  false,
+		ForwardTarget:    "",
 	}
 }
 
