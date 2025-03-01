@@ -43,12 +43,19 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	var socks5Addr string
 	msg := "[Tunnel Info]\n"
 	msg += fmt.Sprintf("Target:  %s\n", config.Target)
-	if config.NoAuth {
-		socks5Addr = fmt.Sprintf("socks5://%s", config.Listen)
+
+	if config.ForwardTarget != "" {
+		msg += fmt.Sprintf("Forward: %s\n", config.ForwardTarget)
+		msg += fmt.Sprintf("Listen:  %s\n", config.Listen)
 	} else {
-		socks5Addr = fmt.Sprintf("socks5://%s:%s@%s", config.Username, config.Password, config.Listen)
+		if config.NoAuth {
+			socks5Addr = fmt.Sprintf("socks5://%s", config.Listen)
+		} else {
+			socks5Addr = fmt.Sprintf("socks5://%s:%s@%s", config.Username, config.Password, config.Listen)
+		}
+		msg += fmt.Sprintf("Proxy:   %s\n", socks5Addr)
 	}
-	msg += fmt.Sprintf("Proxy:   %s\n", socks5Addr)
+
 	msg += fmt.Sprintf("Mode:    %s\n", config.Mode)
 	fmt.Println(pio.Rich(msg, pio.Green))
 
@@ -71,42 +78,62 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 			return make([]byte, config.BufferSize)
 		},
 	}
-	selector := server.DefaultSelector
-	if !config.NoAuth {
-		selector = server.NewServerSelector([]*url.Userinfo{
-			url.UserPassword(config.Username, config.Password),
-		})
-	}
 
-	handler := &socks5Handler{
-		Suo5Client: suo5Client,
-		ctx:        ctx,
-		pool:       trPool,
-		selector:   selector,
+	var handler server.Handler
+
+	if config.ForwardTarget != "" {
+		// 使用 Forward 模式
+		handler = &suo5.ClientEventHandler{
+			Inner:                   NewForwardHandler(ctx, suo5Client, trPool, config.ForwardTarget),
+			OnNewClientConnection:   config.OnNewClientConnection,
+			OnClientConnectionClose: config.OnClientConnectionClose,
+		}
+		log.Infof("running in forward mode, forwarding all connections to %s", config.ForwardTarget)
+	} else {
+		// 使用 SOCKS5 模式
+		selector := server.DefaultSelector
+		if !config.NoAuth {
+			selector = server.NewServerSelector([]*url.Userinfo{
+				url.UserPassword(config.Username, config.Password),
+			})
+		}
+
+		handler = &suo5.ClientEventHandler{
+			Inner: &socks5Handler{
+				Suo5Client: suo5Client,
+				ctx:        ctx,
+				pool:       trPool,
+				selector:   selector,
+			},
+			OnNewClientConnection:   config.OnNewClientConnection,
+			OnClientConnectionClose: config.OnClientConnectionClose,
+		}
 	}
 
 	go func() {
-		_ = srv.Serve(&suo5.ClientEventHandler{
-			Inner:                   handler,
-			OnNewClientConnection:   config.OnNewClientConnection,
-			OnClientConnectionClose: config.OnClientConnectionClose,
-		})
+		_ = srv.Serve(handler)
 	}()
-	log.Infof("creating a test connection to the remote target")
-	ok := testTunnel(config.Listen, config.Username, config.Password, time.Second*10)
-	time.Sleep(time.Millisecond * 500)
-	if !ok {
-		log.Errorf("tunnel created, but failed to establish connection")
-		return fmt.Errorf("suo5 can not work on this server")
-	} else {
-		log.Infof("congratulations! everything works fine")
-	}
 
-	if config.TestExit != "" {
-		if err := testAndExit(socks5Addr, config.TestExit, time.Second*15); err != nil {
-			return errors.Wrap(err, "test connection failed")
+	// 如果是 forward 模式，不需要测试 socks5 连接
+	if config.ForwardTarget != "" {
+		log.Infof("forward mode enabled, skipping socks5 test")
+	} else {
+		log.Infof("creating a test connection to the remote target")
+		ok := testTunnel(config.Listen, config.Username, config.Password, time.Second*10)
+		time.Sleep(time.Millisecond * 500)
+		if !ok {
+			log.Errorf("tunnel created, but failed to establish connection")
+			return fmt.Errorf("suo5 can not work on this server")
+		} else {
+			log.Infof("congratulations! everything works fine")
 		}
-		return nil
+
+		if config.TestExit != "" {
+			if err := testAndExit(socks5Addr, config.TestExit, time.Second*15); err != nil {
+				return errors.Wrap(err, "test connection failed")
+			}
+			return nil
+		}
 	}
 
 	<-ctx.Done()
