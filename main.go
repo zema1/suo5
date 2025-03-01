@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 
+	_ "github.com/chainreactors/proxyclient/extend"
 	log "github.com/kataras/golog"
 	"github.com/urfave/cli/v2"
 	"github.com/zema1/suo5/ctrl"
@@ -138,6 +139,12 @@ func main() {
 			Aliases: []string{"ef"},
 			Usage:   "exclude certain domains for proxy in a file, one domain per line",
 		},
+		&cli.StringFlag{
+			Name:    "forward",
+			Aliases: []string{"f"},
+			Usage:   "forward target address, enable forward mode when specified",
+			Value:   defaultConfig.ForwardTarget,
+		},
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
@@ -173,6 +180,7 @@ func Action(c *cli.Context) error {
 	testExit := c.String("test-exit")
 	exclude := c.StringSlice("exclude-domain")
 	excludeFile := c.String("exclude-domain-file")
+	forward := c.String("forward")
 	configFile := c.String("config")
 
 	var username, password string
@@ -232,6 +240,7 @@ func Action(c *cli.Context) error {
 		EnableCookieJar:  jar,
 		TestExit:         testExit,
 		ExcludeDomain:    exclude,
+		ForwardTarget:    forward,
 	}
 
 	if configFile != "" {
