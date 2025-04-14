@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 
+	_ "github.com/chainreactors/proxyclient/extend"
 	log "github.com/kataras/golog"
 	"github.com/urfave/cli/v2"
 	"github.com/zema1/suo5/ctrl"
