@@ -16,6 +16,7 @@ const (
 	AutoDuplex ConnectionType = "auto"
 	FullDuplex ConnectionType = "full"
 	HalfDuplex ConnectionType = "half"
+	Classic    ConnectionType = "classic"
 )
 
 const (

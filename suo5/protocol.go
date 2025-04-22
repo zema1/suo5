@@ -17,6 +17,7 @@ const (
 	ActionData      byte = 0x01
 	ActionDelete    byte = 0x02
 	ActionHeartbeat byte = 0x03
+	ActionRead      byte = 0x10
 )
 
 func NewActionCreate(id, addr string, port uint16, redirect string) map[string][]byte {
@@ -42,7 +43,7 @@ func NewActionData(id string, data []byte, redirect string) map[string][]byte {
 	return m
 }
 
-func NewDelete(id string, redirect string) map[string][]byte {
+func NewActionDelete(id string, redirect string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionDelete}
 	m["id"] = []byte(id)
@@ -52,9 +53,19 @@ func NewDelete(id string, redirect string) map[string][]byte {
 	return m
 }
 
-func NewHeartbeat(id string, redirect string) map[string][]byte {
+func NewActionHeartbeat(id string, redirect string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionHeartbeat}
+	m["id"] = []byte(id)
+	if len(redirect) != 0 {
+		m["r"] = []byte(redirect)
+	}
+	return m
+}
+
+func NewActionRead(id string, redirect string) map[string][]byte {
+	m := make(map[string][]byte)
+	m["ac"] = []byte{ActionRead}
 	m["id"] = []byte(id)
 	if len(redirect) != 0 {
 		m["r"] = []byte(redirect)

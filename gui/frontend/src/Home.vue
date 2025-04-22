@@ -164,6 +164,7 @@ const formValue = ref<suo5.Suo5Config>({
   disable_gzip: false,
   enable_cookiejar: false,
   exclude_domain: [],
+  forward_target: "",
 })
 
 const upstream_proxy_single = ref("")

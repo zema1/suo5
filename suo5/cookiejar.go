@@ -44,6 +44,7 @@ func (f *SwitchableCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 		}
 	}
 	if f.enable {
+		golog.Infof("setting cookie for %s", u.Host)
 		f.CookieJar.SetCookies(u, cookies)
 	}
 }

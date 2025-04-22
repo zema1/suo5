@@ -77,7 +77,7 @@ func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
 func (s *fullChunkedReadWriter) Close() error {
 	s.once.Do(func() {
 		defer s.reqBody.Close()
-		body := BuildBody(NewDelete(s.id, ""))
+		body := BuildBody(NewActionDelete(s.id, ""))
 		_, _ = s.reqBody.Write(body)
 		_ = s.serverResp.Close()
 	})
@@ -88,13 +88,9 @@ type halfChunkedReadWriter struct {
 	ctx        context.Context
 	id         string
 	client     *http.Client
-	method     string
-	target     string
 	serverResp io.ReadCloser
 	once       sync.Once
-	chunked    bool
-	baseHeader http.Header
-	redirect   string
+	config     *Suo5Config
 
 	readBuf  bytes.Buffer
 	readTmp  []byte
@@ -102,20 +98,16 @@ type halfChunkedReadWriter struct {
 }
 
 // NewHalfChunkedReadWriter 半双工读写流, 用发送请求的方式模拟写
-func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, method, target string,
-	serverResp io.ReadCloser, baseHeader http.Header, redirect string) io.ReadWriteCloser {
+func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, serverResp io.ReadCloser, config *Suo5Config) io.ReadWriteCloser {
 	return &halfChunkedReadWriter{
 		ctx:        ctx,
 		id:         id,
 		client:     client,
-		method:     method,
-		target:     target,
 		serverResp: serverResp,
+		config:     config,
 		readBuf:    bytes.Buffer{},
 		readTmp:    make([]byte, 16*1024),
 		writeTmp:   make([]byte, 8*1024),
-		baseHeader: baseHeader,
-		redirect:   redirect,
 	}
 }
 
@@ -138,6 +130,7 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 	switch action[0] {
 	case ActionData:
 		data := m["dt"]
+		log.Debugf("recv data, length: %d", len(data))
 		s.readBuf.Reset()
 		s.readBuf.Write(data)
 		return s.readBuf.Read(p)
@@ -151,22 +144,18 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 }
 
 func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
-	body := BuildBody(NewActionData(s.id, p, s.redirect))
+	body := BuildBody(NewActionData(s.id, p, s.config.RedirectURL))
 	log.Debugf("send request, length: %d", len(body))
 	return s.WriteRaw(body)
 }
 
 func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
-	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(p))
+	req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
 	if err != nil {
 		return 0, err
 	}
-	if s.chunked {
-		req.ContentLength = -1
-	} else {
-		req.ContentLength = int64(len(p))
-	}
-	req.Header = s.baseHeader.Clone()
+	req.ContentLength = int64(len(p))
+	req.Header = s.config.Header.Clone()
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return 0, err
@@ -181,13 +170,14 @@ func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
 
 func (s *halfChunkedReadWriter) Close() error {
 	s.once.Do(func() {
-		body := BuildBody(NewDelete(s.id, s.redirect))
-		req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
+		body := BuildBody(NewActionDelete(s.id, s.config.RedirectURL))
+		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(body))
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		req.Header = s.baseHeader.Clone()
+		req.Header = s.config.Header.Clone()
+		log.Debugf("send close request to %s", s.config.Target)
 		resp, err := s.client.Do(req)
 		if err != nil {
 			log.Errorf("send close error: %v", err)
@@ -195,6 +185,7 @@ func (s *halfChunkedReadWriter) Close() error {
 		}
 		_ = resp.Body.Close()
 		_ = s.serverResp.Close()
+		log.Debugf("close remote request done")
 	})
 	return nil
 }

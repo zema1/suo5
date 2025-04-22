@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"strings"
 
-	_ "github.com/chainreactors/proxyclient/extend"
+	// _ "github.com/chainreactors/proxyclient/extend"
 	log "github.com/kataras/golog"
 	"github.com/urfave/cli/v2"
 	"github.com/zema1/suo5/ctrl"
@@ -198,7 +198,7 @@ func Action(c *cli.Context) error {
 		password = parts[1]
 		noAuth = false
 	}
-	if !(mode == suo5.AutoDuplex || mode == suo5.FullDuplex || mode == suo5.HalfDuplex) {
+	if !(mode == suo5.AutoDuplex || mode == suo5.FullDuplex || mode == suo5.HalfDuplex || mode == suo5.Classic) {
 		return fmt.Errorf("invalid mode, expected auto or full or half")
 	}
 

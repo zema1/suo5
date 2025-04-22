@@ -53,17 +53,24 @@ func (suo *Suo5Conn) Connect(address string) error {
 		baseHeader.Set(HeaderKey, HeaderValueFull)
 		req.Header = baseHeader
 		resp, err = suo.RawClient.Do(req)
-	} else {
+	} else if suo.Config.Mode == HalfDuplex {
 		req, _ = http.NewRequestWithContext(suo.ctx, suo.Config.Method, suo.Config.Target, bytes.NewReader(dialData))
 		baseHeader.Set(HeaderKey, HeaderValueHalf)
 		req.Header = baseHeader
 		resp, err = suo.NoTimeoutClient.Do(req)
+	} else {
+		req, _ = http.NewRequestWithContext(suo.ctx, suo.Config.Method, suo.Config.Target, bytes.NewReader(dialData))
+		// todo: headerkey
+		baseHeader.Set(HeaderKey, "hhhhh")
+		req.Header = baseHeader
+		resp, err = suo.NormalClient.Do(req)
 	}
 	if err != nil {
 		log.Debugf("request error to target, %s", err)
 		return errors.Wrap(ErrHostUnreachable, err.Error())
 	}
 
+	suo.Config.Header.Set(HeaderKey, HeaderValueHalf)
 	if resp.Header.Get("Set-Cookie") != "" && suo.Config.EnableCookieJar {
 		log.Infof("update cookie with %s", resp.Header.Get("Set-Cookie"))
 	}
@@ -98,9 +105,11 @@ func (suo *Suo5Conn) Connect(address string) error {
 	var streamRW io.ReadWriteCloser
 	if suo.Config.Mode == FullDuplex {
 		streamRW = NewFullChunkedReadWriter(id, chWR, resp.Body)
+	} else if suo.Config.Mode == HalfDuplex {
+		streamRW = NewHalfChunkedReadWriter(suo.ctx, id, suo.NormalClient,
+			resp.Body, suo.Config)
 	} else {
-		streamRW = NewHalfChunkedReadWriter(suo.ctx, id, suo.NormalClient, suo.Config.Method, suo.Config.Target,
-			resp.Body, baseHeader, suo.Config.RedirectURL)
+		streamRW = NewClassicReadWriter(suo.ctx, id, suo.NormalClient, suo.Config)
 	}
 
 	if !suo.Config.DisableHeartbeat {
