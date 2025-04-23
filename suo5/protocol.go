@@ -39,7 +39,6 @@ const (
 	ActionData      byte = 0x01
 	ActionDelete    byte = 0x02
 	ActionHeartbeat byte = 0x03
-	ActionRead      byte = 0x10
 )
 
 func BuildBody(m map[string][]byte, redirect string, ct ConnectionType) []byte {
@@ -78,13 +77,6 @@ func NewActionDelete(id string) map[string][]byte {
 func NewActionHeartbeat(id string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionHeartbeat}
-	m["id"] = []byte(id)
-	return m
-}
-
-func NewActionRead(id string) map[string][]byte {
-	m := make(map[string][]byte)
-	m["ac"] = []byte{ActionRead}
 	m["id"] = []byte(id)
 	return m
 }

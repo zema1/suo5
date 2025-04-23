@@ -132,6 +132,7 @@ func (c *channelReader) Read(p []byte) (n int, err error) {
 			break
 		}
 	}
+	c.buf.Reset()
 	c.buf.Write(data)
 	return c.buf.Read(p)
 }

@@ -18,7 +18,7 @@ import (
 var Version = "v0.0.0"
 
 func main() {
-	log.Default.SetTimeFormat("01-02 15:04")
+	InitDefaultLog()
 	app := cli.NewApp()
 	app.Name = "suo5"
 	app.Usage = "A high-performance http tunnel"
@@ -258,6 +258,31 @@ func Action(c *cli.Context) error {
 	ctx, cancel := signalCtx()
 	defer cancel()
 	return ctrl.Run(ctx, config)
+}
+
+func InitDefaultLog() {
+	log.Default.SetTimeFormat("01-02 15:04")
+	log.Default.Handle(func(l *log.Log) bool {
+		prefix := log.GetTextForLevel(l.Level, true)
+		var message string
+
+		if len(l.Stacktrace) != 0 {
+			s := l.Stacktrace[0]
+			parts := strings.Split(s.Source, "/")
+			source := parts[len(parts)-1]
+			message = fmt.Sprintf("%s %s [%s] %s", prefix, l.FormatTime(), source, l.Message)
+		} else {
+			message = fmt.Sprintf("%s %s %s", prefix, l.FormatTime(), l.Message)
+		}
+
+		if l.NewLine {
+			message += "\n"
+		}
+
+		output := l.Logger.GetLevelOutput(l.Level.String())
+		_, err := output.Write([]byte(message))
+		return err == nil
+	})
 }
 
 func signalCtx() (context.Context, func()) {

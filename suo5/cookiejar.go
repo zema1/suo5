@@ -1,7 +1,7 @@
 package suo5
 
 import (
-	"github.com/kataras/golog"
+	log "github.com/kataras/golog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -38,13 +38,13 @@ func (f *SwitchableCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	}
 	for _, cookie := range cookies {
 		if _, ok := f.hintMap[cookie.Name]; ok {
-			golog.Infof("auto enable cookie jar for %s", cookie.Name)
+			log.Infof("auto enable cookie jar for %s", cookie.Name)
 			f.enable = true
 			break
 		}
 	}
 	if f.enable {
-		golog.Infof("setting cookie for %s", u.Host)
+		log.Infof("setting cookie for %s", u.Host)
 		f.CookieJar.SetCookies(u, cookies)
 	}
 }
