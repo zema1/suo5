@@ -8,8 +8,30 @@ import (
 	"strconv"
 )
 
-func BuildBody(m map[string][]byte) []byte {
-	return netrans.NewDataFrame(Marshal(m)).MarshalBinary()
+type ConnectionType string
+
+const (
+	Undefined  ConnectionType = "undefined"
+	Checking   ConnectionType = "checking"
+	AutoDuplex ConnectionType = "auto"
+	FullDuplex ConnectionType = "full"
+	HalfDuplex ConnectionType = "half"
+	Classic    ConnectionType = "classic"
+)
+
+func (c ConnectionType) Bin() byte {
+	switch c {
+	case Checking:
+		return 0x00
+	case FullDuplex:
+		return 0x01
+	case HalfDuplex:
+		return 0x02
+	case Classic:
+		return 0x03
+	default:
+		return 0xff
+	}
 }
 
 const (
@@ -20,56 +42,50 @@ const (
 	ActionRead      byte = 0x10
 )
 
-func NewActionCreate(id, addr string, port uint16, redirect string) map[string][]byte {
+func BuildBody(m map[string][]byte, redirect string, ct ConnectionType) []byte {
+	if len(redirect) != 0 {
+		m["r"] = []byte(redirect)
+	}
+	m["m"] = []byte{ct.Bin()}
+	return netrans.NewDataFrame(Marshal(m)).MarshalBinary()
+}
+
+func NewActionCreate(id, addr string, port uint16) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionCreate}
 	m["id"] = []byte(id)
 	m["h"] = []byte(addr)
 	m["p"] = []byte(strconv.Itoa(int(port)))
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
+
 	return m
 }
 
-func NewActionData(id string, data []byte, redirect string) map[string][]byte {
+func NewActionData(id string, data []byte) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionData}
 	m["id"] = []byte(id)
 	m["dt"] = []byte(data)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 
-func NewActionDelete(id string, redirect string) map[string][]byte {
+func NewActionDelete(id string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionDelete}
 	m["id"] = []byte(id)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 
-func NewActionHeartbeat(id string, redirect string) map[string][]byte {
+func NewActionHeartbeat(id string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionHeartbeat}
 	m["id"] = []byte(id)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 
-func NewActionRead(id string, redirect string) map[string][]byte {
+func NewActionRead(id string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionRead}
 	m["id"] = []byte(id)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 

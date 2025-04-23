@@ -39,7 +39,7 @@ func (suo *Suo5Conn) Connect(address string) error {
 	var err error
 	host, port, _ := net.SplitHostPort(address)
 	uport, _ := strconv.Atoi(port)
-	dialData := BuildBody(NewActionCreate(id, host, uint16(uport), suo.Config.RedirectURL))
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), suo.Config.RedirectURL, suo.Config.Mode)
 	ch, chWR := netrans.NewChannelWriteCloser(suo.ctx)
 
 	baseHeader := suo.Config.Header.Clone()
@@ -50,27 +50,24 @@ func (suo *Suo5Conn) Connect(address string) error {
 			io.NopCloser(netrans.NewChannelReader(ch)),
 		)
 		req, _ = http.NewRequestWithContext(suo.ctx, suo.Config.Method, suo.Config.Target, body)
-		baseHeader.Set(HeaderKey, HeaderValueFull)
 		req.Header = baseHeader
 		resp, err = suo.RawClient.Do(req)
 	} else if suo.Config.Mode == HalfDuplex {
 		req, _ = http.NewRequestWithContext(suo.ctx, suo.Config.Method, suo.Config.Target, bytes.NewReader(dialData))
-		baseHeader.Set(HeaderKey, HeaderValueHalf)
 		req.Header = baseHeader
 		resp, err = suo.NoTimeoutClient.Do(req)
-	} else {
+	} else if suo.Config.Mode == Classic {
 		req, _ = http.NewRequestWithContext(suo.ctx, suo.Config.Method, suo.Config.Target, bytes.NewReader(dialData))
-		// todo: headerkey
-		baseHeader.Set(HeaderKey, "hhhhh")
 		req.Header = baseHeader
 		resp, err = suo.NormalClient.Do(req)
+	} else {
+		return errors.Wrap(ErrDialFailed, "unknown mode")
 	}
 	if err != nil {
 		log.Debugf("request error to target, %s", err)
 		return errors.Wrap(ErrHostUnreachable, err.Error())
 	}
 
-	suo.Config.Header.Set(HeaderKey, HeaderValueHalf)
 	if resp.Header.Get("Set-Cookie") != "" && suo.Config.EnableCookieJar {
 		log.Infof("update cookie with %s", resp.Header.Get("Set-Cookie"))
 	}
@@ -113,7 +110,7 @@ func (suo *Suo5Conn) Connect(address string) error {
 	}
 
 	if !suo.Config.DisableHeartbeat {
-		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config.RedirectURL)
+		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config.RedirectURL, suo.Config.Mode)
 	}
 
 	suo.ReadWriteCloser = streamRW

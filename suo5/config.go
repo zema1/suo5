@@ -200,7 +200,7 @@ func (config *Suo5Config) Init() (*Suo5Client, error) {
 			log.Warnf("the target may behind a reverse proxy, fallback to HalfDuplex mode")
 		}
 	} else {
-		if result == FullDuplex && config.Mode == HalfDuplex {
+		if result == FullDuplex && config.Mode != FullDuplex {
 			log.Infof("the target support full duplex, you can try FullDuplex mode to obtain better performance")
 		} else if result == HalfDuplex && config.Mode == FullDuplex {
 			return nil, fmt.Errorf("the target doesn't support full duplex, you should use HalfDuplex or AutoDuplex mode")
@@ -244,6 +244,7 @@ func DefaultSuo5Config() *Suo5Config {
 	}
 }
 
+// check half HalfDuplex
 func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	var rawClient *rawhttp.Client
@@ -252,19 +253,19 @@ func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 	} else {
 		rawClient = newRawClient(nil, time.Second*5)
 	}
-	randLen := rander.Intn(1024)
+	randLen := rander.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
 	}
-	data := RandString(randLen)
+	identifier := RandString(randLen)
+	data := BuildBody(NewActionData(RandString(8), []byte(identifier)), config.RedirectURL, Checking)
 	ch := make(chan []byte, 1)
-	ch <- []byte(data)
+	ch <- data
 	req, err := http.NewRequest(config.Method, config.Target, netrans.NewChannelReader(ch))
 	if err != nil {
 		return Undefined, 0, err
 	}
-	req.Header = config.Header.Clone()
-	req.Header.Set(HeaderKey, HeaderValueChecking)
+	req.Header = config.Header
 
 	now := time.Now()
 	go func() {
@@ -286,7 +287,7 @@ func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 	}
 	duration := time.Since(now).Milliseconds()
 
-	offset := strings.Index(string(body), data[:32])
+	offset := strings.Index(string(body), identifier[:32])
 	if offset == -1 {
 		header, _ := httputil.DumpResponse(resp, false)
 		log.Errorf("response are as follows:\n%s", string(header)+string(body))

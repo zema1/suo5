@@ -66,7 +66,7 @@ func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
 
 func (s *fullChunkedReadWriter) Write(p []byte) (n int, err error) {
 	log.Debugf("write socket data, length: %d", len(p))
-	body := BuildBody(NewActionData(s.id, p, ""))
+	body := BuildBody(NewActionData(s.id, p), "", FullDuplex)
 	return s.WriteRaw(body)
 }
 
@@ -77,7 +77,7 @@ func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
 func (s *fullChunkedReadWriter) Close() error {
 	s.once.Do(func() {
 		defer s.reqBody.Close()
-		body := BuildBody(NewActionDelete(s.id, ""))
+		body := BuildBody(NewActionDelete(s.id), "", FullDuplex)
 		_, _ = s.reqBody.Write(body)
 		_ = s.serverResp.Close()
 	})
@@ -144,7 +144,7 @@ func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
 }
 
 func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
-	body := BuildBody(NewActionData(s.id, p, s.config.RedirectURL))
+	body := BuildBody(NewActionData(s.id, p), s.config.RedirectURL, HalfDuplex)
 	log.Debugf("send request, length: %d", len(body))
 	return s.WriteRaw(body)
 }
@@ -170,7 +170,7 @@ func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
 
 func (s *halfChunkedReadWriter) Close() error {
 	s.once.Do(func() {
-		body := BuildBody(NewActionDelete(s.id, s.config.RedirectURL))
+		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, HalfDuplex)
 		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(body))
 		if err != nil {
 			log.Error(err)

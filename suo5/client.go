@@ -9,23 +9,6 @@ import (
 	"time"
 )
 
-type ConnectionType string
-
-const (
-	Undefined  ConnectionType = "undefined"
-	AutoDuplex ConnectionType = "auto"
-	FullDuplex ConnectionType = "full"
-	HalfDuplex ConnectionType = "half"
-	Classic    ConnectionType = "classic"
-)
-
-const (
-	HeaderKey           = "Content-Type"
-	HeaderValueChecking = "application/plain"
-	HeaderValueFull     = "application/octet-stream"
-	HeaderValueHalf     = "application/x-binary"
-)
-
 type Suo5Client struct {
 	Config          *Suo5Config
 	NormalClient    *http.Client

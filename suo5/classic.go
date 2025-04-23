@@ -79,7 +79,7 @@ func (s *ClassicReadWriter) Read(p []byte) (n int, err error) {
 func (s *ClassicReadWriter) readRaw() ([]byte, error) {
 	log.Debugf("send read request")
 	// todo: read and write in one request
-	body := BuildBody(NewActionRead(s.id, s.config.RedirectURL))
+	body := BuildBody(NewActionRead(s.id), s.config.RedirectURL, Classic)
 	req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (s *ClassicReadWriter) readRaw() ([]byte, error) {
 }
 
 func (s *ClassicReadWriter) Write(p []byte) (n int, err error) {
-	body := BuildBody(NewActionData(s.id, p, s.config.RedirectURL))
+	body := BuildBody(NewActionData(s.id, p), s.config.RedirectURL, Classic)
 	log.Debugf("send request, length: %d", len(body))
 	return s.WriteRaw(body)
 }
@@ -123,7 +123,7 @@ func (s *ClassicReadWriter) WriteRaw(p []byte) (n int, err error) {
 
 func (s *ClassicReadWriter) Close() error {
 	s.once.Do(func() {
-		body := BuildBody(NewActionDelete(s.id, s.config.RedirectURL))
+		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, Classic)
 		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(body))
 		if err != nil {
 			log.Error(err)
