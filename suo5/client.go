@@ -14,6 +14,7 @@ type Suo5Client struct {
 	NormalClient    *http.Client
 	NoTimeoutClient *http.Client
 	RawClient       *rawhttp.Client
+	StreamFactory   StreamFactory
 }
 
 func newRawClient(upstream rawhttp.ContextDialFunc, timeout time.Duration) *rawhttp.Client {

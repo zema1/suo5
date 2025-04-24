@@ -11,6 +11,7 @@ import (
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -18,6 +19,12 @@ import (
 	"net/url"
 	"strings"
 	"time"
+)
+
+var (
+	DefaultMaxRequestSize = 1024 * 1024
+	DefaultMaxBufferSize  = 1024 * 64
+	DefaultTimeout        = 10
 )
 
 type Suo5Config struct {
@@ -39,6 +46,8 @@ type Suo5Config struct {
 	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 	ForwardTarget    string         `json:"forward_target"`
+	Multiplex        bool           `json:"multiplex"`
+	MaxRequestSize   int            `json:"max_request_size"`
 
 	TestExit                string                               `json:"-"`
 	ExcludeGlobs            []glob.Glob                          `json:"-"`
@@ -52,6 +61,15 @@ type Suo5Config struct {
 }
 
 func (s *Suo5Config) Parse() error {
+	if s.Timeout <= 0 {
+		s.Timeout = DefaultTimeout
+	}
+	if s.BufferSize <= 0 {
+		s.BufferSize = DefaultMaxBufferSize
+	}
+	if s.MaxRequestSize <= 0 {
+		s.MaxRequestSize = DefaultMaxRequestSize
+	}
 	if err := s.parseExcludeDomain(); err != nil {
 		return err
 	}
@@ -95,7 +113,7 @@ func (s *Suo5Config) parseHeader() error {
 	return nil
 }
 
-func (config *Suo5Config) Init() (*Suo5Client, error) {
+func (config *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 	err := config.Parse()
 	if err != nil {
 		return nil, err
@@ -188,7 +206,7 @@ func (config *Suo5Config) Init() (*Suo5Client, error) {
 	log.Infof("header: %s", config.HeaderString())
 	log.Infof("method: %s", config.Method)
 	log.Infof("connecting to target %s", config.Target)
-	result, offset, err := checkConnectMode(config)
+	result, offset, err := checkConnectMode(ctx, config)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +230,7 @@ func (config *Suo5Config) Init() (*Suo5Client, error) {
 		NormalClient:    normalClient,
 		NoTimeoutClient: noTimeoutClient,
 		RawClient:       rawClient,
+		StreamFactory:   NewClassicStreamFactory(ctx, config, normalClient),
 	}, nil
 }
 
@@ -232,8 +251,8 @@ func DefaultSuo5Config() *Suo5Config {
 		Username:         "",
 		Password:         "",
 		Mode:             "auto",
-		BufferSize:       1024 * 320,
-		Timeout:          10,
+		BufferSize:       DefaultMaxBufferSize,
+		Timeout:          DefaultTimeout,
 		Debug:            false,
 		UpstreamProxy:    []string{},
 		RedirectURL:      "",
@@ -241,11 +260,12 @@ func DefaultSuo5Config() *Suo5Config {
 		DisableHeartbeat: false,
 		EnableCookieJar:  false,
 		ForwardTarget:    "",
+		MaxRequestSize:   DefaultMaxRequestSize,
 	}
 }
 
 // check half HalfDuplex
-func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
+func checkConnectMode(ctx context.Context, config *Suo5Config) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
 	var rawClient *rawhttp.Client
 	if config.ProxyClient != nil {
@@ -253,7 +273,7 @@ func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 	} else {
 		rawClient = newRawClient(nil, time.Second*5)
 	}
-	randLen := rander.Intn(4096)
+	randLen := rand.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
 	}
@@ -261,7 +281,7 @@ func checkConnectMode(config *Suo5Config) (ConnectionType, int, error) {
 	data := BuildBody(NewActionData(RandString(8), []byte(identifier)), config.RedirectURL, Checking)
 	ch := make(chan []byte, 1)
 	ch <- data
-	req, err := http.NewRequest(config.Method, config.Target, netrans.NewChannelReader(ch))
+	req, err := http.NewRequestWithContext(ctx, config.Method, config.Target, netrans.NewChannelReader(ch))
 	if err != nil {
 		return Undefined, 0, err
 	}

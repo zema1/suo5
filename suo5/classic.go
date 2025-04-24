@@ -14,42 +14,58 @@ import (
 	"time"
 )
 
-type ClassicReadWriter struct {
-	id        string
-	mu        sync.Mutex
-	config    *Suo5Config
-	client    *http.Client
-	once      sync.Once
-	readBuf   io.Reader
-	readChan  chan []byte
-	writeChan chan []byte
-	closed    atomic.Bool
+type ClassicStreamFactory struct {
+	once   sync.Once
+	config *Suo5Config
+	client *http.Client
 
-	ctx    context.Context
-	cancel func()
+	closeMu sync.Mutex
+	closed  atomic.Bool
+
+	chanMu   sync.Mutex
+	channels map[string]*TunnelConn
+
+	writeChan chan []byte
+	ctx       context.Context
+	cancel    func()
 }
 
-func NewClassicReadWriter(rootCtx context.Context, id string, client *http.Client, config *Suo5Config) *ClassicReadWriter {
-	ctx, cancel := context.WithCancel(rootCtx)
-	readChan := make(chan []byte, 4096)
-	readBuf := netrans.NewChannelReader(readChan)
-	rw := &ClassicReadWriter{
-		id:        id,
+func NewClassicStreamFactory(rootCtx context.Context, config *Suo5Config, client *http.Client) *ClassicStreamFactory {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	plex := &ClassicStreamFactory{
 		config:    config,
 		client:    client,
-		readBuf:   readBuf,
-		readChan:  readChan,
+		channels:  make(map[string]*TunnelConn),
 		writeChan: make(chan []byte, 4096),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
-	rw.sync()
-	return rw
+
+	// 留点时间关闭远程连接
+	go func() {
+		select {
+		case <-rootCtx.Done():
+			log.Infof("root context is closed, start to cleanup remote connections")
+			time.Sleep(time.Second)
+			plex.Shutdown()
+		case <-ctx.Done():
+		}
+	}()
+
+	plex.sync()
+	return plex
 }
 
-func (s *ClassicReadWriter) sync() {
+func (s *ClassicStreamFactory) sync() {
 	go func() {
-		defer s.Close()
+		defer log.Infof("sync remote connection finished")
+		defer s.Shutdown()
+
+		// 等待 writeChan 里所有的数据都发完再 cancel，外层会 Wait() 住
+		// 这里失败需要先 cancel
+		defer s.cancel()
+
 		for {
 			select {
 			case <-s.ctx.Done():
@@ -61,17 +77,18 @@ func (s *ClassicReadWriter) sync() {
 				if s.closed.Load() {
 					return
 				}
-				// for i := 0; i < len(s.writeChan); i++ {
-				// 	tmp := <-s.writeChan
-				// 	data = append(data, tmp...)
-				// 	// need to be configured ?
-				// 	if len(data) > 1024*512 {
-				// 		break
-				// 	}
-				// }
-
-				// heartbeat poll
+				size := len(s.writeChan)
+				if size > 0 {
+					for i := 0; i < size; i++ {
+						tmp := <-s.writeChan
+						data = append(data, tmp...)
+						if len(data) > s.config.MaxRequestSize {
+							break
+						}
+					}
+				}
 				if len(data) == 0 {
+					log.Debugf("empty data")
 					continue
 				}
 				if err := s.poll(data); err != nil {
@@ -85,28 +102,22 @@ func (s *ClassicReadWriter) sync() {
 	}()
 
 	go func() {
-		defer s.Close()
-		ticker := time.NewTicker(time.Millisecond * 300)
-		defer ticker.Stop()
+		defer log.Infof("channel counter finished")
 		for {
 			select {
 			case <-s.ctx.Done():
 				return
-			case <-ticker.C:
-				if s.closed.Load() {
-					return
-				}
-				body := BuildBody(NewActionData(s.id, nil), s.config.RedirectURL, Classic)
-				_, err := s.WriteRaw(body)
-				if err != nil {
-					log.Errorf("send heartbeat error %s", err)
-				}
+			default:
+				time.Sleep(time.Second * 5)
+				s.chanMu.Lock()
+				log.Infof("classic conn count: %d", len(s.channels))
+				s.chanMu.Unlock()
 			}
 		}
 	}()
 }
 
-func (s *ClassicReadWriter) poll(p []byte) error {
+func (s *ClassicStreamFactory) poll(p []byte) error {
 	log.Debugf("send polling request, body len: %d", len(p))
 	req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
 	if err != nil {
@@ -130,96 +141,95 @@ func (s *ClassicReadWriter) poll(p []byte) error {
 	if err != nil {
 		return err
 	}
-	fr, err := netrans.ReadFrame(bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	m, err := Unmarshal(fr.Data)
-	if err != nil {
-		return err
-	}
-	log.Debugf("recv polling result, action: %c, data: %d", m["ac"], len(m["dt"]))
-	action := m["ac"]
-	if len(action) != 1 {
-		return fmt.Errorf("invalid action when read %v", action)
-	}
-	switch action[0] {
-	case ActionData:
-		dt := m["dt"]
-		if len(dt) != 0 {
-			s.mu.Lock()
-			if s.closed.Load() {
-				s.mu.Unlock()
-				return nil
-			}
-			s.mu.Unlock()
 
+	reader := bytes.NewReader(data)
+
+	for {
+		if reader.Len() == 0 {
+			break
+		}
+		fr, err := netrans.ReadFrame(reader)
+		if err != nil {
+			return err
+		}
+		m, err := Unmarshal(fr.Data)
+		if err != nil {
+			return err
+		}
+		id := string(m["id"])
+		if id == "" {
+			log.Warnf("empty id found")
+			continue
+		}
+		actions := m["ac"]
+		if len(actions) != 1 {
+			return fmt.Errorf("invalid action when read %v", actions)
+		}
+		log.Debugf("recv data from remote, id: %s, action: %v, data: %d", id, actions, len(m["dt"]))
+
+		s.chanMu.Lock()
+		conn, ok := s.channels[id]
+		if !ok {
+			s.chanMu.Unlock()
+			log.Warnf("id %s not found, notify remote to close", id)
+			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.Mode)
 			select {
-			case s.readChan <- dt:
+			case s.writeChan <- body:
+			case <-s.ctx.Done():
 				return nil
 			default:
-				log.Warnf("connection is abnormal (read buf full), closing connection")
-				return s.Close()
+				log.Warnf("writeChan is full, discard message")
 			}
+			continue
 		}
-		return nil
-	case ActionDelete:
-		return s.Close()
-	case ActionHeartbeat:
-		return nil
-	default:
-		return fmt.Errorf("unepected action when read %v", action)
+		s.chanMu.Unlock()
+		conn.RemoteData(m)
 	}
-}
-
-func (s *ClassicReadWriter) Read(p []byte) (n int, err error) {
-	return s.readBuf.Read(p)
-}
-
-func (s *ClassicReadWriter) Write(p []byte) (n int, err error) {
-	log.Debugf("write data, length: %d", len(p))
-	body := BuildBody(NewActionData(s.id, p), s.config.RedirectURL, Classic)
-	return s.WriteRaw(body)
-}
-
-func (s *ClassicReadWriter) WriteRaw(p []byte) (n int, err error) {
-	if s.closed.Load() {
-		return 0, io.EOF
-	}
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	select {
-	case s.writeChan <- p:
-		return len(p), nil
-	default:
-		log.Warnf("write buffer is full, discard current message, data len %d", len(p))
-		return 0, nil
-	}
-}
-
-func (s *ClassicReadWriter) Close() error {
-	s.once.Do(func() {
-		s.closed.Store(true)
-		s.mu.Lock()
-		close(s.readChan)
-		s.mu.Unlock()
-
-		defer s.cancel()
-
-		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, Classic)
-		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(body))
-		if err != nil {
-			return
-		}
-		req.Header = s.config.Header.Clone()
-		resp, err := s.client.Do(req)
-		if err != nil {
-			log.Errorf("send close error: %v", err)
-			return
-		}
-		_ = resp.Body.Close()
-	})
 	return nil
+}
+
+func (s *ClassicStreamFactory) Spawn(id string) (*TunnelConn, error) {
+	s.chanMu.Lock()
+	defer s.chanMu.Unlock()
+	if s.closed.Load() {
+		return nil, ErrFactoryStopped
+	}
+	newConn := NewTunnelConn(id, s.config, s.writeChan, func() {
+		s.Release(id)
+	})
+	s.channels[id] = newConn
+	newConn.SetupConnHeartBeat()
+	return newConn, nil
+}
+
+func (s *ClassicStreamFactory) Wait() {
+	<-s.ctx.Done()
+}
+
+func (s *ClassicStreamFactory) Release(id string) {
+	s.chanMu.Lock()
+	defer s.chanMu.Unlock()
+	delete(s.channels, id)
+}
+
+func (s *ClassicStreamFactory) Shutdown() {
+	s.once.Do(func() {
+		s.closeMu.Lock()
+		if s.closed.Load() {
+			s.closeMu.Unlock()
+			return
+		}
+		channels := make([]*TunnelConn, 0, len(s.channels))
+		for _, conn := range s.channels {
+			channels = append(channels, conn)
+		}
+		s.closeMu.Unlock()
+
+		for _, conn := range channels {
+			_ = conn.Close()
+		}
+		close(s.writeChan)
+		s.Wait()
+		s.closed.Store(true)
+	})
 }

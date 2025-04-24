@@ -17,6 +17,7 @@ var (
 	ErrHostUnreachable = errors.New("host unreachable")
 	ErrDialFailed      = errors.New("dial failed")
 	ErrConnRefused     = errors.New("connection refused")
+	ErrFactoryStopped  = errors.New("factory has stopped")
 )
 
 func NewSuo5Conn(ctx context.Context, client *Suo5Client) *Suo5Conn {
@@ -30,6 +31,43 @@ type Suo5Conn struct {
 	io.ReadWriteCloser
 	ctx context.Context
 	*Suo5Client
+}
+
+func (suo *Suo5Conn) ConnectMultiplex(address string) error {
+	id := RandString(8)
+	host, port, _ := net.SplitHostPort(address)
+	uport, _ := strconv.Atoi(port)
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), suo.Config.RedirectURL, suo.Config.Mode)
+
+	plexConn, err := suo.StreamFactory.Spawn(id)
+	if err != nil {
+		return errors.Wrap(ErrDialFailed, err.Error())
+	}
+	_, err = plexConn.WriteRaw(dialData)
+	if err != nil {
+		return errors.Wrap(ErrDialFailed, err.Error())
+	}
+
+	// recv dial status
+	serverData, err := plexConn.ReadUnmarshal()
+	if err != nil {
+		return errors.Wrap(ErrDialFailed, err.Error())
+	}
+	// todo: release failed conn
+
+	status := serverData["s"]
+	log.Debugf("recv dial response from server:  %v", status)
+
+	if len(status) != 1 || status[0] != 0x00 {
+		return errors.Wrap(ErrHostUnreachable, fmt.Sprintf("failed to dial, status: %v", status))
+	}
+
+	streamRW := io.ReadWriteCloser(plexConn)
+	if !suo.Config.DisableHeartbeat {
+		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config.RedirectURL, suo.Config.Mode)
+	}
+	suo.ReadWriteCloser = streamRW
+	return nil
 }
 
 func (suo *Suo5Conn) Connect(address string) error {
@@ -68,10 +106,6 @@ func (suo *Suo5Conn) Connect(address string) error {
 		return errors.Wrap(ErrHostUnreachable, err.Error())
 	}
 
-	if resp.Header.Get("Set-Cookie") != "" && suo.Config.EnableCookieJar {
-		log.Infof("update cookie with %s", resp.Header.Get("Set-Cookie"))
-	}
-
 	// skip offset
 	if suo.Config.Offset > 0 {
 		log.Debugf("skipping offset %d", suo.Config.Offset)
@@ -106,7 +140,7 @@ func (suo *Suo5Conn) Connect(address string) error {
 		streamRW = NewHalfChunkedReadWriter(suo.ctx, id, suo.NormalClient,
 			resp.Body, suo.Config)
 	} else {
-		streamRW = NewClassicReadWriter(suo.ctx, id, suo.NormalClient, suo.Config)
+		// streamRW = NewClassicReadWriter(suo.ctx, id, suo.NormalClient, suo.Config)
 	}
 
 	if !suo.Config.DisableHeartbeat {

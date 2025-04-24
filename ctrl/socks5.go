@@ -54,7 +54,7 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 
 func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) {
 	streamRW := suo5.NewSuo5Conn(m.ctx, m.Suo5Client)
-	err := streamRW.Connect(sockReq.Addr.String())
+	err := streamRW.ConnectMultiplex(sockReq.Addr.String())
 	if err != nil {
 		ReplyError(conn, err)
 		return
@@ -112,6 +112,8 @@ func ReplyError(conn net.Conn, err error) {
 		rep = gosocks5.NewReply(gosocks5.Failure, nil)
 	} else if errors.Is(err, suo5.ErrConnRefused) {
 		rep = gosocks5.NewReply(gosocks5.ConnRefused, nil)
+	} else {
+		rep = gosocks5.NewReply(gosocks5.Failure, nil)
 	}
 	_ = rep.Write(conn)
 }
