@@ -109,7 +109,7 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 		key := string(bs[i : i+kLen])
 		i += kLen
 
-		if i+4 >= total {
+		if i+4 > total {
 			return nil, fmt.Errorf("unexpected eof when read value size")
 		}
 		vLen := int(binary.BigEndian.Uint32(bs[i : i+4]))

@@ -40,6 +40,7 @@ export namespace suo5 {
 	    enable_cookiejar: boolean;
 	    exclude_domain: string[];
 	    forward_target: string;
+	    max_request_size: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -65,6 +66,7 @@ export namespace suo5 {
 	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
 	        this.forward_target = source["forward_target"];
+	        this.max_request_size = source["max_request_size"];
 	    }
 	}
 

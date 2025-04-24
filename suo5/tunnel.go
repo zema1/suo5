@@ -11,35 +11,27 @@ import (
 	"time"
 )
 
-type StreamFactory interface {
-	Spawn(id string) (*TunnelConn, error)
-	Release(id string)
-	Wait()
-	Shutdown()
-}
-
 type TunnelConn struct {
 	id        string
 	once      sync.Once
 	mu        sync.Mutex
 	readChan  chan map[string][]byte
 	readBuf   bytes.Buffer
-	writeChan chan []byte
+	writeChan chan *IdData
 	config    *Suo5Config
 	closed    atomic.Bool
-	onClose   func()
+	onClose   []func()
 	ctx       context.Context
 	cancel    func()
 }
 
-func NewTunnelConn(id string, config *Suo5Config, writeChan chan []byte, onClose func()) *TunnelConn {
+func NewTunnelConn(id string, config *Suo5Config, writeChan chan *IdData) *TunnelConn {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &TunnelConn{
 		id:        id,
 		readChan:  make(chan map[string][]byte, 32),
 		writeChan: writeChan,
 		config:    config,
-		onClose:   onClose,
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -60,23 +52,10 @@ func (s *TunnelConn) ReadUnmarshal() (map[string][]byte, error) {
 	}
 }
 
-func (s *TunnelConn) SetupConnHeartBeat() {
-	ticker := time.NewTicker(time.Second)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			case <-ticker.C:
-				_, err := s.Write(nil)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-			}
-		}
-	}()
+func (s *TunnelConn) AddCloseCallback(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onClose = append(s.onClose, fn)
 }
 
 func (s *TunnelConn) RemoteData(m map[string][]byte) {
@@ -118,16 +97,15 @@ func (s *TunnelConn) Read(p []byte) (n int, err error) {
 	}
 }
 
-func (s *TunnelConn) Write(p []byte) (n int, err error) {
+func (s *TunnelConn) Write(p []byte) (int, error) {
 	partWrite := 0
 	chunkSize := s.config.MaxRequestSize
 	if len(p) > chunkSize {
-		// todo: recheck
 		log.Debugf("split data to %d chunk, length: %d", len(p)/chunkSize, len(p))
 		for i := 0; i < len(p); i += chunkSize {
 			act := NewActionData(s.id, p[i:minInt(i+chunkSize, len(p))])
 			body := BuildBody(act, s.config.RedirectURL, s.config.Mode)
-			n, err = s.WriteRaw(body)
+			n, err := s.WriteRaw(body)
 			if err != nil {
 				return partWrite, err
 			}
@@ -152,7 +130,7 @@ func (s *TunnelConn) WriteRaw(p []byte) (n int, err error) {
 	}
 
 	select {
-	case s.writeChan <- p:
+	case s.writeChan <- &IdData{s.id, p}:
 		return len(p), nil
 	default:
 		log.Warnf("write buffer is full, discard current message, data len %d", len(p))
@@ -164,8 +142,8 @@ func (s *TunnelConn) CloseSelf() {
 	s.once.Do(func() {
 		log.Debugf("closing tunnel byself %s", s.id)
 		s.cancel()
-		if s.onClose != nil {
-			s.onClose()
+		for _, fn := range s.onClose {
+			fn()
 		}
 
 		s.mu.Lock()
@@ -179,9 +157,10 @@ func (s *TunnelConn) CloseSelf() {
 func (s *TunnelConn) Close() error {
 	s.once.Do(func() {
 		log.Debugf("closing tunnel %s", s.id)
+		defer log.Debugf("tunnel closed, %s", s.id)
 		s.cancel()
-		if s.onClose != nil {
-			s.onClose()
+		for _, fn := range s.onClose {
+			fn()
 		}
 		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, s.config.Mode)
 		_, _ = s.WriteRaw(body)

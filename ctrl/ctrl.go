@@ -24,7 +24,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	if config.GuiLog != nil {
 		// 防止多次执行出错
 		log.Default = log.New()
-		log.Default.AddOutput(config.GuiLog)
+		log.Default.SetOutput(config.GuiLog)
 	}
 	if config.Debug {
 		log.SetLevel("debug")
@@ -69,7 +69,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	}
 	go func() {
 		<-ctx.Done()
-		log.Infof("server stopped")
+		log.Infof("socks5 server stopped")
 		_ = srv.Close()
 	}()
 
@@ -136,7 +136,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		}
 	}
 
-	suo5Client.StreamFactory.Wait()
+	suo5Client.Factory.Wait()
 	log.Infof("all cleaned up, suo5 is going to exit")
 	return nil
 }

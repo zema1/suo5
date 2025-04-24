@@ -46,7 +46,6 @@ type Suo5Config struct {
 	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 	ForwardTarget    string         `json:"forward_target"`
-	Multiplex        bool           `json:"multiplex"`
 	MaxRequestSize   int            `json:"max_request_size"`
 
 	TestExit                string                               `json:"-"`
@@ -225,12 +224,24 @@ func (config *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 		}
 	}
 	config.Offset = offset
+
+	var factory StreamFactory
+	if config.Mode == FullDuplex {
+		factory = NewFullChunkedStreamFactory(ctx, config, rawClient)
+	} else if config.Mode == HalfDuplex {
+		factory = NewHalfChunkedStreamFactory(ctx, config, noTimeoutClient)
+	} else if config.Mode == Classic {
+		factory = NewClassicStreamFactory(ctx, config, normalClient)
+	} else {
+		return nil, fmt.Errorf("unknown mode %s", config.Mode)
+	}
+
 	return &Suo5Client{
 		Config:          config,
 		NormalClient:    normalClient,
 		NoTimeoutClient: noTimeoutClient,
 		RawClient:       rawClient,
-		StreamFactory:   NewClassicStreamFactory(ctx, config, normalClient),
+		Factory:         factory,
 	}, nil
 }
 

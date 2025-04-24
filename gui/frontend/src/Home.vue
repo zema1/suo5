@@ -136,7 +136,7 @@
 
 <script lang="ts" setup>
 
-import {suo5, main} from "../wailsjs/go/models";
+import {main, suo5} from "../wailsjs/go/models";
 import {DefaultSuo5Config, ExportConfig, ImportConfig, RunSuo5WithConfig, Stop} from "../wailsjs/go/main/App";
 import {BrowserOpenURL, EventsOn} from "../wailsjs/runtime";
 import {AlertProps} from "naive-ui/es/alert/src/Alert";
@@ -165,6 +165,7 @@ const formValue = ref<suo5.Suo5Config>({
   enable_cookiejar: false,
   exclude_domain: [],
   forward_target: "",
+  max_request_size: 0,
 })
 
 const upstream_proxy_single = ref("")

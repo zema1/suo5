@@ -56,6 +56,7 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	streamRW := suo5.NewSuo5Conn(m.ctx, m.Suo5Client)
 	err := streamRW.ConnectMultiplex(sockReq.Addr.String())
 	if err != nil {
+		log.Errorf("failed to connect to %s, %v", sockReq.Addr, err)
 		ReplyError(conn, err)
 		return
 	}

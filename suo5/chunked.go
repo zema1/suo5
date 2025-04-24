@@ -5,187 +5,241 @@ import (
 	"context"
 	"fmt"
 	log "github.com/kataras/golog"
+	"github.com/pkg/errors"
+	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 )
 
-type fullChunkedReadWriter struct {
-	id         string
-	reqBody    io.WriteCloser
-	serverResp io.ReadCloser
-	once       sync.Once
+// todo: retry
 
-	readBuf  bytes.Buffer
-	readTmp  []byte
-	writeTmp []byte
+type FullChunkedStreamFactory struct {
+	*BaseStreamFactory
+	mu        sync.Mutex
+	rawClient *rawhttp.Client
+	rcs       map[string]io.ReadCloser
+	wcs       map[string]io.WriteCloser
 }
 
-// NewFullChunkedReadWriter 全双工读写流
-func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.ReadCloser) io.ReadWriteCloser {
-	rw := &fullChunkedReadWriter{
-		id:         id,
-		reqBody:    reqBody,
-		serverResp: serverResp,
-		readBuf:    bytes.Buffer{},
-		readTmp:    make([]byte, 16*1024),
-		writeTmp:   make([]byte, 8*1024),
+func NewFullChunkedStreamFactory(ctx context.Context, config *Suo5Config, rawClient *rawhttp.Client) StreamFactory {
+	s := &FullChunkedStreamFactory{
+		BaseStreamFactory: NewBaseStreamFactory(ctx, config),
+		rawClient:         rawClient,
+		rcs:               make(map[string]io.ReadCloser),
+		wcs:               make(map[string]io.WriteCloser),
 	}
-	return rw
-}
 
-func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
-	if s.readBuf.Len() != 0 {
-		return s.readBuf.Read(p)
-	}
-	fr, err := netrans.ReadFrame(s.serverResp)
-	if err != nil {
-		return 0, err
-	}
-	m, err := Unmarshal(fr.Data)
-	if err != nil {
-		return 0, err
-	}
-	action := m["ac"]
-	if len(action) != 1 {
-		return 0, fmt.Errorf("invalid action when read %v", action)
-	}
-	switch action[0] {
-	case ActionData:
-		data := m["dt"]
-		s.readBuf.Reset()
-		s.readBuf.Write(data)
-		return s.readBuf.Read(p)
-	case ActionDelete:
-		return 0, io.EOF
-	default:
-		return 0, fmt.Errorf("unpected action when read %v", action)
-	}
-}
-
-func (s *fullChunkedReadWriter) Write(p []byte) (n int, err error) {
-	log.Debugf("write socket data, length: %d", len(p))
-	body := BuildBody(NewActionData(s.id, p), "", FullDuplex)
-	return s.WriteRaw(body)
-}
-
-func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
-	return s.reqBody.Write(p)
-}
-
-func (s *fullChunkedReadWriter) Close() error {
-	s.once.Do(func() {
-		defer s.reqBody.Close()
-		body := BuildBody(NewActionDelete(s.id), "", FullDuplex)
-		_, _ = s.reqBody.Write(body)
-		_ = s.serverResp.Close()
-	})
-	return nil
-}
-
-type halfChunkedReadWriter struct {
-	ctx        context.Context
-	id         string
-	client     *http.Client
-	serverResp io.ReadCloser
-	once       sync.Once
-	config     *Suo5Config
-
-	readBuf  bytes.Buffer
-	readTmp  []byte
-	writeTmp []byte
-}
-
-// NewHalfChunkedReadWriter 半双工读写流, 用发送请求的方式模拟写
-func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, serverResp io.ReadCloser, config *Suo5Config) io.ReadWriteCloser {
-	return &halfChunkedReadWriter{
-		ctx:        ctx,
-		id:         id,
-		client:     client,
-		serverResp: serverResp,
-		config:     config,
-		readBuf:    bytes.Buffer{},
-		readTmp:    make([]byte, 16*1024),
-		writeTmp:   make([]byte, 8*1024),
-	}
-}
-
-func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
-	if s.readBuf.Len() != 0 {
-		return s.readBuf.Read(p)
-	}
-	fr, err := netrans.ReadFrame(s.serverResp)
-	if err != nil {
-		return 0, err
-	}
-	m, err := Unmarshal(fr.Data)
-	if err != nil {
-		return 0, err
-	}
-	action := m["ac"]
-	if len(action) != 1 {
-		return 0, fmt.Errorf("invalid action when read %v", action)
-	}
-	switch action[0] {
-	case ActionData:
-		data := m["dt"]
-		log.Debugf("recv data, length: %d", len(data))
-		s.readBuf.Reset()
-		s.readBuf.Write(data)
-		return s.readBuf.Read(p)
-	case ActionDelete:
-		return 0, io.EOF
-	case ActionHeartbeat:
-		return 0, nil
-	default:
-		return 0, fmt.Errorf("unpected action when read %v", action)
-	}
-}
-
-func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
-	body := BuildBody(NewActionData(s.id, p), s.config.RedirectURL, HalfDuplex)
-	log.Debugf("send request, length: %d", len(body))
-	return s.WriteRaw(body)
-}
-
-func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
-	req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
-	if err != nil {
-		return 0, err
-	}
-	req.ContentLength = int64(len(p))
-	req.Header = s.config.Header.Clone()
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		return len(p), nil
-	} else {
-		return 0, fmt.Errorf("unexpected status of %d", resp.StatusCode)
-	}
-}
-
-func (s *halfChunkedReadWriter) Close() error {
-	s.once.Do(func() {
-		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, HalfDuplex)
-		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(body))
-		if err != nil {
-			log.Error(err)
-			return
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				time.Sleep(time.Second * 5)
+				s.mu.Lock()
+				log.Infof("connection count: %d", len(s.rcs))
+				s.mu.Unlock()
+			}
 		}
+	}()
+
+	s.OnRemoteWrite(func(id string, p []byte) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		conn, ok := s.wcs[id]
+		if !ok {
+			rc := s.rcs[id]
+			if rc != nil {
+				_ = rc.Close()
+			}
+			return nil
+		}
+		_, err := conn.Write(p)
+		return err
+	})
+	return s
+}
+
+func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
+	tunnel, err = h.BaseStreamFactory.Create(id)
+	if err != nil {
+		return nil, err
+	}
+
+	tunnelRef := tunnel
+	defer func() {
+		if err != nil && tunnelRef != nil {
+			_ = tunnelRef.Close()
+		}
+	}()
+
+	host, port, _ := net.SplitHostPort(address)
+	uport, _ := strconv.Atoi(port)
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.Mode)
+
+	ch, wc := netrans.NewChannelWriteCloser(h.ctx)
+	body := netrans.MultiReadCloser(
+		io.NopCloser(bytes.NewReader(dialData)),
+		io.NopCloser(netrans.NewChannelReader(ch)),
+	)
+	req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, body)
+	req.Header = h.config.Header.Clone()
+	resp, err := h.rawClient.Do(req)
+
+	fr, err := netrans.ReadFrame(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
+
+	serverData, err := Unmarshal(fr.Data)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
+	status := serverData["s"]
+
+	log.Debugf("recv dial response from server:  %v", status)
+	if len(status) != 1 || status[0] != 0x00 {
+		return nil, errors.Wrap(ErrHostUnreachable, fmt.Sprintf("status: %v", status))
+	}
+
+	cleanUp := func() {
+		_ = resp.Body.Close()
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(h.rcs, id)
+		delete(h.wcs, id)
+	}
+
+	tunnel.AddCloseCallback(cleanUp)
+
+	go func() {
+		defer cleanUp()
+
+		err := h.DispatchRemoteData(resp.Body)
+		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "use of closed network") {
+			log.Errorf("dispatch remote data error: %v", err)
+		}
+	}()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rcs[id] = resp.Body
+	h.wcs[id] = wc
+	return tunnel, nil
+}
+
+type HalfChunkedStreamFactory struct {
+	*BaseStreamFactory
+	client *http.Client
+	mu     sync.Mutex
+	rcs    map[string]io.ReadCloser
+}
+
+func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client *http.Client) StreamFactory {
+	s := &HalfChunkedStreamFactory{
+		BaseStreamFactory: NewBaseStreamFactory(ctx, config),
+		client:            client,
+		rcs:               make(map[string]io.ReadCloser),
+	}
+
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				time.Sleep(time.Second * 5)
+				s.mu.Lock()
+				log.Infof("connection count: %d", len(s.rcs))
+				s.mu.Unlock()
+			}
+		}
+	}()
+
+	s.OnRemotePlexWrite(func(p []byte) error {
+		log.Debugf("send polling request, body len: %d", len(p))
+		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
+		if err != nil {
+			return err
+		}
+		req.ContentLength = int64(len(p))
 		req.Header = s.config.Header.Clone()
-		log.Debugf("send close request to %s", s.config.Target)
 		resp, err := s.client.Do(req)
 		if err != nil {
-			log.Errorf("send close error: %v", err)
-			return
+			return err
 		}
-		_ = resp.Body.Close()
-		_ = s.serverResp.Close()
-		log.Debugf("close remote request done")
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("unexpected status of %d", resp.StatusCode)
+		}
+		return nil
 	})
-	return nil
+	return s
+}
+
+func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
+	tunnel, err = h.BaseStreamFactory.Create(id)
+	if err != nil {
+		return nil, err
+	}
+
+	tunnelRef := tunnel
+	defer func() {
+		if err != nil && tunnelRef != nil {
+			_ = tunnelRef.Close()
+		}
+	}()
+
+	host, port, _ := net.SplitHostPort(address)
+	uport, _ := strconv.Atoi(port)
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.Mode)
+
+	req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, bytes.NewReader(dialData))
+	req.Header = h.config.Header.Clone()
+	resp, err := h.client.Do(req)
+
+	fr, err := netrans.ReadFrame(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
+
+	serverData, err := Unmarshal(fr.Data)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
+	status := serverData["s"]
+
+	log.Debugf("recv dial response from server:  %v", status)
+	if len(status) != 1 || status[0] != 0x00 {
+		return nil, errors.Wrap(ErrHostUnreachable, fmt.Sprintf("status: %v", status))
+	}
+
+	cleanUp := func() {
+		_ = resp.Body.Close()
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(h.rcs, id)
+	}
+
+	tunnel.AddCloseCallback(cleanUp)
+
+	go func() {
+		defer cleanUp()
+
+		err := h.DispatchRemoteData(resp.Body)
+		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "use of closed network") {
+			log.Errorf("dispatch remote data error: %v", err)
+		}
+	}()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rcs[id] = resp.Body
+	return tunnel, nil
 }
