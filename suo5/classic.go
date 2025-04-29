@@ -58,7 +58,7 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 			default:
 				time.Sleep(time.Second * 5)
 				s.BaseStreamFactory.tunnelMu.Lock()
-				log.Infof("connection count: %d", len(s.BaseStreamFactory.tunnels))
+				log.Debugf("connection count: %d", len(s.BaseStreamFactory.tunnels))
 				s.BaseStreamFactory.tunnelMu.Unlock()
 			}
 		}

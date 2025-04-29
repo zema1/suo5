@@ -43,7 +43,7 @@ func NewFullChunkedStreamFactory(ctx context.Context, config *Suo5Config, rawCli
 			default:
 				time.Sleep(time.Second * 5)
 				s.mu.Lock()
-				log.Infof("connection count: %d", len(s.rcs))
+				log.Debugf("connection count: r: %d w: %d", len(s.rcs), len(s.wcs))
 				s.mu.Unlock()
 			}
 		}
@@ -91,6 +91,9 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 	req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, body)
 	req.Header = h.config.Header.Clone()
 	resp, err := h.rawClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
 
 	fr, err := netrans.ReadFrame(resp.Body)
 	if err != nil {
@@ -105,7 +108,7 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 
 	log.Debugf("recv dial response from server:  %v", status)
 	if len(status) != 1 || status[0] != 0x00 {
-		return nil, errors.Wrap(ErrHostUnreachable, fmt.Sprintf("status: %v", status))
+		return nil, errors.Wrap(ErrConnRefused, fmt.Sprintf("status: %v", status))
 	}
 
 	cleanUp := func() {
@@ -156,7 +159,7 @@ func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client
 			default:
 				time.Sleep(time.Second * 5)
 				s.mu.Lock()
-				log.Infof("connection count: %d", len(s.rcs))
+				log.Debugf("connection count: %d", len(s.rcs))
 				s.mu.Unlock()
 			}
 		}
@@ -203,6 +206,9 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 	req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, bytes.NewReader(dialData))
 	req.Header = h.config.Header.Clone()
 	resp, err := h.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
 
 	fr, err := netrans.ReadFrame(resp.Body)
 	if err != nil {
@@ -217,7 +223,7 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 
 	log.Debugf("recv dial response from server:  %v", status)
 	if len(status) != 1 || status[0] != 0x00 {
-		return nil, errors.Wrap(ErrHostUnreachable, fmt.Sprintf("status: %v", status))
+		return nil, errors.Wrap(ErrConnRefused, fmt.Sprintf("status: %v", status))
 	}
 
 	cleanUp := func() {

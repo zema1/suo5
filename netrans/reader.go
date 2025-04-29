@@ -122,10 +122,10 @@ func (c *channelReader) Read(p []byte) (n int, err error) {
 		return c.buf.Read(p)
 	}
 	var data []byte
+	var ok bool
 	for {
-		data = <-c.ch
-		// channel closed
-		if data == nil {
+		data, ok = <-c.ch
+		if !ok {
 			return 0, io.EOF
 		}
 		if len(data) != 0 {
@@ -146,7 +146,7 @@ type channelWriterCloser struct {
 }
 
 func NewChannelWriteCloser(ctx context.Context) (chan []byte, io.WriteCloser) {
-	ch := make(chan []byte)
+	ch := make(chan []byte, 64)
 	ctx, cancel := context.WithCancel(ctx)
 	return ch, &channelWriterCloser{
 		ch:     ch,
@@ -180,6 +180,9 @@ func (c *channelWriterCloser) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	case <-c.ctx.Done():
 		return 0, c.ctx.Err()
+	default:
+		// don't block on write
+		return 0, errors.New("write channel is full")
 	}
 }
 

@@ -3,10 +3,10 @@ package ctrl
 import (
 	"context"
 	"fmt"
+	"github.com/go-gost/gosocks5/server"
 	"github.com/pkg/errors"
-	"io"
 	"net"
-	"sync"
+	"net/url"
 	"time"
 
 	"github.com/go-gost/gosocks5"
@@ -15,15 +15,29 @@ import (
 	"github.com/zema1/suo5/suo5"
 )
 
-type socks5Handler struct {
+type Socks5Handler struct {
 	*suo5.Suo5Client
 
 	ctx      context.Context
-	pool     *sync.Pool
 	selector gosocks5.Selector
 }
 
-func (m *socks5Handler) Handle(conn net.Conn) error {
+func NewSocks5Handler(ctx context.Context, client *suo5.Suo5Client) *Socks5Handler {
+	selector := server.DefaultSelector
+	if !client.Config.NoAuth() {
+		selector = server.NewServerSelector([]*url.Userinfo{
+			url.UserPassword(client.Config.Username, client.Config.Password),
+		})
+	}
+
+	return &Socks5Handler{
+		ctx:        ctx,
+		Suo5Client: client,
+		selector:   selector,
+	}
+}
+
+func (m *Socks5Handler) Handle(conn net.Conn) error {
 	defer conn.Close()
 
 	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
@@ -52,7 +66,7 @@ func (m *socks5Handler) Handle(conn net.Conn) error {
 	}
 }
 
-func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) {
+func (m *Socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) {
 	streamRW := suo5.NewSuo5Conn(m.ctx, m.Suo5Client)
 	err := streamRW.ConnectMultiplex(sockReq.Addr.String())
 	if err != nil {
@@ -68,41 +82,9 @@ func (m *socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	}
 	log.Infof("successfully connected to %s", sockReq.Addr)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer streamRW.Close()
-		if err := m.pipe(conn, streamRW); err != nil {
-			log.Debugf("local conn closed, %s", sockReq.Addr)
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer conn.Close()
-		if err := m.pipe(streamRW, conn); err != nil {
-			log.Debugf("remote readwriter closed, %s", sockReq.Addr)
-		}
-	}()
+	m.DualPipe(conn, streamRW.ReadWriteCloser, sockReq.Addr.String())
 
-	wg.Wait()
 	log.Infof("connection closed, %s", sockReq.Addr)
-}
-
-func (m *socks5Handler) pipe(r io.Reader, w io.Writer) error {
-	buf := m.pool.Get().([]byte)
-	defer m.pool.Put(buf) //nolint:staticcheck
-	for {
-		n, err := r.Read(buf)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(buf[:n])
-		if err != nil {
-			return err
-		}
-	}
 }
 
 func ReplyError(conn net.Conn, err error) {

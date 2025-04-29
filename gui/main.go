@@ -17,16 +17,16 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:         "HTTP 代理隧道 - Suo5",
-		Width:         680,
-		Height:        800,
-		DisableResize: true,
+		Title:     "Suo5 - 高性能 HTTP 隧道代理",
+		Width:     620,
+		Height:    860,
+		MinWidth:  550,
+		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		//BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:  app.startup,
-		OnShutdown: app.shutdown,
+		OnStartup:  app.Startup,
+		OnShutdown: app.Shutdown,
 		Bind: []interface{}{
 			app,
 		},

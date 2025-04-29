@@ -7,6 +7,7 @@ import (
 	"fmt"
 	log "github.com/kataras/golog"
 	"github.com/zema1/suo5/netrans"
+	"golang.org/x/time/rate"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,7 @@ type BaseStreamFactory struct {
 	config  *Suo5Config
 	closeMu sync.Mutex
 	closed  atomic.Bool
+	limiter *rate.Limiter
 
 	tunnelMu sync.Mutex
 	tunnels  map[string]*TunnelConn
@@ -45,8 +47,11 @@ type BaseStreamFactory struct {
 
 func NewBaseStreamFactory(rootCtx context.Context, config *Suo5Config) *BaseStreamFactory {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	limiter := rate.NewLimiter(rate.Limit(5), 10)
 	plex := &BaseStreamFactory{
 		config:    config,
+		limiter:   limiter,
 		tunnels:   make(map[string]*TunnelConn),
 		writeChan: make(chan *IdData, 4096),
 		ctx:       ctx,
@@ -103,6 +108,14 @@ func (s *BaseStreamFactory) sync() {
 					}
 					continue
 				}
+				err := s.limiter.Wait(s.ctx)
+				if err != nil {
+					return
+				}
+				if s.closed.Load() {
+					return
+				}
+
 				buf = append(buf[:0], idData.data...)
 				size := len(s.writeChan)
 				if size > 0 {

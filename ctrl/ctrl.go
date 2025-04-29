@@ -8,7 +8,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/go-gost/gosocks5"
@@ -25,6 +24,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		// 防止多次执行出错
 		log.Default = log.New()
 		log.Default.SetOutput(config.GuiLog)
+		log.Default.SetTimeFormat("15:04:05")
 	}
 	if config.Debug {
 		log.SetLevel("debug")
@@ -35,6 +35,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		return err
 	}
 	log.Infof("starting tunnel at %s", config.Listen)
+
 	if config.OnRemoteConnected != nil {
 		config.OnRemoteConnected(&suo5.ConnectedEvent{Mode: config.Mode})
 	}
@@ -48,7 +49,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		msg += fmt.Sprintf("Forward: %s\n", config.ForwardTarget)
 		msg += fmt.Sprintf("Listen:  %s\n", config.Listen)
 	} else {
-		if config.NoAuth {
+		if config.NoAuth() {
 			socks5Addr = fmt.Sprintf("socks5://%s", config.Listen)
 		} else {
 			socks5Addr = fmt.Sprintf("socks5://%s:%s@%s", config.Username, config.Password, config.Listen)
@@ -73,38 +74,18 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		_ = srv.Close()
 	}()
 
-	trPool := &sync.Pool{
-		New: func() interface{} {
-			return make([]byte, config.BufferSize)
-		},
-	}
-
 	var handler server.Handler
-
 	if config.ForwardTarget != "" {
 		// 使用 Forward 模式
 		handler = &suo5.ClientEventHandler{
-			Inner:                   NewForwardHandler(ctx, suo5Client, trPool, config.ForwardTarget),
+			Inner:                   NewForwardHandler(ctx, suo5Client),
 			OnNewClientConnection:   config.OnNewClientConnection,
 			OnClientConnectionClose: config.OnClientConnectionClose,
 		}
 		log.Infof("running in forward mode, forwarding all connections to %s", config.ForwardTarget)
 	} else {
-		// 使用 SOCKS5 模式
-		selector := server.DefaultSelector
-		if !config.NoAuth {
-			selector = server.NewServerSelector([]*url.Userinfo{
-				url.UserPassword(config.Username, config.Password),
-			})
-		}
-
 		handler = &suo5.ClientEventHandler{
-			Inner: &socks5Handler{
-				Suo5Client: suo5Client,
-				ctx:        ctx,
-				pool:       trPool,
-				selector:   selector,
-			},
+			Inner:                   NewSocks5Handler(ctx, suo5Client),
 			OnNewClientConnection:   config.OnNewClientConnection,
 			OnClientConnectionClose: config.OnClientConnectionClose,
 		}

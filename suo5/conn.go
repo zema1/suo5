@@ -3,6 +3,7 @@ package suo5
 import (
 	"context"
 	"github.com/pkg/errors"
+	"github.com/zema1/suo5/netrans"
 	"io"
 )
 
@@ -22,8 +23,9 @@ func NewSuo5Conn(ctx context.Context, client *Suo5Client) *Suo5Conn {
 
 type Suo5Conn struct {
 	io.ReadWriteCloser
-	ctx context.Context
 	*Suo5Client
+
+	ctx context.Context
 }
 
 func (suo *Suo5Conn) ConnectMultiplex(address string) error {
@@ -47,6 +49,9 @@ func (suo *Suo5Conn) ConnectMultiplex(address string) error {
 	streamRW := io.ReadWriteCloser(plexConn)
 	if !suo.Config.DisableHeartbeat {
 		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config.RedirectURL, suo.Config.Mode)
+	}
+	if suo.Config.OnSpeedInfo != nil {
+		streamRW = netrans.NewSpeedTrackingReadWriteCloser(streamRW)
 	}
 	suo.ReadWriteCloser = streamRW
 	return nil

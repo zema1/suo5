@@ -1,11 +1,16 @@
 package suo5
 
 import (
+	"context"
+	log "github.com/kataras/golog"
 	utls "github.com/refraction-networking/utls"
 	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
+	"io"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -15,6 +20,71 @@ type Suo5Client struct {
 	NoTimeoutClient *http.Client
 	RawClient       *rawhttp.Client
 	Factory         StreamFactory
+	Speeder         *netrans.SpeedCaculator
+	BytesPool       *sync.Pool
+}
+
+func (m *Suo5Client) Pipe(r io.Reader, w io.Writer) error {
+	buf := m.BytesPool.Get().([]byte)
+	defer m.BytesPool.Put(buf) //nolint:staticcheck
+	for {
+		n, err := r.Read(buf)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(buf[:n])
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (m *Suo5Client) DualPipe(localConn, remoteWrapper io.ReadWriteCloser, addr string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		defer remoteWrapper.Close()
+		if err := m.Pipe(localConn, remoteWrapper); err != nil {
+			log.Debugf("local conn closed, %s", addr)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		defer localConn.Close()
+		if err := m.Pipe(remoteWrapper, localConn); err != nil {
+			log.Debugf("remote readwriter closed, %s", addr)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				speeder, ok := remoteWrapper.(*netrans.SpeedTrackingReadWriterCloser)
+				if ok {
+					up, down := speeder.GetSpeedInterval()
+					m.Speeder.AddSpeed(up, down)
+				}
+			}
+		}
+	}()
+	wg.Wait()
 }
 
 func newRawClient(upstream rawhttp.ContextDialFunc, timeout time.Duration) *rawhttp.Client {

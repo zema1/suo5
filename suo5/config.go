@@ -18,6 +18,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,7 +32,6 @@ type Suo5Config struct {
 	Method           string         `json:"method"`
 	Listen           string         `json:"listen"`
 	Target           string         `json:"target"`
-	NoAuth           bool           `json:"no_auth"`
 	Username         string         `json:"username"`
 	Password         string         `json:"password"`
 	Mode             ConnectionType `json:"mode"`
@@ -56,40 +56,41 @@ type Suo5Config struct {
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`
+	OnSpeedInfo             func(event *SpeedStatisticEvent)     `json:"-"`
 	GuiLog                  io.Writer                            `json:"-"`
 }
 
-func (s *Suo5Config) Parse() error {
-	if s.Timeout <= 0 {
-		s.Timeout = DefaultTimeout
+func (conf *Suo5Config) Parse() error {
+	if conf.Timeout <= 0 {
+		conf.Timeout = DefaultTimeout
 	}
-	if s.BufferSize <= 0 {
-		s.BufferSize = DefaultMaxBufferSize
+	if conf.BufferSize <= 0 {
+		conf.BufferSize = DefaultMaxBufferSize
 	}
-	if s.MaxRequestSize <= 0 {
-		s.MaxRequestSize = DefaultMaxRequestSize
+	if conf.MaxRequestSize <= 0 {
+		conf.MaxRequestSize = DefaultMaxRequestSize
 	}
-	if err := s.parseExcludeDomain(); err != nil {
+	if err := conf.parseExcludeDomain(); err != nil {
 		return err
 	}
-	return s.parseHeader()
+	return conf.parseHeader()
 }
 
-func (s *Suo5Config) parseExcludeDomain() error {
-	s.ExcludeGlobs = make([]glob.Glob, 0)
-	for _, domain := range s.ExcludeDomain {
+func (conf *Suo5Config) parseExcludeDomain() error {
+	conf.ExcludeGlobs = make([]glob.Glob, 0)
+	for _, domain := range conf.ExcludeDomain {
 		g, err := glob.Compile(domain)
 		if err != nil {
 			return err
 		}
-		s.ExcludeGlobs = append(s.ExcludeGlobs, g)
+		conf.ExcludeGlobs = append(conf.ExcludeGlobs, g)
 	}
 	return nil
 }
 
-func (s *Suo5Config) parseHeader() error {
-	s.Header = make(http.Header)
-	for _, value := range s.RawHeader {
+func (conf *Suo5Config) parseHeader() error {
+	conf.Header = make(http.Header)
+	for _, value := range conf.RawHeader {
 		if value == "" {
 			continue
 		}
@@ -97,33 +98,33 @@ func (s *Suo5Config) parseHeader() error {
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid header value %s", value)
 		}
-		s.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		conf.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	}
 
-	if s.Header.Get("Referer") == "" {
-		n := strings.LastIndex(s.Target, "/")
+	if conf.Header.Get("Referer") == "" {
+		n := strings.LastIndex(conf.Target, "/")
 		if n == -1 {
-			s.Header.Set("Referer", s.Target)
+			conf.Header.Set("Referer", conf.Target)
 		} else {
-			s.Header.Set("Referer", s.Target[:n+1])
+			conf.Header.Set("Referer", conf.Target[:n+1])
 		}
 	}
 
 	return nil
 }
 
-func (config *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
-	err := config.Parse()
+func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
+	err := conf.Parse()
 	if err != nil {
 		return nil, err
 	}
-	if config.DisableGzip {
+	if conf.DisableGzip {
 		log.Infof("disable gzip")
-		config.Header.Set("Accept-Encoding", "identity")
+		conf.Header.Set("Accept-Encoding", "identity")
 	}
 
-	if len(config.ExcludeDomain) != 0 {
-		log.Infof("exclude domains: %v", config.ExcludeDomain)
+	if len(conf.ExcludeDomain) != 0 {
+		log.Infof("exclude domains: %v", conf.ExcludeDomain)
 	}
 
 	tr := &http.Transport{
@@ -156,28 +157,28 @@ func (config *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 			return uTlsConn, nil
 		},
 	}
-	if len(config.UpstreamProxy) > 0 {
-		proxies, err := proxyclient.ParseProxyURLs(config.UpstreamProxy)
+	if len(conf.UpstreamProxy) > 0 {
+		proxies, err := proxyclient.ParseProxyURLs(conf.UpstreamProxy)
 		if err != nil {
 			return nil, err
 		}
 		log.Infof("using upstream proxy %v", proxies)
 
-		config.ProxyClient, err = proxyclient.NewClientChain(proxies)
+		conf.ProxyClient, err = proxyclient.NewClientChain(proxies)
 		if err != nil {
 			return nil, err
 		}
-		tr.DialContext = config.ProxyClient.DialContext
+		tr.DialContext = conf.ProxyClient.DialContext
 	}
-	if config.RedirectURL != "" {
-		_, err := url.Parse(config.RedirectURL)
+	if conf.RedirectURL != "" {
+		_, err := url.Parse(conf.RedirectURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse redirect url, %s", err)
 		}
-		log.Infof("using redirect url %v", config.RedirectURL)
+		log.Infof("using redirect url %v", conf.RedirectURL)
 	}
 	var jar http.CookieJar
-	if config.EnableCookieJar {
+	if conf.EnableCookieJar {
 		jar, _ = cookiejar.New(nil)
 	} else {
 		// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
@@ -190,67 +191,99 @@ func (config *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 		Timeout:   0,
 	}
 	normalClient := &http.Client{
-		Timeout:   time.Duration(config.Timeout) * time.Second,
+		Timeout:   time.Duration(conf.Timeout) * time.Second,
 		Jar:       jar,
 		Transport: tr.Clone(),
 	}
 
 	var rawClient *rawhttp.Client
-	if config.ProxyClient != nil {
-		rawClient = newRawClient(config.ProxyClient.DialContext, 0)
+	if conf.ProxyClient != nil {
+		rawClient = newRawClient(conf.ProxyClient.DialContext, 0)
 	} else {
 		rawClient = newRawClient(nil, 0)
 	}
 
-	log.Infof("header: %s", config.HeaderString())
-	log.Infof("method: %s", config.Method)
-	log.Infof("connecting to target %s", config.Target)
-	result, offset, err := checkConnectMode(ctx, config)
+	log.Infof("header: %s", conf.HeaderString())
+	log.Infof("method: %s", conf.Method)
+	log.Infof("connecting to target %s", conf.Target)
+	result, offset, err := checkConnectMode(ctx, conf)
 	if err != nil {
 		return nil, err
 	}
-	if config.Mode == AutoDuplex {
-		config.Mode = result
+	if conf.Mode == AutoDuplex {
+		conf.Mode = result
 		if result == FullDuplex {
 			log.Infof("wow, you can run the proxy on FullDuplex mode")
 		} else {
 			log.Warnf("the target may behind a reverse proxy, fallback to HalfDuplex mode")
 		}
 	} else {
-		if result == FullDuplex && config.Mode != FullDuplex {
+		if result == FullDuplex && conf.Mode != FullDuplex {
 			log.Infof("the target support full duplex, you can try FullDuplex mode to obtain better performance")
-		} else if result == HalfDuplex && config.Mode == FullDuplex {
+		} else if result == HalfDuplex && conf.Mode == FullDuplex {
 			return nil, fmt.Errorf("the target doesn't support full duplex, you should use HalfDuplex or AutoDuplex mode")
 		}
 	}
-	config.Offset = offset
+	conf.Offset = offset
 
 	var factory StreamFactory
-	if config.Mode == FullDuplex {
-		factory = NewFullChunkedStreamFactory(ctx, config, rawClient)
-	} else if config.Mode == HalfDuplex {
-		factory = NewHalfChunkedStreamFactory(ctx, config, noTimeoutClient)
-	} else if config.Mode == Classic {
-		factory = NewClassicStreamFactory(ctx, config, normalClient)
+	if conf.Mode == FullDuplex {
+		factory = NewFullChunkedStreamFactory(ctx, conf, rawClient)
+	} else if conf.Mode == HalfDuplex {
+		factory = NewHalfChunkedStreamFactory(ctx, conf, noTimeoutClient)
+	} else if conf.Mode == Classic {
+		factory = NewClassicStreamFactory(ctx, conf, normalClient)
 	} else {
-		return nil, fmt.Errorf("unknown mode %s", config.Mode)
+		return nil, fmt.Errorf("unknown mode %s", conf.Mode)
+	}
+
+	speeder := netrans.NewSpeedCaculator()
+	if conf.OnSpeedInfo != nil {
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					up, down := speeder.Statistic()
+					conf.OnSpeedInfo(&SpeedStatisticEvent{
+						Upload:   up,
+						Download: down,
+					})
+				}
+			}
+		}()
+	}
+
+	pool := &sync.Pool{
+		New: func() interface{} {
+			return make([]byte, conf.BufferSize)
+		},
 	}
 
 	return &Suo5Client{
-		Config:          config,
+		Config:          conf,
 		NormalClient:    normalClient,
 		NoTimeoutClient: noTimeoutClient,
 		RawClient:       rawClient,
 		Factory:         factory,
+		Speeder:         speeder,
+		BytesPool:       pool,
 	}, nil
 }
 
-func (s *Suo5Config) HeaderString() string {
+func (conf *Suo5Config) HeaderString() string {
 	ret := ""
-	for k := range s.Header {
-		ret += fmt.Sprintf("\n%s: %s", k, s.Header.Get(k))
+	for k := range conf.Header {
+		ret += fmt.Sprintf("\n%s: %s", k, conf.Header.Get(k))
 	}
 	return ret
+}
+
+func (conf *Suo5Config) NoAuth() bool {
+	return conf.Username == "" && conf.Password == ""
 }
 
 func DefaultSuo5Config() *Suo5Config {
@@ -258,7 +291,6 @@ func DefaultSuo5Config() *Suo5Config {
 		Method:           "POST",
 		Listen:           "127.0.0.1:1111",
 		Target:           "",
-		NoAuth:           true,
 		Username:         "",
 		Password:         "",
 		Mode:             "auto",

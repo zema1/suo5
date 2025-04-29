@@ -59,11 +59,6 @@ func main() {
 			Usage:   "redirect to the url if host not matched, used to bypass load balance",
 			Value:   defaultConfig.RedirectURL,
 		},
-		&cli.BoolFlag{
-			Name:  "no-auth",
-			Usage: "disable socks5 authentication",
-			Value: defaultConfig.NoAuth,
-		},
 		&cli.StringFlag{
 			Name:  "auth",
 			Usage: "socks5 creds, username:password, leave empty to auto generate",
@@ -163,7 +158,6 @@ func main() {
 func Action(c *cli.Context) error {
 	listen := c.String("listen")
 	target := c.String("target")
-	noAuth := c.Bool("no-auth")
 	auth := c.String("auth")
 	mode := suo5.ConnectionType(c.String("mode"))
 	ua := c.String("ua")
@@ -184,19 +178,13 @@ func Action(c *cli.Context) error {
 	configFile := c.String("config")
 
 	var username, password string
-	if auth == "" {
-		if !noAuth {
-			username = "suo5"
-			password = suo5.RandString(8)
-		}
-	} else {
+	if auth != "" {
 		parts := strings.Split(auth, ":")
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid socks credentials, expected username:password")
 		}
 		username = parts[0]
 		password = parts[1]
-		noAuth = false
 	}
 	if !(mode == suo5.AutoDuplex || mode == suo5.FullDuplex || mode == suo5.HalfDuplex || mode == suo5.Classic) {
 		return fmt.Errorf("invalid mode, expected auto or full or half")
@@ -224,7 +212,6 @@ func Action(c *cli.Context) error {
 	config := &suo5.Suo5Config{
 		Listen:           listen,
 		Target:           target,
-		NoAuth:           noAuth,
 		Username:         username,
 		Password:         password,
 		Mode:             mode,
