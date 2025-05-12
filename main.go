@@ -18,7 +18,7 @@ import (
 var Version = "v0.0.0"
 
 func main() {
-	InitDefaultLog()
+	ctrl.InitDefaultLog(os.Stdout)
 	app := cli.NewApp()
 	app.Name = "suo5"
 	app.Usage = "A high-performance http tunnel"
@@ -66,13 +66,8 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "mode",
-			Usage: "connection mode, choices are auto, full, half",
+			Usage: "connection mode, choices are auto, full, half, classic",
 			Value: string(defaultConfig.Mode),
-		},
-		&cli.StringFlag{
-			Name:  "ua",
-			Usage: "set the request User-Agent",
-			Value: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3",
 		},
 		&cli.StringSliceFlag{
 			Name:    "header",
@@ -143,7 +138,7 @@ func main() {
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
-			log.Default.SetLevel("debug")
+			log.SetLevel("debug")
 		}
 		return nil
 	}
@@ -160,7 +155,6 @@ func Action(c *cli.Context) error {
 	target := c.String("target")
 	auth := c.String("auth")
 	mode := suo5.ConnectionType(c.String("mode"))
-	ua := c.String("ua")
 	bufSize := c.Int("buf-size")
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
@@ -186,14 +180,6 @@ func Action(c *cli.Context) error {
 		username = parts[0]
 		password = parts[1]
 	}
-	if !(mode == suo5.AutoDuplex || mode == suo5.FullDuplex || mode == suo5.HalfDuplex || mode == suo5.Classic) {
-		return fmt.Errorf("invalid mode, expected auto or full or half")
-	}
-
-	if bufSize < 512 || bufSize > 1024000 {
-		return fmt.Errorf("inproper buffer size, 512~1024000")
-	}
-	header = append(header, "User-Agent: "+ua)
 
 	if excludeFile != "" {
 		data, err := os.ReadFile(excludeFile)
@@ -245,31 +231,6 @@ func Action(c *cli.Context) error {
 	ctx, cancel := signalCtx()
 	defer cancel()
 	return ctrl.Run(ctx, config)
-}
-
-func InitDefaultLog() {
-	log.Default.SetTimeFormat("01-02 15:04")
-	log.Default.Handle(func(l *log.Log) bool {
-		prefix := log.GetTextForLevel(l.Level, true)
-		var message string
-
-		if len(l.Stacktrace) != 0 {
-			s := l.Stacktrace[0]
-			parts := strings.Split(s.Source, "/")
-			source := parts[len(parts)-1]
-			message = fmt.Sprintf("%s %s [%s] %s", prefix, l.FormatTime(), source, l.Message)
-		} else {
-			message = fmt.Sprintf("%s %s %s", prefix, l.FormatTime(), l.Message)
-		}
-
-		if l.NewLine {
-			message += "\n"
-		}
-
-		output := l.Logger.GetLevelOutput(l.Level.String())
-		_, err := output.Write([]byte(message))
-		return err == nil
-	})
 }
 
 func signalCtx() (context.Context, func()) {

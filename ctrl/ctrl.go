@@ -3,11 +3,13 @@ package ctrl
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-gost/gosocks5"
@@ -19,12 +21,38 @@ import (
 	"github.com/zema1/suo5/suo5"
 )
 
+func InitDefaultLog(writer io.Writer) {
+	log.SetTimeFormat("01-02 15:04")
+	log.SetOutput(writer)
+
+	supportColor := pio.SupportColors(writer)
+	log.Handle(func(l *log.Log) bool {
+		prefix := log.GetTextForLevel(l.Level, supportColor)
+		var message string
+
+		if len(l.Stacktrace) != 0 {
+			s := l.Stacktrace[0]
+			parts := strings.Split(s.Source, "/")
+			source := parts[len(parts)-1]
+			message = fmt.Sprintf("%s %s [%s] %s", prefix, l.FormatTime(), source, l.Message)
+		} else {
+			message = fmt.Sprintf("%s %s %s", prefix, l.FormatTime(), l.Message)
+		}
+
+		if l.NewLine {
+			message += "\n"
+		}
+
+		output := l.Logger.GetLevelOutput(l.Level.String())
+		_, err := output.Write([]byte(message))
+		return err == nil
+	})
+}
+
 func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	if config.GuiLog != nil {
 		// 防止多次执行出错
-		log.Default = log.New()
-		log.Default.SetOutput(config.GuiLog)
-		log.Default.SetTimeFormat("15:04:05")
+		InitDefaultLog(config.GuiLog)
 	}
 	if config.Debug {
 		log.SetLevel("debug")

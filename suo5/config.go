@@ -24,8 +24,9 @@ import (
 
 var (
 	DefaultMaxRequestSize = 1024 * 1024
-	DefaultMaxBufferSize  = 1024 * 64
+	DefaultBufferSize     = 1024 * 64
 	DefaultTimeout        = 10
+	DefaultClassicPollQPS = 10
 )
 
 type Suo5Config struct {
@@ -47,6 +48,7 @@ type Suo5Config struct {
 	ExcludeDomain    []string       `json:"exclude_domain"`
 	ForwardTarget    string         `json:"forward_target"`
 	MaxRequestSize   int            `json:"max_request_size"`
+	ClassicPollQPS   int            `json:"classic_poll_qps"`
 
 	TestExit                string                               `json:"-"`
 	ExcludeGlobs            []glob.Glob                          `json:"-"`
@@ -65,11 +67,20 @@ func (conf *Suo5Config) Parse() error {
 		conf.Timeout = DefaultTimeout
 	}
 	if conf.BufferSize <= 0 {
-		conf.BufferSize = DefaultMaxBufferSize
+		conf.BufferSize = DefaultBufferSize
 	}
 	if conf.MaxRequestSize <= 0 {
 		conf.MaxRequestSize = DefaultMaxRequestSize
 	}
+
+	if conf.ClassicPollQPS <= 0 {
+		conf.ClassicPollQPS = DefaultClassicPollQPS
+	}
+
+	if !(conf.Mode == AutoDuplex || conf.Mode == FullDuplex || conf.Mode == HalfDuplex || conf.Mode == Classic) {
+		return fmt.Errorf("invalid mode, expected auto or full or half or classic")
+	}
+
 	if err := conf.parseExcludeDomain(); err != nil {
 		return err
 	}
@@ -206,25 +217,17 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 	log.Infof("header: %s", conf.HeaderString())
 	log.Infof("method: %s", conf.Method)
 	log.Infof("connecting to target %s", conf.Target)
-	result, offset, err := checkConnectMode(ctx, conf)
-	if err != nil {
-		return nil, err
-	}
+
 	if conf.Mode == AutoDuplex {
+		result, offset, err := checkConnectMode(ctx, conf)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("suo5 is going to work in %s mode", result)
+
 		conf.Mode = result
-		if result == FullDuplex {
-			log.Infof("wow, you can run the proxy on FullDuplex mode")
-		} else {
-			log.Warnf("the target may behind a reverse proxy, fallback to HalfDuplex mode")
-		}
-	} else {
-		if result == FullDuplex && conf.Mode != FullDuplex {
-			log.Infof("the target support full duplex, you can try FullDuplex mode to obtain better performance")
-		} else if result == HalfDuplex && conf.Mode == FullDuplex {
-			return nil, fmt.Errorf("the target doesn't support full duplex, you should use HalfDuplex or AutoDuplex mode")
-		}
+		conf.Offset = offset
 	}
-	conf.Offset = offset
 
 	var factory StreamFactory
 	if conf.Mode == FullDuplex {
@@ -288,22 +291,23 @@ func (conf *Suo5Config) NoAuth() bool {
 
 func DefaultSuo5Config() *Suo5Config {
 	return &Suo5Config{
-		Method:           "POST",
+		Method:           http.MethodPost,
 		Listen:           "127.0.0.1:1111",
 		Target:           "",
 		Username:         "",
 		Password:         "",
-		Mode:             "auto",
-		BufferSize:       DefaultMaxBufferSize,
+		Mode:             AutoDuplex,
+		BufferSize:       DefaultBufferSize,
 		Timeout:          DefaultTimeout,
 		Debug:            false,
 		UpstreamProxy:    []string{},
 		RedirectURL:      "",
-		RawHeader:        []string{"User-Agent: Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3"},
+		RawHeader:        []string{},
 		DisableHeartbeat: false,
 		EnableCookieJar:  false,
 		ForwardTarget:    "",
 		MaxRequestSize:   DefaultMaxRequestSize,
+		ClassicPollQPS:   DefaultClassicPollQPS,
 	}
 }
 

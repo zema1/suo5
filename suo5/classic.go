@@ -87,7 +87,9 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 	if err != nil {
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
-	tunnel.SetupConnHeartBeat()
+
+	// classic 只能通过轮询来获取远端数据
+	tunnel.SetupActivePoll()
 
 	// recv dial status
 	serverData, err := tunnel.ReadUnmarshal()
@@ -108,8 +110,7 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 	return tunnel, nil
 }
 
-func (s *TunnelConn) SetupConnHeartBeat() {
-	// todo: speed limit
+func (s *TunnelConn) SetupActivePoll() {
 	ticker := time.NewTicker(time.Millisecond * 500)
 	go func() {
 		defer ticker.Stop()

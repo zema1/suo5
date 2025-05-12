@@ -48,7 +48,7 @@ type BaseStreamFactory struct {
 func NewBaseStreamFactory(rootCtx context.Context, config *Suo5Config) *BaseStreamFactory {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	limiter := rate.NewLimiter(rate.Limit(5), 10)
+	limiter := rate.NewLimiter(rate.Limit(config.ClassicPollQPS), config.ClassicPollQPS)
 	plex := &BaseStreamFactory{
 		config:    config,
 		limiter:   limiter,

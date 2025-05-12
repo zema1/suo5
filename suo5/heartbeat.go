@@ -14,14 +14,13 @@ type RawReadWriteCloser interface {
 	WriteRaw(p []byte) (n int, err error)
 }
 
-func NewHeartbeatRW(rw RawReadWriteCloser, id, redirect string, mode ConnectionType) io.ReadWriteCloser {
+func NewHeartbeatRW(rw RawReadWriteCloser, id string, conf *Suo5Config) io.ReadWriteCloser {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &heartbeatRW{
-		rw:       rw,
-		id:       id,
-		redirect: redirect,
-		mode:     mode,
-		cancel:   cancel,
+		rw:     rw,
+		id:     id,
+		config: conf,
+		cancel: cancel,
 	}
 	go h.heartbeat(ctx)
 	return h
@@ -29,8 +28,7 @@ func NewHeartbeatRW(rw RawReadWriteCloser, id, redirect string, mode ConnectionT
 
 type heartbeatRW struct {
 	id            string
-	redirect      string
-	mode          ConnectionType
+	config        *Suo5Config
 	rw            RawReadWriteCloser
 	lastHaveWrite atomic.Bool
 	cancel        func()
@@ -61,7 +59,7 @@ func (h *heartbeatRW) heartbeat(ctx context.Context) {
 				h.lastHaveWrite.Store(false)
 				continue
 			}
-			body := BuildBody(NewActionHeartbeat(h.id), h.redirect, h.mode)
+			body := BuildBody(NewActionHeartbeat(h.id), h.config.RedirectURL, h.config.Mode)
 			log.Debugf("send heartbeat, length: %d", len(body))
 			_, err := h.rw.WriteRaw(body)
 			if err != nil {

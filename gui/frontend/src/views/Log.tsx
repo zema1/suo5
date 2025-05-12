@@ -3,10 +3,11 @@ import {ScrollArea, ScrollBar} from "@/components/ui/scroll-area.tsx";
 import {Light as SyntaxHighlighter} from "react-syntax-highlighter";
 import accesslog from 'react-syntax-highlighter/dist/esm/languages/hljs/accesslog';
 import {atomOneDark, atomOneLight} from "react-syntax-highlighter/dist/esm/styles/hljs"
-import {useEffect, useMemo, useRef, useState} from "react";
+import {ComponentProps, useEffect, useMemo, useRef, useState} from "react";
 import {useTheme} from "@/components/theme-provider";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {ConnectStatus} from "@/views/types.ts";
+import {cn} from "@/lib/utils.ts";
 
 SyntaxHighlighter.registerLanguage('accesslog', accesslog);
 
@@ -14,7 +15,7 @@ interface LogViewProps {
   status: ConnectStatus
 }
 
-export default function LogView({status}: LogViewProps) {
+export default function LogView({status, className, ...props}: ComponentProps<'div'> & LogViewProps) {
   const [logValue, setLogValue] = useState<string>('');
   const logCount = useRef(0);
   const {theme} = useTheme()
@@ -65,9 +66,11 @@ export default function LogView({status}: LogViewProps) {
     }
   }, [status]);
 
+  const baseClass = "flex flex-1 flex-col space-y-4 bg-muted/50 border border-border/50 rounded [&>p]:m-0 [&>p]:text-sm min-h-0"
+
   return (
     <div
-      className="flex flex-1 flex-col space-y-4 bg-muted/50 border border-border/50 rounded [&>p]:m-0 [&>p]:text-sm min-h-0">
+      className={cn(baseClass, className)} {...props}>
       <div className="flex justify-between items-center shrink-0 px-4 pt-4">
         <p className="text-sm">运行日志</p>
         <Trash2 size={18} strokeWidth={1.6} onClick={() => setLogValue('')}/>

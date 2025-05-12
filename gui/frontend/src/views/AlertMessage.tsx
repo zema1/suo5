@@ -1,17 +1,26 @@
 import {Alert, AlertTitle} from "@/components/ui/alert";
 import {CircleCheckBig, PlugZap, ZapOff} from "lucide-react";
 import {ConnectStatus} from "@/views/types";
+import {ComponentProps} from "react";
+import {cn} from "@/lib/utils";
 
 interface AlertMessageProps {
   status: ConnectStatus
-  message?: string,
+  successMessage?: string,
+  errorMessage?: string,
 }
 
-export default function AlertMessage({status, message = ""}: AlertMessageProps) {
+export default function AlertMessage({
+                                       status,
+                                       successMessage = "",
+                                       errorMessage = "",
+                                       className,
+                                       ...props
+                                     }: ComponentProps<'div'> & AlertMessageProps) {
   switch (status) {
     case ConnectStatus.INITIAL:
       return (
-        <Alert className="border-0 bg-muted">
+        <Alert className={cn("border-0 bg-muted", className)} {...props}>
           <PlugZap/>
           <AlertTitle>
             等待发起连接
@@ -20,7 +29,7 @@ export default function AlertMessage({status, message = ""}: AlertMessageProps) 
       )
     case ConnectStatus.CONNECTING:
       return (
-        <Alert className="border-0 bg-muted">
+        <Alert className={cn("border-0 bg-muted", className)} {...props}>
           <PlugZap className="animate-pulse"/>
           <AlertTitle>
             连接中...
@@ -29,19 +38,19 @@ export default function AlertMessage({status, message = ""}: AlertMessageProps) 
       )
     case ConnectStatus.SUCCESS:
       return (
-        <Alert className="border-0 bg-emerald-500/10 dark:bg-emerald-600/30">
+        <Alert className={cn("border-0 bg-emerald-500/10 dark:bg-emerald-600/30", className)} {...props}>
           <CircleCheckBig className="stroke-emerald-500"/>
           <AlertTitle>
-            {message}
+            {successMessage}
           </AlertTitle>
         </Alert>
       )
     case ConnectStatus.FAILED:
       return (
-        <Alert className="border-0 bg-amber-500/10 dark:bg-amber-600/30">
+        <Alert className={cn("border-0 bg-amber-500/10 dark:bg-amber-600/30", className)} {...props}>
           <ZapOff className="stroke-amber-500"/>
           <AlertTitle>
-            {message}
+            {errorMessage}
           </AlertTitle>
         </Alert>
       )

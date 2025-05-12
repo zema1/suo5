@@ -38,7 +38,8 @@ const (
 	ActionCreate    byte = 0x00
 	ActionData      byte = 0x01
 	ActionDelete    byte = 0x02
-	ActionHeartbeat byte = 0x03
+	ActionStatus    byte = 0x03
+	ActionHeartbeat byte = 0x10
 )
 
 func BuildBody(m map[string][]byte, redirect string, ct ConnectionType) []byte {

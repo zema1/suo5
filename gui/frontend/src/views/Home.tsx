@@ -23,7 +23,8 @@ export default function Home() {
   const [openAdvanced, setOpenAdvanced] = useState(false);
   const [config, setConfig] = useState<suo5.Suo5Config>();
   const [status, setStatus] = useState<ConnectStatus>(ConnectStatus.INITIAL);
-  const [alertMessage, setAlertMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   const FormSchema = z.object({
     method: z.string().min(1),
@@ -76,7 +77,8 @@ export default function Home() {
   }
 
   const onConnecting = async (data: z.infer<typeof FormSchema>) => {
-    setAlertMessage('')
+    setSuccessMessage('')
+    setErrorMessage('')
     setStatus(ConnectStatus.CONNECTING)
 
     await new Promise(r => setTimeout(r, 1000));
@@ -100,7 +102,7 @@ export default function Home() {
       }
 
       if (pre.forward_target) {
-        setAlertMessage(`连接成功，当前工作在 ${mode} 模式，${pre.listen} => ${pre.forward_target}`)
+        setSuccessMessage(`连接成功，当前工作在 ${mode} 模式，${pre.listen} => ${pre.forward_target}`)
       } else {
         let proxy = ""
         if (!pre.username && !pre.password) {
@@ -108,7 +110,7 @@ export default function Home() {
         } else {
           proxy = `socks5://${pre.username}:${pre.password}@${pre.listen}`
         }
-        setAlertMessage(`连接成功，当前工作在 ${mode} 模式，代理地址: ${proxy}`)
+        setSuccessMessage(`连接成功，当前工作在 ${mode} 模式，代理地址: ${proxy}`)
       }
 
       return {...pre, mode: e}
@@ -118,7 +120,7 @@ export default function Home() {
 
   const onConnectError = (e: string) => {
     setStatus(ConnectStatus.FAILED)
-    setAlertMessage(`连接失败, ${e}`)
+    setErrorMessage(`连接失败, ${e}`)
   }
 
   const onStop = async (e) => {
@@ -357,12 +359,12 @@ export default function Home() {
           </form>
         </Form>
 
-        <AlertMessage status={status} message={alertMessage}/>
+        <AlertMessage status={status} successMessage={successMessage} errorMessage={errorMessage}/>
         <LogView status={status}/>
 
       </div>
 
-      <div className="px-4 py-2 border-t"><Footer/></div>
+      <Footer className="border-t px-4 py-2"/>
 
       <AdvancedOption open={openAdvanced} onClose={() => setOpenAdvanced(false)} config={config}
                       onSubmit={onAdvancedSubmit}/>

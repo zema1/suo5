@@ -71,16 +71,23 @@ func (m *Suo5Client) DualPipe(localConn, remoteWrapper io.ReadWriteCloser, addr 
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
+		calc := func() {
+			speeder, ok := remoteWrapper.(*netrans.SpeedTrackingReadWriterCloser)
+			if ok {
+				up, down := speeder.GetSpeedInterval()
+				m.Speeder.AddSpeed(up, down)
+			}
+		}
+
+		// 退出前把数据上报一次
+		defer calc()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				speeder, ok := remoteWrapper.(*netrans.SpeedTrackingReadWriterCloser)
-				if ok {
-					up, down := speeder.GetSpeedInterval()
-					m.Speeder.AddSpeed(up, down)
-				}
+				calc()
 			}
 		}
 	}()

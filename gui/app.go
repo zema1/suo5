@@ -70,6 +70,7 @@ func (a *App) RunSuo5WithConfig(config *suo5.Suo5Config) {
 		defer cancel()
 		err := ctrl.Run(cliCtx, config)
 		if err != nil {
+			fmt.Println(err)
 			wailsRuntime.EventsEmit(a.ctx, "error", err.Error())
 		}
 	}()

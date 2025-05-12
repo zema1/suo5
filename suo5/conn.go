@@ -48,7 +48,7 @@ func (suo *Suo5Conn) ConnectMultiplex(address string) error {
 
 	streamRW := io.ReadWriteCloser(plexConn)
 	if !suo.Config.DisableHeartbeat {
-		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config.RedirectURL, suo.Config.Mode)
+		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config)
 	}
 	if suo.Config.OnSpeedInfo != nil {
 		streamRW = netrans.NewSpeedTrackingReadWriteCloser(streamRW)
