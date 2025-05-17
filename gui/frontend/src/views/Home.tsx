@@ -169,7 +169,7 @@ export default function Home() {
 
   useEffect(() => {
     DefaultSuo5Config().then((defaultConfig) => {
-      defaultConfig.target = 'http://localhost:8011/tomcat_test_war_exploded/s5'
+      defaultConfig.target = 'http://localhost:8011/tomcat_test_war_exploded/suo5_new.jsp'
       setConfig(defaultConfig)
       updateFormValue(defaultConfig)
     });
@@ -188,7 +188,7 @@ export default function Home() {
       <div className="flex flex-col grow min-h-0 gap-y-4 p-4">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onConnecting)}
-                className="flex flex-col gap-y-4 bg-card text-card-foreground border-t border-t-border/30 rounded-md shadow p-4">
+                className="flex flex-col gap-y-4 bg-card text-card-foreground border border-border/50 rounded-md shadow p-4">
             <div className="flex gap-4">
               <FormField
                 control={form.control}

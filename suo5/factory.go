@@ -13,14 +13,16 @@ import (
 	"sync/atomic"
 )
 
+var _ StreamFactory = (*BaseStreamFactory)(nil)
+
+var errExpectedRetry = errors.New("retry for error")
+
 type StreamFactory interface {
 	Spawn(id, address string) (*TunnelConn, error)
 	Release(id string)
 	Wait()
 	Shutdown()
 }
-
-var _ StreamFactory = (*BaseStreamFactory)(nil)
 
 type IdData struct {
 	id   string
@@ -39,10 +41,10 @@ type BaseStreamFactory struct {
 
 	writeChan chan *IdData
 
-	idWriteFunc   func(string, []byte) error
-	plexWriteFunc func([]byte) error
-	ctx           context.Context
-	cancel        func()
+	directWriteFunc func(string, []byte) error
+	plexWriteFunc   func([]byte) error
+	ctx             context.Context
+	cancel          func()
 }
 
 func NewBaseStreamFactory(rootCtx context.Context, config *Suo5Config) *BaseStreamFactory {
@@ -94,9 +96,9 @@ func (s *BaseStreamFactory) sync() {
 				if s.closed.Load() {
 					return
 				}
-				if s.idWriteFunc != nil {
+				if s.directWriteFunc != nil {
 					log.Debugf("write to remote, id: %s, data: %d", idData.id, len(idData.data))
-					if err := s.idWriteFunc(idData.id, idData.data); err != nil {
+					if err := s.directWriteFunc(idData.id, idData.data); err != nil {
 						log.Errorf("failed to write to remote, %v", err)
 						s.tunnelMu.Lock()
 						if conn, ok := s.tunnels[idData.id]; ok {
@@ -135,10 +137,26 @@ func (s *BaseStreamFactory) sync() {
 					log.Errorf("write to remote handle is nil")
 					return
 				}
-				if err := s.plexWriteFunc(buf); err != nil {
-					if !errors.Is(err, context.Canceled) {
-						log.Errorf("failed to write plex data to remote, %v", err)
+
+				success := false
+				for i := 0; i <= s.config.RetryCount; i++ {
+					err = s.plexWriteFunc(buf)
+					if err == nil {
+						success = true
+						break
 					}
+					if errors.Is(err, errExpectedRetry) {
+						log.Debugf("plex write %s, retry %d/%d", err, i, s.config.RetryCount)
+						continue
+					} else {
+						if !errors.Is(err, context.Canceled) {
+							log.Errorf("failed to write plex data to remote, %v", err)
+						}
+						return
+					}
+				}
+				if !success {
+					log.Errorf("failed to write plex data to remote, retry limit exceeded, consider to increase retry count?")
 					return
 				}
 			}
@@ -151,7 +169,7 @@ func (s *BaseStreamFactory) OnRemotePlexWrite(plexWriteFunc func([]byte) error) 
 }
 
 func (s *BaseStreamFactory) OnRemoteWrite(idWriteFunc func(string, []byte) error) {
-	s.idWriteFunc = idWriteFunc
+	s.directWriteFunc = idWriteFunc
 }
 
 func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {

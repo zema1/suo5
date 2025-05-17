@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,8 +24,9 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 		BaseStreamFactory: NewBaseStreamFactory(ctx, config),
 		client:            client,
 	}
+
 	s.OnRemotePlexWrite(func(p []byte) error {
-		log.Debugf("send polling request, body len: %d", len(p))
+		log.Debugf("send remote write request, body len: %d", len(p))
 		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
 		if err != nil {
 			return err
@@ -36,18 +38,28 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 			return err
 		}
 		defer resp.Body.Close()
+
 		if resp.StatusCode != 200 {
-			return fmt.Errorf("unexpected status of %d", resp.StatusCode)
+			return errors.Wrap(errExpectedRetry, fmt.Sprintf("unexpected status of %d", resp.StatusCode))
 		}
 		if resp.ContentLength == 0 {
+			log.Debugf("no data from server")
 			return nil
 		}
 
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return err
+			// todo: why listener eof
+			if !strings.Contains(err.Error(), "unexpected EOF") {
+				return errors.Wrap(errExpectedRetry, fmt.Sprintf("read body err, %s", err))
+			}
 		}
-		return s.DispatchRemoteData(bytes.NewReader(data))
+		err = s.DispatchRemoteData(bytes.NewReader(data))
+		if err != nil {
+			return errors.Wrap(errExpectedRetry, fmt.Sprintf("dispatch data err, %s", err))
+		}
+
+		return nil
 	})
 
 	go func() {
@@ -75,7 +87,7 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 	tunnelRef := tunnel
 	defer func() {
 		if err != nil && tunnelRef != nil {
-			_ = tunnelRef.Close()
+			tunnelRef.CloseSelf()
 		}
 	}()
 

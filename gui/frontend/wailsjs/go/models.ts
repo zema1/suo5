@@ -40,6 +40,8 @@ export namespace suo5 {
 	    exclude_domain: string[];
 	    forward_target: string;
 	    max_request_size: number;
+	    classic_poll_qps: number;
+	    retry_count: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -65,6 +67,8 @@ export namespace suo5 {
 	        this.exclude_domain = source["exclude_domain"];
 	        this.forward_target = source["forward_target"];
 	        this.max_request_size = source["max_request_size"];
+	        this.classic_poll_qps = source["classic_poll_qps"];
+	        this.retry_count = source["retry_count"];
 	    }
 	}
 

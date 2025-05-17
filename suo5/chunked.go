@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-// todo: retry
+// todo: websocket ping
 
 type FullChunkedStreamFactory struct {
 	*BaseStreamFactory
@@ -75,7 +75,7 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 	tunnelRef := tunnel
 	defer func() {
 		if err != nil && tunnelRef != nil {
-			_ = tunnelRef.Close()
+			tunnelRef.CloseSelf()
 		}
 	}()
 
@@ -166,7 +166,7 @@ func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client
 	}()
 
 	s.OnRemotePlexWrite(func(p []byte) error {
-		log.Debugf("send polling request, body len: %d", len(p))
+		log.Debugf("send remote write request, body len: %d", len(p))
 		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
 		if err != nil {
 			return err
@@ -179,7 +179,7 @@ func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
-			return fmt.Errorf("unexpected status of %d", resp.StatusCode)
+			return errors.Wrap(errExpectedRetry, fmt.Sprintf("unexpected status of %d", resp.StatusCode))
 		}
 		return nil
 	})
@@ -195,31 +195,43 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 	tunnelRef := tunnel
 	defer func() {
 		if err != nil && tunnelRef != nil {
-			_ = tunnelRef.Close()
+			tunnelRef.CloseSelf()
 		}
 	}()
 
 	host, port, _ := net.SplitHostPort(address)
 	uport, _ := strconv.Atoi(port)
-	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.Mode)
+	var status []byte
+	var resp *http.Response
 
-	req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, bytes.NewReader(dialData))
-	req.Header = h.config.Header.Clone()
-	resp, err := h.client.Do(req)
-	if err != nil {
-		return nil, errors.Wrap(ErrDialFailed, err.Error())
-	}
+	for i := 0; i <= h.config.RetryCount; i++ {
+		dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.Mode)
+		req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, bytes.NewReader(dialData))
+		req.Header = h.config.Header.Clone()
+		req.ContentLength = int64(len(dialData))
+		resp, err = h.client.Do(req)
+		if err != nil {
+			return nil, errors.Wrap(ErrDialFailed, err.Error())
+		}
 
-	fr, err := netrans.ReadFrame(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(ErrDialFailed, err.Error())
-	}
+		fr, err := netrans.ReadFrame(resp.Body)
+		if err != nil {
+			log.Debugf("read frame failed, retry %d/%d", i, h.config.RetryCount)
+			continue
+		}
 
-	serverData, err := Unmarshal(fr.Data)
-	if err != nil {
-		return nil, errors.Wrap(ErrDialFailed, err.Error())
+		serverData, err := Unmarshal(fr.Data)
+		if err != nil {
+			log.Debugf("unmarshal frame data failed, retry %d/%d", i, h.config.RetryCount)
+			continue
+		}
+
+		status = serverData["s"]
+		break
 	}
-	status := serverData["s"]
+	if len(status) == 0 {
+		return nil, errors.Wrap(ErrDialFailed, "retry limit exceeded, consider to increase retry count?")
+	}
 
 	log.Debugf("recv dial response from server:  %v", status)
 	if len(status) != 1 || status[0] != 0x00 {

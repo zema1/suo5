@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/zema1/suo5/netrans"
+	"math/rand"
 	"strconv"
 )
 
@@ -47,6 +48,8 @@ func BuildBody(m map[string][]byte, redirect string, ct ConnectionType) []byte {
 		m["r"] = []byte(redirect)
 	}
 	m["m"] = []byte{ct.Bin()}
+	// some junk data
+	m["_"] = RandBytes(512)
 	return netrans.NewDataFrame(Marshal(m)).MarshalBinary()
 }
 
@@ -124,4 +127,11 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 		i += vLen
 	}
 	return m, nil
+}
+
+func RandBytes(max int) []byte {
+	length := rand.Intn(max)
+	b := make([]byte, length)
+	rand.Read(b)
+	return b
 }

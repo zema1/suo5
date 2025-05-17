@@ -73,6 +73,7 @@ func main() {
 			Name:    "header",
 			Aliases: []string{"H"},
 			Usage:   "use extra header, ex -H 'Cookie: abc'",
+			Value:   cli.NewStringSlice(defaultConfig.RawHeader...),
 		},
 		&cli.IntFlag{
 			Name:  "timeout",
@@ -83,6 +84,17 @@ func main() {
 			Name:  "buf-size",
 			Usage: "request max body size",
 			Value: defaultConfig.BufferSize,
+		},
+		&cli.IntFlag{
+			Name:  "retry",
+			Usage: "request retry",
+			Value: defaultConfig.RetryCount,
+		},
+		&cli.IntFlag{
+			Name:    "classic-poll-qps",
+			Usage:   "request poll qps, only used in classic mode",
+			Aliases: []string{"qps"},
+			Value:   defaultConfig.ClassicPollQPS,
 		},
 		&cli.StringSliceFlag{
 			Name:  "proxy",
@@ -159,6 +171,7 @@ func Action(c *cli.Context) error {
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
 	proxy := c.StringSlice("proxy")
+	retryCount := c.Int("retry")
 	method := c.String("method")
 	redirect := c.String("redirect")
 	header := c.StringSlice("header")
@@ -168,6 +181,7 @@ func Action(c *cli.Context) error {
 	testExit := c.String("test-exit")
 	exclude := c.StringSlice("exclude-domain")
 	excludeFile := c.String("exclude-domain-file")
+	classicQPS := c.Int("classic-poll-qps")
 	forward := c.String("forward")
 	configFile := c.String("config")
 
@@ -211,9 +225,11 @@ func Action(c *cli.Context) error {
 		DisableHeartbeat: noHeartbeat,
 		DisableGzip:      noGzip,
 		EnableCookieJar:  jar,
+		ClassicPollQPS:   classicQPS,
 		TestExit:         testExit,
 		ExcludeDomain:    exclude,
 		ForwardTarget:    forward,
+		RetryCount:       retryCount,
 	}
 
 	if configFile != "" {

@@ -47,7 +47,7 @@ func (s *TunnelConn) ReadUnmarshal() (map[string][]byte, error) {
 			return nil, io.EOF
 		}
 		return m, nil
-	case <-time.After(time.Duration(s.config.Timeout) * time.Second):
+	case <-time.After(s.config.TimeoutTime()):
 		return nil, fmt.Errorf("timeout when read from tunnel %s", s.id)
 	}
 }

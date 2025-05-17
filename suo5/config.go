@@ -25,8 +25,9 @@ import (
 var (
 	DefaultMaxRequestSize = 1024 * 1024
 	DefaultBufferSize     = 1024 * 64
-	DefaultTimeout        = 10
-	DefaultClassicPollQPS = 10
+	DefaultTimeout        = 5
+	DefaultClassicPollQPS = 5
+	DefaultRetryCount     = 1
 )
 
 type Suo5Config struct {
@@ -49,6 +50,7 @@ type Suo5Config struct {
 	ForwardTarget    string         `json:"forward_target"`
 	MaxRequestSize   int            `json:"max_request_size"`
 	ClassicPollQPS   int            `json:"classic_poll_qps"`
+	RetryCount       int            `json:"retry_count"`
 
 	TestExit                string                               `json:"-"`
 	ExcludeGlobs            []glob.Glob                          `json:"-"`
@@ -129,6 +131,11 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Infof("method: %s", conf.Method)
+	log.Infof("header: %s", conf.HeaderString())
+	log.Infof("connecting to target %s", conf.Target)
+
 	if conf.DisableGzip {
 		log.Infof("disable gzip")
 		conf.Header.Set("Accept-Encoding", "identity")
@@ -136,6 +143,18 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 
 	if len(conf.ExcludeDomain) != 0 {
 		log.Infof("exclude domains: %v", conf.ExcludeDomain)
+	}
+
+	if conf.RedirectURL != "" {
+		_, err := url.Parse(conf.RedirectURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse redirect url, %s", err)
+		}
+		log.Infof("redirect traffic to %v", conf.RedirectURL)
+	}
+
+	if conf.RetryCount != 0 {
+		log.Infof("request max retry: %d", conf.RetryCount)
 	}
 
 	tr := &http.Transport{
@@ -181,13 +200,7 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 		}
 		tr.DialContext = conf.ProxyClient.DialContext
 	}
-	if conf.RedirectURL != "" {
-		_, err := url.Parse(conf.RedirectURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse redirect url, %s", err)
-		}
-		log.Infof("using redirect url %v", conf.RedirectURL)
-	}
+
 	var jar http.CookieJar
 	if conf.EnableCookieJar {
 		jar, _ = cookiejar.New(nil)
@@ -202,7 +215,7 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 		Timeout:   0,
 	}
 	normalClient := &http.Client{
-		Timeout:   time.Duration(conf.Timeout) * time.Second,
+		Timeout:   conf.TimeoutTime(),
 		Jar:       jar,
 		Transport: tr.Clone(),
 	}
@@ -213,10 +226,6 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 	} else {
 		rawClient = newRawClient(nil, 0)
 	}
-
-	log.Infof("header: %s", conf.HeaderString())
-	log.Infof("method: %s", conf.Method)
-	log.Infof("connecting to target %s", conf.Target)
 
 	if conf.Mode == AutoDuplex {
 		result, offset, err := checkConnectMode(ctx, conf)
@@ -289,6 +298,10 @@ func (conf *Suo5Config) NoAuth() bool {
 	return conf.Username == "" && conf.Password == ""
 }
 
+func (conf *Suo5Config) TimeoutTime() time.Duration {
+	return time.Duration(conf.Timeout) * time.Second
+}
+
 func DefaultSuo5Config() *Suo5Config {
 	return &Suo5Config{
 		Method:           http.MethodPost,
@@ -308,17 +321,19 @@ func DefaultSuo5Config() *Suo5Config {
 		ForwardTarget:    "",
 		MaxRequestSize:   DefaultMaxRequestSize,
 		ClassicPollQPS:   DefaultClassicPollQPS,
+		RetryCount:       DefaultRetryCount,
 	}
 }
 
-// check half HalfDuplex
+// todo: retry
 func checkConnectMode(ctx context.Context, config *Suo5Config) (ConnectionType, int, error) {
-	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawCient
+	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
 	var rawClient *rawhttp.Client
+	// todo: timeout 从配置中取?
 	if config.ProxyClient != nil {
-		rawClient = newRawClient(config.ProxyClient.DialContext, time.Second*5)
+		rawClient = newRawClient(config.ProxyClient.DialContext, config.TimeoutTime())
 	} else {
-		rawClient = newRawClient(nil, time.Second*5)
+		rawClient = newRawClient(nil, config.TimeoutTime())
 	}
 	randLen := rand.Intn(4096)
 	if randLen <= 32 {
