@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,15 +96,18 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
 
-	fr, err := netrans.ReadFrame(resp.Body)
+	fr, bodyData, err := netrans.ReadFrameWithBuffer(resp.Body)
 	if err != nil {
-		return nil, errors.Wrap(ErrDialFailed, err.Error())
+		header, _ := httputil.DumpResponse(resp, false)
+		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bodyData))
 	}
 
 	serverData, err := Unmarshal(fr.Data)
 	if err != nil {
-		return nil, errors.Wrap(ErrDialFailed, err.Error())
+		header, _ := httputil.DumpResponse(resp, false)
+		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bodyData))
 	}
+
 	status := serverData["s"]
 
 	log.Debugf("recv dial response from server:  %v", status)
@@ -214,15 +218,17 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 			return nil, errors.Wrap(ErrDialFailed, err.Error())
 		}
 
-		fr, err := netrans.ReadFrame(resp.Body)
+		fr, bodyData, err := netrans.ReadFrameWithBuffer(resp.Body)
 		if err != nil {
-			log.Debugf("read frame failed, retry %d/%d", i, h.config.RetryCount)
+			header, _ := httputil.DumpResponse(resp, false)
+			log.Debugf("read frame failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bodyData))
 			continue
 		}
 
 		serverData, err := Unmarshal(fr.Data)
 		if err != nil {
-			log.Debugf("unmarshal frame data failed, retry %d/%d", i, h.config.RetryCount)
+			header, _ := httputil.DumpResponse(resp, false)
+			log.Debugf("unmarshal frame data failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bodyData))
 			continue
 		}
 

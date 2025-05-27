@@ -64,6 +64,29 @@ type Suo5Config struct {
 	GuiLog                  io.Writer                            `json:"-"`
 }
 
+func DefaultSuo5Config() *Suo5Config {
+	return &Suo5Config{
+		Method:           http.MethodPost,
+		Listen:           "127.0.0.1:1111",
+		Target:           "",
+		Username:         "",
+		Password:         "",
+		Mode:             AutoDuplex,
+		BufferSize:       DefaultBufferSize,
+		Timeout:          DefaultTimeout,
+		Debug:            false,
+		UpstreamProxy:    []string{},
+		RedirectURL:      "",
+		RawHeader:        []string{},
+		DisableHeartbeat: false,
+		EnableCookieJar:  false,
+		ForwardTarget:    "",
+		MaxRequestSize:   DefaultMaxRequestSize,
+		ClassicPollQPS:   DefaultClassicPollQPS,
+		RetryCount:       DefaultRetryCount,
+	}
+}
+
 func (conf *Suo5Config) Parse() error {
 	if conf.Timeout <= 0 {
 		conf.Timeout = DefaultTimeout
@@ -228,7 +251,7 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 	}
 
 	if conf.Mode == AutoDuplex {
-		result, offset, err := checkConnectMode(ctx, conf)
+		result, offset, err := conf.CheckConnectMode(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -302,52 +325,28 @@ func (conf *Suo5Config) TimeoutTime() time.Duration {
 	return time.Duration(conf.Timeout) * time.Second
 }
 
-func DefaultSuo5Config() *Suo5Config {
-	return &Suo5Config{
-		Method:           http.MethodPost,
-		Listen:           "127.0.0.1:1111",
-		Target:           "",
-		Username:         "",
-		Password:         "",
-		Mode:             AutoDuplex,
-		BufferSize:       DefaultBufferSize,
-		Timeout:          DefaultTimeout,
-		Debug:            false,
-		UpstreamProxy:    []string{},
-		RedirectURL:      "",
-		RawHeader:        []string{},
-		DisableHeartbeat: false,
-		EnableCookieJar:  false,
-		ForwardTarget:    "",
-		MaxRequestSize:   DefaultMaxRequestSize,
-		ClassicPollQPS:   DefaultClassicPollQPS,
-		RetryCount:       DefaultRetryCount,
-	}
-}
-
 // todo: retry
-func checkConnectMode(ctx context.Context, config *Suo5Config) (ConnectionType, int, error) {
+func (conf *Suo5Config) CheckConnectMode(ctx context.Context) (ConnectionType, int, error) {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
 	var rawClient *rawhttp.Client
-	// todo: timeout 从配置中取?
-	if config.ProxyClient != nil {
-		rawClient = newRawClient(config.ProxyClient.DialContext, config.TimeoutTime())
+	if conf.ProxyClient != nil {
+		rawClient = newRawClient(conf.ProxyClient.DialContext, conf.TimeoutTime())
 	} else {
-		rawClient = newRawClient(nil, config.TimeoutTime())
+		rawClient = newRawClient(nil, conf.TimeoutTime())
 	}
 	randLen := rand.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
 	}
 	identifier := RandString(randLen)
-	data := BuildBody(NewActionData(RandString(8), []byte(identifier)), config.RedirectURL, Checking)
+	data := BuildBody(NewActionData(RandString(8), []byte(identifier)), conf.RedirectURL, Checking)
 	ch := make(chan []byte, 1)
 	ch <- data
-	req, err := http.NewRequestWithContext(ctx, config.Method, config.Target, netrans.NewChannelReader(ch))
+	req, err := http.NewRequestWithContext(ctx, conf.Method, conf.Target, netrans.NewChannelReader(ch))
 	if err != nil {
 		return Undefined, 0, err
 	}
-	req.Header = config.Header
+	req.Header = conf.Header
 
 	now := time.Now()
 	go func() {

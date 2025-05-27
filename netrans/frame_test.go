@@ -2,7 +2,7 @@ package netrans
 
 import (
 	"bytes"
-	"fmt"
+	"crypto/rand"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -10,13 +10,17 @@ import (
 func TestFrame(t *testing.T) {
 	assert := require.New(t)
 
-	data := []byte("hello")
-	fr := NewDataFrame(data)
-	bin := fr.MarshalBinary()
-	fmt.Println(string(bin))
+	for i := 0; i < 1000; i++ {
+		data := make([]byte, 1000*i%10000)
+		_, err := rand.Read(data)
+		assert.Nil(err)
 
-	newFr, err := ReadFrame(bytes.NewReader(bin))
-	assert.Nil(err)
-	assert.Equal(newFr.Length, uint32(len(data)))
-	assert.Equal(data, newFr.Data)
+		fr := NewDataFrame(data)
+		bin := fr.MarshalBinary()
+
+		newFr, err := ReadFrame(bytes.NewReader(bin))
+		assert.Nil(err)
+		assert.Equal(newFr.Length, uint32(len(data)))
+		assert.Equal(data, newFr.Data)
+	}
 }
