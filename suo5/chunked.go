@@ -96,10 +96,12 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
 
-	serverData, bodyData, err := UnmarshalFrameWithBuffer(resp.Body)
+	serverData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
 	if err != nil {
+		bodyData, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		bufData = append(bufData, bodyData...)
 		header, _ := httputil.DumpResponse(resp, false)
-		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bodyData))
+		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bufData))
 	}
 
 	status := serverData["s"]
@@ -212,10 +214,12 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 			return nil, errors.Wrap(ErrDialFailed, err.Error())
 		}
 
-		serverData, bodyData, err := UnmarshalFrameWithBuffer(resp.Body)
+		serverData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
 		if err != nil {
+			bodyData, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			bufData = append(bufData, bodyData...)
 			header, _ := httputil.DumpResponse(resp, false)
-			log.Debugf("unmarshal frame data failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bodyData))
+			log.Debugf("unmarshal frame data failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bufData))
 			continue
 		}
 

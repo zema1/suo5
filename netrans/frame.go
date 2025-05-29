@@ -1,7 +1,6 @@
 package netrans
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -63,19 +62,4 @@ func ReadFrame(r io.Reader) (*DataFrame, error) {
 	}
 	fr.Data = buf
 	return fr, nil
-}
-
-func ReadFrameWithBuffer(r io.Reader) (*DataFrame, []byte, error) {
-	buf := make([]byte, 1024*8)
-	n, err := r.Read(buf)
-	if err != nil && err != io.EOF {
-		return nil, nil, fmt.Errorf("read data error: %v", err)
-	}
-	buf = buf[:n]
-	rd := io.MultiReader(bytes.NewReader(buf), r)
-	fr, err := ReadFrame(rd)
-	if err != nil {
-		return nil, buf, err
-	}
-	return fr, buf, nil
 }

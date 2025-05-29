@@ -134,16 +134,18 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 }
 
 func UnmarshalFrameWithBuffer(r io.Reader) (map[string][]byte, []byte, error) {
-	fr, bodyData, err := netrans.ReadFrameWithBuffer(r)
+	var buf bytes.Buffer
+	teeReader := io.TeeReader(r, &buf)
+	fr, err := netrans.ReadFrame(teeReader)
 	if err != nil {
-		return nil, nil, err
+		return nil, buf.Bytes(), err
 	}
 
 	serverData, err := Unmarshal(fr.Data)
 	if err != nil {
 		return nil, nil, err
 	}
-	return serverData, bodyData, nil
+	return serverData, buf.Bytes(), nil
 }
 
 func RandBytes(max int) []byte {

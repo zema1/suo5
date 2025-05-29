@@ -3,6 +3,7 @@ package suo5
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"github.com/chainreactors/proxyclient"
 	"github.com/gobwas/glob"
@@ -78,7 +79,7 @@ func DefaultSuo5Config() *Suo5Config {
 		Debug:            false,
 		UpstreamProxy:    []string{},
 		RedirectURL:      "",
-		RawHeader:        []string{},
+		RawHeader:        []string{"Accept-Language: en;q=0.8,en-GB;q=0.7,es-US;q=0.6"},
 		DisableHeartbeat: false,
 		EnableCookieJar:  false,
 		ForwardTarget:    "",
@@ -346,6 +347,7 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 		actionData["a"] = []byte{0x00}
 	}
 	data := BuildBody(actionData, conf.RedirectURL, conf.SessionId, Checking)
+	fmt.Println(base64.StdEncoding.EncodeToString(data))
 	ch := make(chan []byte, 1)
 	ch <- data
 	req, err := http.NewRequestWithContext(ctx, conf.Method, conf.Target, netrans.NewChannelReader(ch))
@@ -369,12 +371,14 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
 	// 如果响应时间在 3~6s 之间，说明请求被缓存了， 但响应仍然是流式的, 但是可以使用半双工
 	// 否则只能用短链接了
-	echoData, bodyData, err := UnmarshalFrameWithBuffer(resp.Body)
+	echoData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
 	if err != nil {
 		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
 		// todo: why listener eof
+		bodyData, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		bufData = append(bufData, bodyData...)
 		header, _ := httputil.DumpResponse(resp, false)
-		log.Errorf("response are as follows:\n%s", string(header)+string(bodyData))
+		log.Errorf("response are as follows:\n%s", string(header)+string(bufData))
 		return fmt.Errorf("got unexpected body, remote server test failed")
 	}
 	// ignore bodyData
@@ -386,7 +390,7 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 
 	if !strings.EqualFold(string(echoData["dt"]), identifier) {
 		header, _ := httputil.DumpResponse(resp, false)
-		log.Errorf("response are as follows:\n%s", string(header)+string(bodyData))
+		log.Errorf("response are as follows:\n%s", string(header)+string(bufData))
 		return fmt.Errorf("got unexpected body, remote server test failed")
 	}
 
