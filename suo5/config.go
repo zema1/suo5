@@ -52,6 +52,7 @@ type Suo5Config struct {
 	ClassicPollQPS   int            `json:"classic_poll_qps"`
 	RetryCount       int            `json:"retry_count"`
 
+	SessionId               string                               `json:"-"`
 	TestExit                string                               `json:"-"`
 	ExcludeGlobs            []glob.Glob                          `json:"-"`
 	Offset                  int                                  `json:"-"`
@@ -250,16 +251,11 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 		rawClient = newRawClient(nil, 0)
 	}
 
-	if conf.Mode == AutoDuplex {
-		result, offset, err := conf.CheckConnectMode(ctx)
-		if err != nil {
-			return nil, err
-		}
-		log.Infof("suo5 is going to work in %s mode", result)
-
-		conf.Mode = result
-		conf.Offset = offset
+	err = conf.CheckConnectMode(ctx)
+	if err != nil {
+		return nil, err
 	}
+	log.Infof("suo5 is going to work in %s mode", conf.Mode)
 
 	var factory StreamFactory
 	if conf.Mode == FullDuplex {
@@ -325,26 +321,36 @@ func (conf *Suo5Config) TimeoutTime() time.Duration {
 	return time.Duration(conf.Timeout) * time.Second
 }
 
-// todo: retry
-func (conf *Suo5Config) CheckConnectMode(ctx context.Context) (ConnectionType, int, error) {
+func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
 	var rawClient *rawhttp.Client
+	timeout := conf.TimeoutTime()
+	if timeout < 6*time.Second {
+		timeout = 6 * time.Second
+	}
+
 	if conf.ProxyClient != nil {
-		rawClient = newRawClient(conf.ProxyClient.DialContext, conf.TimeoutTime())
+		rawClient = newRawClient(conf.ProxyClient.DialContext, timeout)
 	} else {
-		rawClient = newRawClient(nil, conf.TimeoutTime())
+		rawClient = newRawClient(nil, timeout)
 	}
 	randLen := rand.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
 	}
 	identifier := RandString(randLen)
-	data := BuildBody(NewActionData(RandString(8), []byte(identifier)), conf.RedirectURL, Checking)
+	actionData := NewActionData(RandString(8), []byte(identifier))
+	if conf.Mode == AutoDuplex {
+		actionData["a"] = []byte{0x01}
+	} else {
+		actionData["a"] = []byte{0x00}
+	}
+	data := BuildBody(actionData, conf.RedirectURL, conf.SessionId, Checking)
 	ch := make(chan []byte, 1)
 	ch <- data
 	req, err := http.NewRequestWithContext(ctx, conf.Method, conf.Target, netrans.NewChannelReader(ch))
 	if err != nil {
-		return Undefined, 0, err
+		return err
 	}
 	req.Header = conf.Header
 
@@ -356,29 +362,46 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) (ConnectionType, i
 	}()
 	resp, err := rawClient.Do(req)
 	if err != nil {
-		return Undefined, 0, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
-	body, err := io.ReadAll(resp.Body)
+	// 如果响应时间在 3~6s 之间，说明请求被缓存了， 但响应仍然是流式的, 但是可以使用半双工
+	// 否则只能用短链接了
+	echoData, bodyData, err := UnmarshalFrameWithBuffer(resp.Body)
 	if err != nil {
 		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
-		log.Warnf("got error %s", err)
+		// todo: why listener eof
+		header, _ := httputil.DumpResponse(resp, false)
+		log.Errorf("response are as follows:\n%s", string(header)+string(bodyData))
+		return fmt.Errorf("got unexpected body, remote server test failed")
+	}
+	// ignore bodyData
+	sessionData, _, err := UnmarshalFrameWithBuffer(resp.Body)
+	if err != nil {
+		return err
 	}
 	duration := time.Since(now).Milliseconds()
 
-	offset := strings.Index(string(body), identifier[:32])
-	if offset == -1 {
+	if !strings.EqualFold(string(echoData["dt"]), identifier) {
 		header, _ := httputil.DumpResponse(resp, false)
-		log.Errorf("response are as follows:\n%s", string(header)+string(body))
-		return Undefined, 0, fmt.Errorf("got unexpected body, remote server test failed")
+		log.Errorf("response are as follows:\n%s", string(header)+string(bodyData))
+		return fmt.Errorf("got unexpected body, remote server test failed")
 	}
-	log.Infof("got data offset, %d", offset)
 
-	if duration < 3000 {
-		return FullDuplex, offset, nil
-	} else {
-		return HalfDuplex, offset, nil
+	sid := string(sessionData["dt"])
+	conf.SessionId = sid
+	log.Infof("handshake success, using session id %s", sid)
+
+	if conf.Mode == AutoDuplex {
+		if duration < 3000 {
+			conf.Mode = FullDuplex
+		} else if duration < 5000 {
+			conf.Mode = HalfDuplex
+		} else {
+			conf.Mode = Classic
+		}
 	}
+	return nil
 }

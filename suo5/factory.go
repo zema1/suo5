@@ -204,7 +204,7 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 		if !ok {
 			s.tunnelMu.Unlock()
 			log.Warnf("id %s not found, notify remote to close", id)
-			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.Mode)
+			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 			select {
 			case s.writeChan <- &IdData{id, body}:
 			case <-s.ctx.Done():

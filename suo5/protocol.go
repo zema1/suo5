@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/zema1/suo5/netrans"
+	"io"
 	"math/rand"
 	"strconv"
 )
@@ -43,9 +44,12 @@ const (
 	ActionHeartbeat byte = 0x10
 )
 
-func BuildBody(m map[string][]byte, redirect string, ct ConnectionType) []byte {
+func BuildBody(m map[string][]byte, redirect, sid string, ct ConnectionType) []byte {
 	if len(redirect) != 0 {
 		m["r"] = []byte(redirect)
+	}
+	if len(sid) != 0 {
+		m["sid"] = []byte(sid)
 	}
 	m["m"] = []byte{ct.Bin()}
 	// some junk data
@@ -127,6 +131,19 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 		i += vLen
 	}
 	return m, nil
+}
+
+func UnmarshalFrameWithBuffer(r io.Reader) (map[string][]byte, []byte, error) {
+	fr, bodyData, err := netrans.ReadFrameWithBuffer(r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	serverData, err := Unmarshal(fr.Data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return serverData, bodyData, nil
 }
 
 func RandBytes(max int) []byte {

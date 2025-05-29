@@ -104,7 +104,7 @@ func (s *TunnelConn) Write(p []byte) (int, error) {
 		log.Debugf("split data to %d chunk, length: %d", len(p)/chunkSize, len(p))
 		for i := 0; i < len(p); i += chunkSize {
 			act := NewActionData(s.id, p[i:minInt(i+chunkSize, len(p))])
-			body := BuildBody(act, s.config.RedirectURL, s.config.Mode)
+			body := BuildBody(act, s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 			n, err := s.WriteRaw(body)
 			if err != nil {
 				return partWrite, err
@@ -113,7 +113,7 @@ func (s *TunnelConn) Write(p []byte) (int, error) {
 		}
 		return partWrite, nil
 	} else {
-		body := BuildBody(NewActionData(s.id, p), s.config.RedirectURL, s.config.Mode)
+		body := BuildBody(NewActionData(s.id, p), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 		return s.WriteRaw(body)
 	}
 }
@@ -162,7 +162,7 @@ func (s *TunnelConn) Close() error {
 		for _, fn := range s.onClose {
 			fn()
 		}
-		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, s.config.Mode)
+		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 		_, _ = s.WriteRaw(body)
 
 		s.mu.Lock()

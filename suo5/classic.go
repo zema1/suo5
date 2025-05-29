@@ -93,7 +93,7 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 
 	host, port, _ := net.SplitHostPort(address)
 	uport, _ := strconv.Atoi(port)
-	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), c.config.RedirectURL, c.config.Mode)
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), c.config.RedirectURL, c.config.SessionId, c.config.Mode)
 
 	_, err = tunnel.WriteRaw(dialData)
 	if err != nil {

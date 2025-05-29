@@ -82,7 +82,7 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 
 	host, port, _ := net.SplitHostPort(address)
 	uport, _ := strconv.Atoi(port)
-	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.Mode)
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
 
 	ch, wc := netrans.NewChannelWriteCloser(h.ctx)
 	body := netrans.MultiReadCloser(
@@ -96,13 +96,7 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
 
-	fr, bodyData, err := netrans.ReadFrameWithBuffer(resp.Body)
-	if err != nil {
-		header, _ := httputil.DumpResponse(resp, false)
-		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bodyData))
-	}
-
-	serverData, err := Unmarshal(fr.Data)
+	serverData, bodyData, err := UnmarshalFrameWithBuffer(resp.Body)
 	if err != nil {
 		header, _ := httputil.DumpResponse(resp, false)
 		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bodyData))
@@ -209,7 +203,7 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 	var resp *http.Response
 
 	for i := 0; i <= h.config.RetryCount; i++ {
-		dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.Mode)
+		dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
 		req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, bytes.NewReader(dialData))
 		req.Header = h.config.Header.Clone()
 		req.ContentLength = int64(len(dialData))
@@ -218,14 +212,7 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 			return nil, errors.Wrap(ErrDialFailed, err.Error())
 		}
 
-		fr, bodyData, err := netrans.ReadFrameWithBuffer(resp.Body)
-		if err != nil {
-			header, _ := httputil.DumpResponse(resp, false)
-			log.Debugf("read frame failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bodyData))
-			continue
-		}
-
-		serverData, err := Unmarshal(fr.Data)
+		serverData, bodyData, err := UnmarshalFrameWithBuffer(resp.Body)
 		if err != nil {
 			header, _ := httputil.DumpResponse(resp, false)
 			log.Debugf("unmarshal frame data failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bodyData))
