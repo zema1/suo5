@@ -335,7 +335,7 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 	} else {
 		rawClient = newRawClient(nil, timeout)
 	}
-	randLen := rand.Intn(4096)
+	randLen := rand.Intn(128)
 	if randLen <= 32 {
 		randLen += 32
 	}

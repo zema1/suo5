@@ -53,8 +53,8 @@ func BuildBody(m map[string][]byte, redirect, sid string, ct ConnectionType) []b
 	}
 	m["m"] = []byte{ct.Bin()}
 	// some junk data
-	m["_"] = RandBytes(512)
-	return netrans.NewDataFrame(Marshal(m)).MarshalBinary()
+	// m["_"] = RandBytes(512)
+	return netrans.NewDataFrame(Marshal(m)).MarshalBinaryBase64()
 }
 
 func NewActionCreate(id, addr string, port uint16) map[string][]byte {
@@ -136,7 +136,7 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 func UnmarshalFrameWithBuffer(r io.Reader) (map[string][]byte, []byte, error) {
 	var buf bytes.Buffer
 	teeReader := io.TeeReader(r, &buf)
-	fr, err := netrans.ReadFrame(teeReader)
+	fr, err := netrans.ReadFrameBase64(teeReader)
 	if err != nil {
 		return nil, buf.Bytes(), err
 	}

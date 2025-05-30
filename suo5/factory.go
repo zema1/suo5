@@ -180,7 +180,7 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 			}
 		}
 
-		fr, err := netrans.ReadFrame(reader)
+		fr, err := netrans.ReadFrameBase64(reader)
 		if err != nil {
 			return err
 		}

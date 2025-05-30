@@ -24,3 +24,21 @@ func TestFrame(t *testing.T) {
 		assert.Equal(data, newFr.Data)
 	}
 }
+
+func TestFrameBase64(t *testing.T) {
+	assert := require.New(t)
+
+	for i := 0; i < 1000; i++ {
+		data := make([]byte, 1000*i)
+		_, err := rand.Read(data)
+		assert.Nil(err)
+
+		fr := NewDataFrame(data)
+		bin := fr.MarshalBinaryBase64()
+
+		newFr, err := ReadFrameBase64(bytes.NewReader(bin))
+		assert.Nil(err)
+		assert.Equal(newFr.Length, uint32(len(data)))
+		assert.Equal(data, newFr.Data)
+	}
+}
