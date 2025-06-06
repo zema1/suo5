@@ -109,9 +109,6 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
 
-	if err != nil {
-		return nil, errors.Wrap(ErrDialFailed, err.Error())
-	}
 	status := serverData["s"]
 
 	log.Debugf("recv dial response from server:  %v", status)

@@ -3,7 +3,6 @@ package suo5
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
 	"github.com/chainreactors/proxyclient"
 	"github.com/gobwas/glob"
@@ -26,7 +25,7 @@ import (
 var (
 	DefaultMaxRequestSize = 1024 * 1024
 	DefaultBufferSize     = 1024 * 64
-	DefaultTimeout        = 5
+	DefaultTimeout        = 10
 	DefaultClassicPollQPS = 5
 	DefaultRetryCount     = 1
 )
@@ -182,6 +181,28 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 		log.Infof("request max retry: %d", conf.RetryCount)
 	}
 
+	if conf.Mode != AutoDuplex {
+		log.Infof("preferred connection mode: %s", conf.Mode)
+	}
+
+	var dialMethod func(ctx context.Context, network, addr string) (net.Conn, error)
+	if len(conf.UpstreamProxy) > 0 {
+		proxies, err := proxyclient.ParseProxyURLs(conf.UpstreamProxy)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("using upstream proxy %v", proxies)
+
+		conf.ProxyClient, err = proxyclient.NewClientChain(proxies)
+		if err != nil {
+			return nil, err
+		}
+		dialMethod = conf.ProxyClient.DialContext
+	} else {
+		log.Infof("no upstream proxy")
+		dialMethod = (&net.Dialer{}).DialContext
+	}
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion:         tls.VersionTLS10,
@@ -189,10 +210,11 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 			InsecureSkipVerify: true,
 		},
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := net.DialTimeout(network, addr, 5*time.Second)
-			if err != nil {
-				return nil, err
-			}
+			ctx, cancel := context.WithTimeout(ctx, conf.TimeoutTime())
+			defer cancel()
+
+			conn, err := dialMethod(ctx, network, addr)
+
 			colonPos := strings.LastIndex(addr, ":")
 			if colonPos == -1 {
 				colonPos = len(addr)
@@ -211,19 +233,6 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 			}
 			return uTlsConn, nil
 		},
-	}
-	if len(conf.UpstreamProxy) > 0 {
-		proxies, err := proxyclient.ParseProxyURLs(conf.UpstreamProxy)
-		if err != nil {
-			return nil, err
-		}
-		log.Infof("using upstream proxy %v", proxies)
-
-		conf.ProxyClient, err = proxyclient.NewClientChain(proxies)
-		if err != nil {
-			return nil, err
-		}
-		tr.DialContext = conf.ProxyClient.DialContext
 	}
 
 	var jar http.CookieJar
@@ -256,7 +265,7 @@ func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("suo5 is going to work in %s mode", conf.Mode)
+	log.Infof("suo5 is going to work on %s mode", conf.Mode)
 
 	var factory StreamFactory
 	if conf.Mode == FullDuplex {
@@ -335,7 +344,7 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 	} else {
 		rawClient = newRawClient(nil, timeout)
 	}
-	randLen := rand.Intn(128)
+	randLen := rand.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
 	}
@@ -347,7 +356,6 @@ func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
 		actionData["a"] = []byte{0x00}
 	}
 	data := BuildBody(actionData, conf.RedirectURL, conf.SessionId, Checking)
-	fmt.Println(base64.StdEncoding.EncodeToString(data))
 	ch := make(chan []byte, 1)
 	ch <- data
 	req, err := http.NewRequestWithContext(ctx, conf.Method, conf.Target, netrans.NewChannelReader(ch))

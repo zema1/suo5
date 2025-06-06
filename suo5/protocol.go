@@ -53,7 +53,7 @@ func BuildBody(m map[string][]byte, redirect, sid string, ct ConnectionType) []b
 	}
 	m["m"] = []byte{ct.Bin()}
 	// some junk data
-	// m["_"] = RandBytes(512)
+	m["_"] = RandBytes(512)
 	return netrans.NewDataFrame(Marshal(m)).MarshalBinaryBase64()
 }
 
