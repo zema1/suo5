@@ -28,9 +28,9 @@ type Suo5Conn struct {
 	ctx context.Context
 }
 
-func (suo *Suo5Conn) ConnectMultiplex(address string) error {
+func (suo5 *Suo5Conn) ConnectMultiplex(address string) error {
 	id := RandString(8)
-	plexConn, err := suo.Factory.Spawn(id, address)
+	plexConn, err := suo5.Spawn(id, address)
 	if err != nil {
 		return err
 	}
@@ -47,12 +47,12 @@ func (suo *Suo5Conn) ConnectMultiplex(address string) error {
 	// }
 
 	streamRW := io.ReadWriteCloser(plexConn)
-	if !suo.Config.DisableHeartbeat {
-		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo.Config)
+	if !suo5.Config.DisableHeartbeat {
+		streamRW = NewHeartbeatRW(streamRW.(RawReadWriteCloser), id, suo5.Config)
 	}
-	if suo.Config.OnSpeedInfo != nil {
+	if suo5.Config.OnSpeedInfo != nil {
 		streamRW = netrans.NewSpeedTrackingReadWriteCloser(streamRW)
 	}
-	suo.ReadWriteCloser = streamRW
+	suo5.ReadWriteCloser = streamRW
 	return nil
 }

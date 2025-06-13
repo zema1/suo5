@@ -89,10 +89,10 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 		io.NopCloser(bytes.NewReader(dialData)),
 		io.NopCloser(netrans.NewChannelReader(ch)),
 	)
-	req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, body)
-	req.Header = h.config.Header.Clone()
+	req := h.config.NewRequest(h.ctx, body, 0)
 	resp, err := h.rawClient.Do(req)
 	if err != nil {
+		fmt.Println(1)
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
 
@@ -167,12 +167,7 @@ func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client
 
 	s.OnRemotePlexWrite(func(p []byte) error {
 		log.Debugf("send remote write request, body len: %d", len(p))
-		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
-		if err != nil {
-			return err
-		}
-		req.ContentLength = int64(len(p))
-		req.Header = s.config.Header.Clone()
+		req := s.config.NewRequest(s.ctx, bytes.NewReader(p), int64(len(p)))
 		resp, err := s.client.Do(req)
 		if err != nil {
 			return err
@@ -206,9 +201,7 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 
 	for i := 0; i <= h.config.RetryCount; i++ {
 		dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
-		req, _ := http.NewRequestWithContext(h.ctx, h.config.Method, h.config.Target, bytes.NewReader(dialData))
-		req.Header = h.config.Header.Clone()
-		req.ContentLength = int64(len(dialData))
+		req := h.config.NewRequest(h.ctx, bytes.NewReader(dialData), int64(len(dialData)))
 		resp, err = h.client.Do(req)
 		if err != nil {
 			return nil, errors.Wrap(ErrDialFailed, err.Error())

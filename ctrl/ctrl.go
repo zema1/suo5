@@ -58,7 +58,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		log.SetLevel("debug")
 	}
 
-	suo5Client, err := config.Init(ctx)
+	suo5Client, err := suo5.Connect(ctx, config)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		}
 	}
 
-	suo5Client.Factory.Wait()
+	suo5Client.Wait()
 	log.Infof("all cleaned up, suo5 is going to exit")
 	return nil
 }

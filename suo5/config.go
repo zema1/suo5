@@ -2,23 +2,11 @@ package suo5
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"github.com/chainreactors/proxyclient"
 	"github.com/gobwas/glob"
-	log "github.com/kataras/golog"
-	utls "github.com/refraction-networking/utls"
-	"github.com/zema1/rawhttp"
-	"github.com/zema1/suo5/netrans"
 	"io"
-	"math/rand"
-	"net"
 	"net/http"
-	"net/http/cookiejar"
-	"net/http/httputil"
-	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -57,7 +45,6 @@ type Suo5Config struct {
 	ExcludeGlobs            []glob.Glob                          `json:"-"`
 	Offset                  int                                  `json:"-"`
 	Header                  http.Header                          `json:"-"`
-	ProxyClient             proxyclient.Dial                     `json:"-"`
 	OnRemoteConnected       func(e *ConnectedEvent)              `json:"-"`
 	OnNewClientConnection   func(event *ClientConnectionEvent)   `json:"-"`
 	OnClientConnectionClose func(event *ClientConnectCloseEvent) `json:"-"`
@@ -78,7 +65,7 @@ func DefaultSuo5Config() *Suo5Config {
 		Debug:            false,
 		UpstreamProxy:    []string{},
 		RedirectURL:      "",
-		RawHeader:        []string{"Accept-Language: en;q=0.8,en-GB;q=0.7,es-US;q=0.6"},
+		RawHeader:        []string{},
 		DisableHeartbeat: false,
 		EnableCookieJar:  false,
 		ForwardTarget:    "",
@@ -150,171 +137,6 @@ func (conf *Suo5Config) parseHeader() error {
 	return nil
 }
 
-func (conf *Suo5Config) Init(ctx context.Context) (*Suo5Client, error) {
-	err := conf.Parse()
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("method: %s", conf.Method)
-	log.Infof("header: %s", conf.HeaderString())
-	log.Infof("connecting to target %s", conf.Target)
-
-	if conf.DisableGzip {
-		log.Infof("disable gzip")
-		conf.Header.Set("Accept-Encoding", "identity")
-	}
-
-	if len(conf.ExcludeDomain) != 0 {
-		log.Infof("exclude domains: %v", conf.ExcludeDomain)
-	}
-
-	if conf.RedirectURL != "" {
-		_, err := url.Parse(conf.RedirectURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse redirect url, %s", err)
-		}
-		log.Infof("redirect traffic to %v", conf.RedirectURL)
-	}
-
-	if conf.RetryCount != 0 {
-		log.Infof("request max retry: %d", conf.RetryCount)
-	}
-
-	if conf.Mode != AutoDuplex {
-		log.Infof("preferred connection mode: %s", conf.Mode)
-	}
-
-	var dialMethod func(ctx context.Context, network, addr string) (net.Conn, error)
-	if len(conf.UpstreamProxy) > 0 {
-		proxies, err := proxyclient.ParseProxyURLs(conf.UpstreamProxy)
-		if err != nil {
-			return nil, err
-		}
-		log.Infof("using upstream proxy %v", proxies)
-
-		conf.ProxyClient, err = proxyclient.NewClientChain(proxies)
-		if err != nil {
-			return nil, err
-		}
-		dialMethod = conf.ProxyClient.DialContext
-	} else {
-		log.Infof("no upstream proxy")
-		dialMethod = (&net.Dialer{}).DialContext
-	}
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion:         tls.VersionTLS10,
-			Renegotiation:      tls.RenegotiateOnceAsClient,
-			InsecureSkipVerify: true,
-		},
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			ctx, cancel := context.WithTimeout(ctx, conf.TimeoutTime())
-			defer cancel()
-
-			conn, err := dialMethod(ctx, network, addr)
-
-			colonPos := strings.LastIndex(addr, ":")
-			if colonPos == -1 {
-				colonPos = len(addr)
-			}
-			hostname := addr[:colonPos]
-			tlsConfig := &utls.Config{
-				ServerName:         hostname,
-				InsecureSkipVerify: true,
-				Renegotiation:      utls.RenegotiateOnceAsClient,
-				MinVersion:         utls.VersionTLS10,
-			}
-			uTlsConn := utls.UClient(conn, tlsConfig, utls.HelloRandomizedNoALPN)
-			if err = uTlsConn.HandshakeContext(ctx); err != nil {
-				_ = conn.Close()
-				return nil, err
-			}
-			return uTlsConn, nil
-		},
-	}
-
-	var jar http.CookieJar
-	if conf.EnableCookieJar {
-		jar, _ = cookiejar.New(nil)
-	} else {
-		// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
-		jar = NewSwitchableCookieJar([]string{"PHPSESSID"})
-	}
-
-	noTimeoutClient := &http.Client{
-		Transport: tr.Clone(),
-		Jar:       jar,
-		Timeout:   0,
-	}
-	normalClient := &http.Client{
-		Timeout:   conf.TimeoutTime(),
-		Jar:       jar,
-		Transport: tr.Clone(),
-	}
-
-	var rawClient *rawhttp.Client
-	if conf.ProxyClient != nil {
-		rawClient = newRawClient(conf.ProxyClient.DialContext, 0)
-	} else {
-		rawClient = newRawClient(nil, 0)
-	}
-
-	err = conf.CheckConnectMode(ctx)
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("suo5 is going to work on %s mode", conf.Mode)
-
-	var factory StreamFactory
-	if conf.Mode == FullDuplex {
-		factory = NewFullChunkedStreamFactory(ctx, conf, rawClient)
-	} else if conf.Mode == HalfDuplex {
-		factory = NewHalfChunkedStreamFactory(ctx, conf, noTimeoutClient)
-	} else if conf.Mode == Classic {
-		factory = NewClassicStreamFactory(ctx, conf, normalClient)
-	} else {
-		return nil, fmt.Errorf("unknown mode %s", conf.Mode)
-	}
-
-	speeder := netrans.NewSpeedCaculator()
-	if conf.OnSpeedInfo != nil {
-		go func() {
-			ticker := time.NewTicker(time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					up, down := speeder.Statistic()
-					conf.OnSpeedInfo(&SpeedStatisticEvent{
-						Upload:   up,
-						Download: down,
-					})
-				}
-			}
-		}()
-	}
-
-	pool := &sync.Pool{
-		New: func() interface{} {
-			return make([]byte, conf.BufferSize)
-		},
-	}
-
-	return &Suo5Client{
-		Config:          conf,
-		NormalClient:    normalClient,
-		NoTimeoutClient: noTimeoutClient,
-		RawClient:       rawClient,
-		Factory:         factory,
-		Speeder:         speeder,
-		BytesPool:       pool,
-	}, nil
-}
-
 func (conf *Suo5Config) HeaderString() string {
 	ret := ""
 	for k := range conf.Header {
@@ -331,89 +153,13 @@ func (conf *Suo5Config) TimeoutTime() time.Duration {
 	return time.Duration(conf.Timeout) * time.Second
 }
 
-func (conf *Suo5Config) CheckConnectMode(ctx context.Context) error {
-	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
-	var rawClient *rawhttp.Client
-	timeout := conf.TimeoutTime()
-	if timeout < 6*time.Second {
-		timeout = 6 * time.Second
+func (conf *Suo5Config) NewRequest(ctx context.Context, body io.Reader, contentLength int64) *http.Request {
+	req, _ := http.NewRequestWithContext(ctx, conf.Method, conf.Target, body)
+	req.ContentLength = contentLength
+	header := conf.Header.Clone()
+	if header.Get("User-Agent") == "" {
+		header.Set("User-Agent", RandUserAgent())
 	}
-
-	if conf.ProxyClient != nil {
-		rawClient = newRawClient(conf.ProxyClient.DialContext, timeout)
-	} else {
-		rawClient = newRawClient(nil, timeout)
-	}
-	randLen := rand.Intn(4096)
-	if randLen <= 32 {
-		randLen += 32
-	}
-	identifier := RandString(randLen)
-	actionData := NewActionData(RandString(8), []byte(identifier))
-	if conf.Mode == AutoDuplex {
-		actionData["a"] = []byte{0x01}
-	} else {
-		actionData["a"] = []byte{0x00}
-	}
-	data := BuildBody(actionData, conf.RedirectURL, conf.SessionId, Checking)
-	ch := make(chan []byte, 1)
-	ch <- data
-	req, err := http.NewRequestWithContext(ctx, conf.Method, conf.Target, netrans.NewChannelReader(ch))
-	if err != nil {
-		return err
-	}
-	req.Header = conf.Header
-
-	now := time.Now()
-	go func() {
-		// timeout
-		time.Sleep(time.Second * 3)
-		close(ch)
-	}()
-	resp, err := rawClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
-	// 如果响应时间在 3~6s 之间，说明请求被缓存了， 但响应仍然是流式的, 但是可以使用半双工
-	// 否则只能用短链接了
-	echoData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
-	if err != nil {
-		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
-		// todo: why listener eof
-		bodyData, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		bufData = append(bufData, bodyData...)
-		header, _ := httputil.DumpResponse(resp, false)
-		log.Errorf("response are as follows:\n%s", string(header)+string(bufData))
-		return fmt.Errorf("got unexpected body, remote server test failed")
-	}
-	// ignore bodyData
-	sessionData, _, err := UnmarshalFrameWithBuffer(resp.Body)
-	if err != nil {
-		return err
-	}
-	duration := time.Since(now).Milliseconds()
-
-	if !strings.EqualFold(string(echoData["dt"]), identifier) {
-		header, _ := httputil.DumpResponse(resp, false)
-		log.Errorf("response are as follows:\n%s", string(header)+string(bufData))
-		return fmt.Errorf("got unexpected body, remote server test failed")
-	}
-
-	sid := string(sessionData["dt"])
-	conf.SessionId = sid
-	log.Infof("handshake success, using session id %s", sid)
-
-	if conf.Mode == AutoDuplex {
-		if duration < 3000 {
-			conf.Mode = FullDuplex
-		} else if duration < 5000 {
-			conf.Mode = HalfDuplex
-		} else {
-			conf.Mode = Classic
-		}
-	}
-	return nil
+	req.Header = header
+	return req
 }

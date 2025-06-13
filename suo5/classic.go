@@ -27,12 +27,7 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 
 	s.OnRemotePlexWrite(func(p []byte) error {
 		log.Debugf("send remote write request, body len: %d", len(p))
-		req, err := http.NewRequestWithContext(s.ctx, s.config.Method, s.config.Target, bytes.NewReader(p))
-		if err != nil {
-			return err
-		}
-		req.ContentLength = int64(len(p))
-		req.Header = s.config.Header.Clone()
+		req := s.config.NewRequest(s.ctx, bytes.NewReader(p), int64(len(p)))
 		resp, err := s.client.Do(req)
 		if err != nil {
 			return err

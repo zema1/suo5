@@ -15,6 +15,9 @@ import (
 	"github.com/zema1/suo5/ctrl"
 )
 
+// todo: id GcKURDm4 not found, notify remote to close
+// 用 mbtest 跑的过程  ctrl+c 可以复现，classic
+
 var Version = "v0.0.0"
 
 func main() {
@@ -74,6 +77,11 @@ func main() {
 			Aliases: []string{"H"},
 			Usage:   "use extra header, ex -H 'Cookie: abc'",
 			Value:   cli.NewStringSlice(defaultConfig.RawHeader...),
+		},
+		&cli.StringFlag{
+			Name:  "ua",
+			Usage: "shortcut to set the request User-Agent",
+			Value: "",
 		},
 		&cli.IntFlag{
 			Name:  "timeout",
@@ -174,6 +182,7 @@ func Action(c *cli.Context) error {
 	retryCount := c.Int("retry")
 	method := c.String("method")
 	redirect := c.String("redirect")
+	ua := c.String("ua")
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
 	noGzip := c.Bool("no-gzip")
@@ -184,6 +193,10 @@ func Action(c *cli.Context) error {
 	classicQPS := c.Int("classic-poll-qps")
 	forward := c.String("forward")
 	configFile := c.String("config")
+
+	if ua != "" {
+		header = append(header, fmt.Sprintf("User-Agent: %s", ua))
+	}
 
 	var username, password string
 	if auth != "" {
