@@ -139,8 +139,10 @@ func (s *BaseStreamFactory) sync() {
 				}
 
 				success := false
+				bufCopy := make([]byte, len(buf))
+				copy(bufCopy, buf)
 				for i := 0; i <= s.config.RetryCount; i++ {
-					err = s.plexWriteFunc(buf)
+					err = s.plexWriteFunc(bufCopy)
 					if err == nil {
 						success = true
 						break
@@ -173,6 +175,7 @@ func (s *BaseStreamFactory) OnRemoteWrite(idWriteFunc func(string, []byte) error
 }
 
 func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
+	notifyOnce := make(map[string]bool)
 	for {
 		if rd, ok := reader.(*bytes.Reader); ok {
 			if rd.Len() == 0 {
@@ -203,6 +206,13 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 		conn, ok := s.tunnels[id]
 		if !ok {
 			s.tunnelMu.Unlock()
+
+			// send only once for each id
+			if notifyOnce[id] {
+				continue
+			}
+			notifyOnce[id] = true
+
 			log.Warnf("id %s not found, notify remote to close", id)
 			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 			select {

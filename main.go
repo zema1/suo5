@@ -15,9 +15,6 @@ import (
 	"github.com/zema1/suo5/ctrl"
 )
 
-// todo: id GcKURDm4 not found, notify remote to close
-// 用 mbtest 跑的过程  ctrl+c 可以复现，classic
-
 var Version = "v0.0.0"
 
 func main() {
