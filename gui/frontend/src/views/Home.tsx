@@ -23,6 +23,7 @@ export default function Home() {
   const [openAdvanced, setOpenAdvanced] = useState(false);
   const [config, setConfig] = useState<suo5.Suo5Config>();
   const [status, setStatus] = useState<ConnectStatus>(ConnectStatus.INITIAL);
+  const [connectDisabled, setConnectDisabled] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
 
@@ -79,17 +80,20 @@ export default function Home() {
   const onConnecting = async (data: z.infer<typeof FormSchema>) => {
     setSuccessMessage('')
     setErrorMessage('')
+    setConnectDisabled(true)
     setStatus(ConnectStatus.CONNECTING)
 
     await new Promise(r => setTimeout(r, 1000));
 
     const finial_config: suo5.Suo5Config = Object.assign({}, config, data)
     setConfig(_ => finial_config)
+    console.log('final', finial_config)
     await RunSuo5WithConfig(finial_config)
   }
 
   const onConnectSuccess = (e: string) => {
     setStatus(ConnectStatus.SUCCESS)
+    setConnectDisabled(false)
     setConfig(pre => {
       if (!pre) {
         return pre
@@ -121,6 +125,7 @@ export default function Home() {
   const onConnectError = (e: string) => {
     setStatus(ConnectStatus.FAILED)
     setErrorMessage(`连接失败, ${e}`)
+    setConnectDisabled(false)
   }
 
   const onStop = async (e) => {
@@ -345,15 +350,15 @@ export default function Home() {
               </div>
 
               {status === ConnectStatus.CONNECTING &&
-                  <Button onClick={onStop}><Loader className="animate-spin"/>连接中</Button>
+                  <Button disabled={connectDisabled} onClick={onStop}><Loader className="animate-spin"/>连接中</Button>
               }
 
               {status === ConnectStatus.SUCCESS &&
-                  <Button variant="default" onClick={onStop}><CircleStop/>停止连接</Button>
+                  <Button disabled={connectDisabled} variant="default" onClick={onStop}><CircleStop/>停止连接</Button>
               }
 
               {(status === ConnectStatus.INITIAL || status === ConnectStatus.FAILED) &&
-                  <Button><Zap/>立即链接</Button>
+                  <Button disabled={connectDisabled}><Zap/>立即链接</Button>
               }
             </div>
           </form>

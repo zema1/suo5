@@ -5,6 +5,7 @@ import (
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+const lowerLetterBytes = "abcdefghijklmnopqrstuvwxyz"
 
 func RandString(n int) string {
 	b := make([]byte, n)
@@ -19,6 +20,14 @@ func RandUserAgent() string {
 		return ""
 	}
 	return AllUserAgents[rand.Intn(len(AllUserAgents))]
+}
+
+func RandLowerString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(lowerLetterBytes))]
+	}
+	return string(b)
 }
 
 // AllUserAgents unpacked from https://github.com/intoli/user-agents/blob/main/src/user-agents.json.gz

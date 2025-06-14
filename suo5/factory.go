@@ -215,6 +215,11 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 
 			log.Warnf("id %s not found, notify remote to close", id)
 			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
+
+			// todo: 还是会存在 writeChan close 的情况
+			if s.closed.Load() {
+				return nil
+			}
 			select {
 			case s.writeChan <- &IdData{id, body}:
 			case <-s.ctx.Done():
@@ -260,22 +265,19 @@ func (s *BaseStreamFactory) Release(id string) {
 
 func (s *BaseStreamFactory) Shutdown() {
 	s.once.Do(func() {
-		s.closeMu.Lock()
 		if s.closed.Load() {
-			s.closeMu.Unlock()
 			return
 		}
 		channels := make([]*TunnelConn, 0, len(s.tunnels))
 		for _, conn := range s.tunnels {
 			channels = append(channels, conn)
 		}
-		s.closeMu.Unlock()
 
 		for _, conn := range channels {
 			_ = conn.Close()
 		}
+		s.closed.Store(true)
 		close(s.writeChan)
 		s.Wait()
-		s.closed.Store(true)
 	})
 }

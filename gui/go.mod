@@ -3,7 +3,7 @@ module changeme
 go 1.20
 
 require (
-	github.com/wailsapp/wails/v2 v2.9.1
+	github.com/wailsapp/wails/v2 v2.9.0
 	github.com/zema1/suo5 v1.3.2-0.20250219115440-31983ee59a83
 )
 

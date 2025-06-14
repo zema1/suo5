@@ -13,13 +13,22 @@ import (
 type ConnectionType string
 
 const (
-	Undefined  ConnectionType = "undefined"
 	Checking   ConnectionType = "checking"
 	AutoDuplex ConnectionType = "auto"
 	FullDuplex ConnectionType = "full"
 	HalfDuplex ConnectionType = "half"
 	Classic    ConnectionType = "classic"
 )
+
+func AllConnectionTypes() []ConnectionType {
+	return []ConnectionType{
+		Checking,
+		AutoDuplex,
+		FullDuplex,
+		HalfDuplex,
+		Classic,
+	}
+}
 
 func (c ConnectionType) Bin() byte {
 	switch c {

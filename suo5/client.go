@@ -69,12 +69,6 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		log.Infof("using upstream proxy: %s", strings.Join(config.UpstreamProxy, " -> "))
 	}
 
-	err = checkConnectMode(ctx, config)
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("suo5 is going to work on %s mode", config.Mode)
-
 	var jar http.CookieJar
 	if config.EnableCookieJar {
 		jar, _ = cookiejar.New(nil)
@@ -88,30 +82,39 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		return nil, err
 	}
 
-	noTimeoutClient := &http.Client{
-		Transport: tr.Clone(),
-		Jar:       jar,
-		Timeout:   0,
-	}
-	normalClient := &http.Client{
-		Timeout:   config.TimeoutTime(),
-		Jar:       jar,
-		Transport: tr.Clone(),
-	}
-
 	rawClient, err := NewRawHttpClient(config.UpstreamProxy, config.TimeoutTime(), 0)
 	if err != nil {
 		return nil, err
 	}
 
+	err = checkConnectMode(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to %w", err)
+	}
+	log.Infof("suo5 is going to work on %s mode", config.Mode)
+
 	var factory StreamFactory
-	if config.Mode == FullDuplex {
+	switch config.Mode {
+	case FullDuplex:
 		factory = NewFullChunkedStreamFactory(ctx, config, rawClient)
-	} else if config.Mode == HalfDuplex {
+
+	case HalfDuplex:
+		noTimeoutClient := &http.Client{
+			Transport: tr.Clone(),
+			Jar:       jar,
+			Timeout:   0,
+		}
 		factory = NewHalfChunkedStreamFactory(ctx, config, noTimeoutClient)
-	} else if config.Mode == Classic {
+
+	case Classic:
+		normalClient := &http.Client{
+			Timeout:   config.TimeoutTime(),
+			Jar:       jar,
+			Transport: tr.Clone(),
+		}
 		factory = NewClassicStreamFactory(ctx, config, normalClient)
-	} else {
+
+	default:
 		return nil, fmt.Errorf("unknown mode %s", config.Mode)
 	}
 
@@ -154,7 +157,6 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 
 func checkConnectMode(ctx context.Context, config *Suo5Config) error {
 	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
-	var rawClient *rawhttp.Client
 	timeout := config.TimeoutTime()
 	if timeout < 6*time.Second {
 		timeout = 6 * time.Second
@@ -170,16 +172,20 @@ func checkConnectMode(ctx context.Context, config *Suo5Config) error {
 	}
 	identifier := RandString(randLen)
 	actionData := NewActionData(RandString(8), []byte(identifier))
-	if config.Mode == AutoDuplex {
-		actionData["a"] = []byte{0x01}
-	} else {
-		actionData["a"] = []byte{0x00}
-	}
 	data := BuildBody(actionData, config.RedirectURL, config.SessionId, Checking)
 	ch := make(chan []byte, 1)
 	ch <- data
 
-	req := config.NewRequest(ctx, netrans.NewChannelReader(ch), -1)
+	var contentLength int64
+	if config.Mode == AutoDuplex {
+		contentLength = -1
+		actionData["a"] = []byte{0x01}
+	} else {
+		contentLength = int64(len(data))
+		actionData["a"] = []byte{0x00}
+	}
+
+	req := config.NewRequest(ctx, netrans.NewChannelReader(ch), contentLength)
 
 	now := time.Now()
 	go func() {

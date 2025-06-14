@@ -1,15 +1,15 @@
 import {Trash2} from "lucide-react";
 import {ScrollArea, ScrollBar} from "@/components/ui/scroll-area.tsx";
 import {Light as SyntaxHighlighter} from "react-syntax-highlighter";
-import accesslog from 'react-syntax-highlighter/dist/esm/languages/hljs/accesslog';
 import {atomOneDark, atomOneLight} from "react-syntax-highlighter/dist/esm/styles/hljs"
 import {ComponentProps, useEffect, useMemo, useRef, useState} from "react";
 import {useTheme} from "@/components/theme-provider";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {ConnectStatus} from "@/views/types.ts";
 import {cn} from "@/lib/utils.ts";
+import cliLog from '@/lib/golog.js';
 
-SyntaxHighlighter.registerLanguage('accesslog', accesslog);
+SyntaxHighlighter.registerLanguage('accesslog', cliLog);
 
 interface LogViewProps {
   status: ConnectStatus

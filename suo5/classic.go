@@ -108,7 +108,7 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 
 	log.Debugf("recv dial response from server:  %v", status)
 	if len(status) != 1 || status[0] != 0x00 {
-		return nil, errors.Wrap(ErrHostUnreachable, fmt.Sprintf("status: %v", status))
+		return nil, errors.Wrap(ErrConnRefused, fmt.Sprintf("status: %v", status))
 	}
 
 	return tunnel, nil

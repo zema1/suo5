@@ -17,7 +17,7 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:     "Suo5 - 高性能 HTTP 隧道代理",
+		Title:     "Suo5 - 高性能 HTTP 隧道代理 v0.0.0",
 		Width:     620,
 		Height:    860,
 		MinWidth:  550,

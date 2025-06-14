@@ -22,7 +22,8 @@ import (
 )
 
 func InitDefaultLog(writer io.Writer) {
-	log.SetTimeFormat("01-02 15:04")
+	// log.SetTimeFormat("01-02 15:04")
+	log.SetTimeFormat("15:04")
 	log.SetOutput(writer)
 
 	supportColor := pio.SupportColors(writer)
@@ -56,6 +57,8 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	}
 	if config.Debug {
 		log.SetLevel("debug")
+	} else {
+		log.SetLevel("info")
 	}
 
 	suo5Client, err := suo5.Connect(ctx, config)

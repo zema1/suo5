@@ -90,8 +90,15 @@ func (conf *Suo5Config) Parse() error {
 		conf.ClassicPollQPS = DefaultClassicPollQPS
 	}
 
-	if !(conf.Mode == AutoDuplex || conf.Mode == FullDuplex || conf.Mode == HalfDuplex || conf.Mode == Classic) {
-		return fmt.Errorf("invalid mode, expected auto or full or half or classic")
+	isValidMode := false
+	for _, m := range AllConnectionTypes() {
+		if conf.Mode == m {
+			isValidMode = true
+			break
+		}
+	}
+	if !isValidMode {
+		return fmt.Errorf("invalid connection mode: %s", conf.Mode)
 	}
 
 	if err := conf.parseExcludeDomain(); err != nil {
@@ -153,13 +160,17 @@ func (conf *Suo5Config) TimeoutTime() time.Duration {
 	return time.Duration(conf.Timeout) * time.Second
 }
 
-func (conf *Suo5Config) NewRequest(ctx context.Context, body io.Reader, contentLength int64) *http.Request {
-	req, _ := http.NewRequestWithContext(ctx, conf.Method, conf.Target, body)
-	req.ContentLength = contentLength
+func (conf *Suo5Config) RequestHeader() http.Header {
 	header := conf.Header.Clone()
 	if header.Get("User-Agent") == "" {
 		header.Set("User-Agent", RandUserAgent())
 	}
-	req.Header = header
+	return header
+}
+
+func (conf *Suo5Config) NewRequest(ctx context.Context, body io.Reader, contentLength int64) *http.Request {
+	req, _ := http.NewRequestWithContext(ctx, conf.Method, conf.Target, body)
+	req.ContentLength = contentLength
+	req.Header = conf.RequestHeader()
 	return req
 }
