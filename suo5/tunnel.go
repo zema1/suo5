@@ -99,7 +99,7 @@ func (s *TunnelConn) Read(p []byte) (n int, err error) {
 
 func (s *TunnelConn) Write(p []byte) (int, error) {
 	partWrite := 0
-	chunkSize := s.config.MaxRequestSize
+	chunkSize := s.config.MaxBodySize
 	if len(p) > chunkSize {
 		log.Debugf("split data to %d chunk, length: %d", len(p)/chunkSize, len(p))
 		for i := 0; i < len(p); i += chunkSize {

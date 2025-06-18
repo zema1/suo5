@@ -83,7 +83,7 @@ func (s *BaseStreamFactory) sync() {
 		// 这里失败需要先 cancel
 		defer s.cancel()
 
-		buf := make([]byte, 0, s.config.MaxRequestSize)
+		buf := make([]byte, 0, s.config.MaxBodySize)
 
 		for {
 			select {
@@ -124,7 +124,7 @@ func (s *BaseStreamFactory) sync() {
 					for i := 0; i < size; i++ {
 						tmp := <-s.writeChan
 						buf = append(buf, tmp.data...)
-						if len(buf) > s.config.MaxRequestSize {
+						if len(buf) > s.config.MaxBodySize {
 							break
 						}
 					}

@@ -86,9 +86,10 @@ func main() {
 			Value: defaultConfig.Timeout,
 		},
 		&cli.IntFlag{
-			Name:  "buf-size",
-			Usage: "request max body size",
-			Value: defaultConfig.BufferSize,
+			Name:    "max-body-size",
+			Aliases: []string{"S"},
+			Usage:   "request max body size",
+			Value:   defaultConfig.MaxBodySize,
 		},
 		&cli.IntFlag{
 			Name:  "retry",
@@ -172,7 +173,7 @@ func Action(c *cli.Context) error {
 	target := c.String("target")
 	auth := c.String("auth")
 	mode := suo5.ConnectionType(c.String("mode"))
-	bufSize := c.Int("buf-size")
+	maxBodySize := c.Int("max-body-size")
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
 	proxy := c.StringSlice("proxy")
@@ -225,7 +226,7 @@ func Action(c *cli.Context) error {
 		Username:         username,
 		Password:         password,
 		Mode:             mode,
-		BufferSize:       bufSize,
+		MaxBodySize:      maxBodySize,
 		Timeout:          timeout,
 		Debug:            debug,
 		UpstreamProxy:    proxy,

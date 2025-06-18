@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	DefaultMaxRequestSize = 1024 * 1024
-	DefaultBufferSize     = 1024 * 64
+	DefaultMaxRequestSize = 1024 * 512
 	DefaultTimeout        = 10
 	DefaultClassicPollQPS = 5
 	DefaultRetryCount     = 1
@@ -25,7 +24,6 @@ type Suo5Config struct {
 	Username         string         `json:"username"`
 	Password         string         `json:"password"`
 	Mode             ConnectionType `json:"mode"`
-	BufferSize       int            `json:"buffer_size"`
 	Timeout          int            `json:"timeout"`
 	Debug            bool           `json:"debug"`
 	UpstreamProxy    []string       `json:"upstream_proxy"`
@@ -36,7 +34,7 @@ type Suo5Config struct {
 	EnableCookieJar  bool           `json:"enable_cookiejar"`
 	ExcludeDomain    []string       `json:"exclude_domain"`
 	ForwardTarget    string         `json:"forward_target"`
-	MaxRequestSize   int            `json:"max_request_size"`
+	MaxBodySize      int            `json:"max_body_size"`
 	ClassicPollQPS   int            `json:"classic_poll_qps"`
 	RetryCount       int            `json:"retry_count"`
 
@@ -60,7 +58,6 @@ func DefaultSuo5Config() *Suo5Config {
 		Username:         "",
 		Password:         "",
 		Mode:             AutoDuplex,
-		BufferSize:       DefaultBufferSize,
 		Timeout:          DefaultTimeout,
 		Debug:            false,
 		UpstreamProxy:    []string{},
@@ -69,7 +66,7 @@ func DefaultSuo5Config() *Suo5Config {
 		DisableHeartbeat: false,
 		EnableCookieJar:  false,
 		ForwardTarget:    "",
-		MaxRequestSize:   DefaultMaxRequestSize,
+		MaxBodySize:      DefaultMaxRequestSize,
 		ClassicPollQPS:   DefaultClassicPollQPS,
 		RetryCount:       DefaultRetryCount,
 	}
@@ -79,11 +76,9 @@ func (conf *Suo5Config) Parse() error {
 	if conf.Timeout <= 0 {
 		conf.Timeout = DefaultTimeout
 	}
-	if conf.BufferSize <= 0 {
-		conf.BufferSize = DefaultBufferSize
-	}
-	if conf.MaxRequestSize <= 0 {
-		conf.MaxRequestSize = DefaultMaxRequestSize
+
+	if conf.MaxBodySize <= 0 {
+		conf.MaxBodySize = DefaultMaxRequestSize
 	}
 
 	if conf.ClassicPollQPS <= 0 {

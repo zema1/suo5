@@ -32,7 +32,7 @@ const FormSchema = z.object({
   disable_heartbeat: z.boolean(),
   disable_gzip: z.boolean(),
   timeout: z.coerce.number(),
-  buffer_size: z.coerce.number(),
+  max_body_size: z.coerce.number(),
   redirect_url: z.string(),
   upstream_proxy: z.array(z.string()),
   raw_header: z.array(z.string()),
@@ -60,7 +60,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
       disable_heartbeat: false,
       disable_gzip: false,
       timeout: 0,
-      buffer_size: 0,
+      max_body_size: 0,
       redirect_url: "",
       upstream_proxy: [],
       raw_header: [],
@@ -125,7 +125,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                 name="debug"
                 render={({field}) => (
                   <FormItem className="flex">
-                    <FormLabel className="min-w-[80px] justify-end">调式模式</FormLabel>
+                    <FormLabel className="min-w-[100px] justify-end">调式模式</FormLabel>
                     <FormControl>
                       <Checkbox checked={field.value} onCheckedChange={(e) => {
                         field.onChange(e);
@@ -141,8 +141,8 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                     control={form.control}
                     name="enable_cookiejar"
                     render={({field}) => (
-                      <FormItem className="flex">
-                        <FormLabel className="min-w-[80px] justify-end">CookieJar</FormLabel>
+                      <FormItem className="flex justify-end">
+                        <FormLabel className="min-w-[100px] justify-end">CookieJar</FormLabel>
                         <FormControl>
                           <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
                         </FormControl>
@@ -155,7 +155,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                     name="disable_heartbeat"
                     render={({field}) => (
                       <FormItem className="flex">
-                        <FormLabel className="min-w-[80px] justify-end">禁用心跳包</FormLabel>
+                        <FormLabel className="min-w-[100px] justify-end">禁用心跳包</FormLabel>
                         <FormControl>
                           <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
                         </FormControl>
@@ -167,8 +167,8 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                     control={form.control}
                     name="disable_gzip"
                     render={({field}) => (
-                      <FormItem className="flex">
-                        <FormLabel className="min-w-[80px] justify-end">禁用 Gzip</FormLabel>
+                      <FormItem className="flex justify-end">
+                        <FormLabel className="min-w-[100px] justify-end">禁用 Gzip</FormLabel>
                         <FormControl>
                           <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
                         </FormControl>
@@ -182,23 +182,10 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
             <div className="grid grid-cols-2 gap-2">
               <FormField
                 control={form.control}
-                name="retry_count"
-                render={({field}) => (
-                  <FormItem className="flex">
-                    <FormLabel className="min-w-[80px] justify-end">请求重试</FormLabel>
-                    <FormControl>
-                      <Input type="number" className="h-8 text-sm" {...field}/>
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="timeout"
                 render={({field}) => (
                   <FormItem className="flex">
-                    <FormLabel className="min-w-[80px] justify-end">超时时间</FormLabel>
+                    <FormLabel className="min-w-[100px] justify-end">超时时间</FormLabel>
                     <FormControl>
                       <Input type="number" className="h-8 text-sm" {...field}/>
                     </FormControl>
@@ -207,6 +194,18 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
               />
 
 
+              <FormField
+                control={form.control}
+                name="retry_count"
+                render={({field}) => (
+                  <FormItem className="flex">
+                    <FormLabel className="min-w-[100px] justify-end">请求重试</FormLabel>
+                    <FormControl>
+                      <Input type="number" className="h-8 text-sm" {...field}/>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -215,7 +214,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                 name="classic_poll_qps"
                 render={({field}) => (
                   <FormItem className="flex">
-                    <FormLabel className="min-w-[80px] justify-end">短连接 QPS</FormLabel>
+                    <FormLabel className="min-w-[100px] justify-end">短连接 QPS</FormLabel>
                     <FormControl>
                       <Input type="number" className="h-8 text-sm" {...field}/>
                     </FormControl>
@@ -225,10 +224,10 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
 
               <FormField
                 control={form.control}
-                name="buffer_size"
+                name="max_body_size"
                 render={({field}) => (
                   <FormItem className="flex">
-                    <FormLabel className="min-w-[80px] justify-end">缓冲区大小</FormLabel>
+                    <FormLabel className="min-w-[100px] justify-end">请求大小限制</FormLabel>
                     <FormControl>
                       <Input type="number" className="h-8 text-sm" {...field}/>
                     </FormControl>
@@ -242,7 +241,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
               name="redirect_url"
               render={({field}) => (
                 <FormItem className="flex">
-                  <FormLabel className="min-w-[80px] justify-end">流量集中</FormLabel>
+                  <FormLabel className="min-w-[100px] justify-end">流量集中</FormLabel>
                   <FormControl>
                     <Input className="h-8 text-sm" placeholder="用于应对负载均衡, 将流量集中转发中该地址" {...field}/>
                   </FormControl>
@@ -255,7 +254,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
               name="input_upstream_proxy"
               render={({field}) => (
                 <FormItem className="flex">
-                  <FormLabel className="min-w-[80px] justify-end">上游代理</FormLabel>
+                  <FormLabel className="min-w-[100px] justify-end">上游代理</FormLabel>
                   <FormControl>
                     <Input className="h-8 text-sm"
                            placeholder="socks5 or http(s), socks5://user:pass@ip:port" {...field}/>
@@ -269,7 +268,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
               name="input_headers"
               render={({field}) => (
                 <FormItem className="flex">
-                  <FormLabel className="min-w-[80px] justify-end items-start">请求头</FormLabel>
+                  <FormLabel className="min-w-[100px] justify-end items-start">请求头</FormLabel>
                   <FormControl>
                     <Textarea className="text-sm placeholder:text-muted-foreground/50 h-30"
                               placeholder="User-Agent: xxx" {...field}

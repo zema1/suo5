@@ -140,7 +140,7 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 
 	pool := &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, config.BufferSize)
+			return make([]byte, 1024*64)
 		},
 	}
 

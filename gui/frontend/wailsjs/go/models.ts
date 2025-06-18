@@ -28,7 +28,6 @@ export namespace suo5 {
 	    username: string;
 	    password: string;
 	    mode: string;
-	    buffer_size: number;
 	    timeout: number;
 	    debug: boolean;
 	    upstream_proxy: string[];
@@ -39,7 +38,7 @@ export namespace suo5 {
 	    enable_cookiejar: boolean;
 	    exclude_domain: string[];
 	    forward_target: string;
-	    max_request_size: number;
+	    max_body_size: number;
 	    classic_poll_qps: number;
 	    retry_count: number;
 	
@@ -55,7 +54,6 @@ export namespace suo5 {
 	        this.username = source["username"];
 	        this.password = source["password"];
 	        this.mode = source["mode"];
-	        this.buffer_size = source["buffer_size"];
 	        this.timeout = source["timeout"];
 	        this.debug = source["debug"];
 	        this.upstream_proxy = source["upstream_proxy"];
@@ -66,7 +64,7 @@ export namespace suo5 {
 	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
 	        this.forward_target = source["forward_target"];
-	        this.max_request_size = source["max_request_size"];
+	        this.max_body_size = source["max_body_size"];
 	        this.classic_poll_qps = source["classic_poll_qps"];
 	        this.retry_count = source["retry_count"];
 	    }
