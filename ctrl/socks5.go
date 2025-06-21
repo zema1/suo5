@@ -70,7 +70,11 @@ func (m *Socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	streamRW := suo5.NewSuo5Conn(m.ctx, m.Suo5Client)
 	err := streamRW.ConnectMultiplex(sockReq.Addr.String())
 	if err != nil {
-		log.Errorf("failed to connect to %s, %v", sockReq.Addr, err)
+		if sockReq.Addr.String() == "127.0.0.1:0" {
+			log.Debugf("failed to connect to %s, %v", sockReq.Addr, err)
+		} else {
+			log.Errorf("failed to connect to %s, %v", sockReq.Addr, err)
+		}
 		ReplyError(conn, err)
 		return
 	}

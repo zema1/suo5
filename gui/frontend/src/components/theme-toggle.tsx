@@ -1,8 +1,8 @@
 import {Moon, Sun} from "lucide-react"
 import {useTheme} from "@/components/theme-provider"
-import {useRef} from "react";
+import {useEffect, useRef} from "react";
 import {Button} from "@/components/ui/button.tsx";
-import {WindowSetLightTheme, WindowSetDarkTheme} from "../../wailsjs/runtime";
+import {WindowSetDarkTheme, WindowSetLightTheme} from "../../wailsjs/runtime";
 
 export function ThemeToggle() {
   const {setTheme} = useTheme()
@@ -18,6 +18,12 @@ export function ThemeToggle() {
       WindowSetLightTheme();
     }
   }
+
+  useEffect(() => {
+    setTheme('light');
+    theme.current = 'light';
+    WindowSetLightTheme();
+  }, []);
 
   return (
     <Button size="icon" variant="ghost" onClick={toggleTheme} className="size-[20px] transition-none">
