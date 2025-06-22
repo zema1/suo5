@@ -36,8 +36,9 @@ type BaseStreamFactory struct {
 	closed  atomic.Bool
 	limiter *rate.Limiter
 
-	tunnelMu sync.Mutex
-	tunnels  map[string]*TunnelConn
+	tunnelMu   sync.Mutex
+	tunnels    map[string]*TunnelConn
+	notifyOnce map[string]bool
 
 	writeChan chan *IdData
 
@@ -52,12 +53,13 @@ func NewBaseStreamFactory(rootCtx context.Context, config *Suo5Config) *BaseStre
 
 	limiter := rate.NewLimiter(rate.Limit(config.ClassicPollQPS), config.ClassicPollQPS)
 	plex := &BaseStreamFactory{
-		config:    config,
-		limiter:   limiter,
-		tunnels:   make(map[string]*TunnelConn),
-		writeChan: make(chan *IdData, 4096),
-		ctx:       ctx,
-		cancel:    cancel,
+		config:     config,
+		limiter:    limiter,
+		tunnels:    make(map[string]*TunnelConn),
+		writeChan:  make(chan *IdData, 4096),
+		notifyOnce: make(map[string]bool),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
 	// 留点时间关闭远程连接
@@ -102,9 +104,11 @@ func (s *BaseStreamFactory) sync() {
 						log.Errorf("failed to write to remote, %v", err)
 						s.tunnelMu.Lock()
 						if conn, ok := s.tunnels[idData.id]; ok {
+							s.tunnelMu.Unlock()
 							_ = conn.Close()
+						} else {
+							s.tunnelMu.Unlock()
 						}
-						s.tunnelMu.Unlock()
 						s.Release(idData.id)
 
 					}
@@ -175,7 +179,6 @@ func (s *BaseStreamFactory) OnRemoteWrite(idWriteFunc func(string, []byte) error
 }
 
 func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
-	notifyOnce := make(map[string]bool)
 	for {
 		if rd, ok := reader.(*bytes.Reader); ok {
 			if rd.Len() == 0 {
@@ -205,13 +208,13 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 		s.tunnelMu.Lock()
 		conn, ok := s.tunnels[id]
 		if !ok {
-			s.tunnelMu.Unlock()
-
 			// send only once for each id
-			if notifyOnce[id] {
+			if s.notifyOnce[id] {
+				s.tunnelMu.Unlock()
 				continue
 			}
-			notifyOnce[id] = true
+			s.notifyOnce[id] = true
+			s.tunnelMu.Unlock()
 
 			log.Warnf("id %s not found, notify remote to close", id)
 			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
