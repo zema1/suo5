@@ -25,8 +25,9 @@ type StreamFactory interface {
 }
 
 type IdData struct {
-	id   string
-	data []byte
+	id      string
+	data    []byte
+	noDelay bool
 }
 
 type BaseStreamFactory struct {
@@ -85,6 +86,37 @@ func (s *BaseStreamFactory) sync() {
 		// 这里失败需要先 cancel
 		defer s.cancel()
 
+		reliablePlexWrite := func(data []byte) error {
+			success := false
+			for i := 0; i <= s.config.RetryCount; i++ {
+				err := s.plexWriteFunc(data)
+				if err == nil {
+					success = true
+					break
+				}
+				if errors.Is(err, errExpectedRetry) {
+					log.Debugf("plex write %s, retry %d/%d", err, i, s.config.RetryCount)
+					continue
+				} else {
+					return err
+				}
+			}
+			if !success {
+				return fmt.Errorf("retry limit exceeded, consider to increase retry count")
+			}
+			return nil
+		}
+
+		noDelayPlexWrite := func(data []byte) {
+			log.Debugf("no delay write to remote, data: %d", len(data))
+			go func() {
+				if err := reliablePlexWrite(data); err != nil {
+					log.Errorf("failed to write plex data to remote, %v", err)
+					// s.cancel()
+				}
+			}()
+		}
+
 		buf := make([]byte, 0, s.config.MaxBodySize)
 
 		for {
@@ -93,9 +125,6 @@ func (s *BaseStreamFactory) sync() {
 				return
 			case idData, ok := <-s.writeChan:
 				if !ok {
-					return
-				}
-				if s.closed.Load() {
 					return
 				}
 				if s.directWriteFunc != nil {
@@ -109,16 +138,17 @@ func (s *BaseStreamFactory) sync() {
 						} else {
 							s.tunnelMu.Unlock()
 						}
-						s.Release(idData.id)
 
 					}
 					continue
 				}
+				if idData.noDelay {
+					noDelayPlexWrite(idData.data)
+					continue
+				}
+
 				err := s.limiter.Wait(s.ctx)
 				if err != nil {
-					return
-				}
-				if s.closed.Load() {
 					return
 				}
 
@@ -127,6 +157,10 @@ func (s *BaseStreamFactory) sync() {
 				if size > 0 {
 					for i := 0; i < size; i++ {
 						tmp := <-s.writeChan
+						if tmp.noDelay {
+							noDelayPlexWrite(tmp.data)
+							continue
+						}
 						buf = append(buf, tmp.data...)
 						if len(buf) > s.config.MaxBodySize {
 							break
@@ -142,27 +176,12 @@ func (s *BaseStreamFactory) sync() {
 					return
 				}
 
-				success := false
 				bufCopy := make([]byte, len(buf))
 				copy(bufCopy, buf)
-				for i := 0; i <= s.config.RetryCount; i++ {
-					err = s.plexWriteFunc(bufCopy)
-					if err == nil {
-						success = true
-						break
-					}
-					if errors.Is(err, errExpectedRetry) {
-						log.Debugf("plex write %s, retry %d/%d", err, i, s.config.RetryCount)
-						continue
-					} else {
-						if !errors.Is(err, context.Canceled) {
-							log.Errorf("failed to write plex data to remote, %v", err)
-						}
-						return
-					}
-				}
-				if !success {
-					log.Errorf("failed to write plex data to remote, retry limit exceeded, consider to increase retry count?")
+
+				err = reliablePlexWrite(bufCopy)
+				if err != nil {
+					log.Errorf("failed to write plex data to remote, %v", err)
 					return
 				}
 			}
@@ -207,33 +226,36 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 
 		s.tunnelMu.Lock()
 		conn, ok := s.tunnels[id]
-		if !ok {
-			// send only once for each id
-			if s.notifyOnce[id] {
-				s.tunnelMu.Unlock()
-				continue
-			}
-			s.notifyOnce[id] = true
+		if ok {
+			// 找到连接，正常分发数据
 			s.tunnelMu.Unlock()
-
-			log.Warnf("id %s not found, notify remote to close", id)
-			body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
-
-			// todo: 还是会存在 writeChan close 的情况
-			if s.closed.Load() {
-				return nil
-			}
-			select {
-			case s.writeChan <- &IdData{id, body}:
-			case <-s.ctx.Done():
-				return nil
-			default:
-				log.Warnf("writeChan is full, discard message")
-			}
+			conn.RemoteData(m)
 			continue
 		}
+
+		// send only once for each id
+		if s.notifyOnce[id] {
+			s.tunnelMu.Unlock()
+			continue
+		}
+		s.notifyOnce[id] = true
 		s.tunnelMu.Unlock()
-		conn.RemoteData(m)
+
+		log.Warnf("id %s not found, notify remote to close", id)
+		body := BuildBody(NewActionDelete(id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
+
+		s.closeMu.Lock()
+		if s.closed.Load() {
+			s.closeMu.Unlock()
+			return nil
+		}
+
+		select {
+		case s.writeChan <- &IdData{id, body, false}:
+		default:
+			log.Warnf("writeChan is full, discard message")
+		}
+		s.closeMu.Unlock()
 	}
 	return nil
 }
@@ -264,23 +286,26 @@ func (s *BaseStreamFactory) Release(id string) {
 	s.tunnelMu.Lock()
 	defer s.tunnelMu.Unlock()
 	delete(s.tunnels, id)
+	delete(s.notifyOnce, id)
 }
 
 func (s *BaseStreamFactory) Shutdown() {
 	s.once.Do(func() {
-		if s.closed.Load() {
-			return
-		}
+		s.closed.Store(true)
+
+		s.tunnelMu.Lock()
 		channels := make([]*TunnelConn, 0, len(s.tunnels))
 		for _, conn := range s.tunnels {
 			channels = append(channels, conn)
 		}
+		s.tunnelMu.Unlock()
 
 		for _, conn := range channels {
 			_ = conn.Close()
 		}
-		s.closed.Store(true)
+		s.closeMu.Lock()
 		close(s.writeChan)
+		s.closeMu.Unlock()
 		s.Wait()
 	})
 }

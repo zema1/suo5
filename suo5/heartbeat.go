@@ -11,7 +11,7 @@ import (
 
 type RawReadWriteCloser interface {
 	io.ReadWriteCloser
-	WriteRaw(p []byte) (n int, err error)
+	WriteRaw(p []byte, noDelay bool) (n int, err error)
 }
 
 func NewHeartbeatRW(rw RawReadWriteCloser, id string, conf *Suo5Config) io.ReadWriteCloser {
@@ -61,7 +61,7 @@ func (h *heartbeatRW) heartbeat(ctx context.Context) {
 			}
 			body := BuildBody(NewActionHeartbeat(h.id), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
 			log.Debugf("send heartbeat, length: %d", len(body))
-			_, err := h.rw.WriteRaw(body)
+			_, err := h.rw.WriteRaw(body, false)
 			if err != nil {
 				log.Errorf("send heartbeat error %s", err)
 				return

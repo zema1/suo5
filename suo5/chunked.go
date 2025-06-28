@@ -18,8 +18,6 @@ import (
 	"time"
 )
 
-// todo: websocket ping
-
 type FullChunkedStreamFactory struct {
 	*BaseStreamFactory
 	mu        sync.Mutex
@@ -92,7 +90,6 @@ func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 	req := h.config.NewRequest(h.ctx, body, 0)
 	resp, err := h.rawClient.Do(req)
 	if err != nil {
-		fmt.Println(1)
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
 	}
 
