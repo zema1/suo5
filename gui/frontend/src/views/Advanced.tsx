@@ -101,9 +101,13 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
     Object.assign(config, data)
     if (data.input_headers?.trim().length > 0) {
       config.raw_header = data.input_headers.split("\n")
+    } else {
+      config.raw_header = []
     }
     if (data.input_upstream_proxy?.trim().length > 0) {
       config.upstream_proxy = data.input_upstream_proxy.split(",")
+    } else {
+      config.upstream_proxy = []
     }
     console.log('submit', config)
     onSubmit(config)
@@ -119,7 +123,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onBeforeSubmit)} className="flex flex-col gap-4">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-x-2 gap-y-4">
               <FormField
                 control={form.control}
                 name="debug"
@@ -154,7 +158,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                     control={form.control}
                     name="disable_heartbeat"
                     render={({field}) => (
-                      <FormItem className="flex">
+                      <FormItem className="flex justify-end">
                         <FormLabel className="min-w-[100px] justify-end">禁用心跳包</FormLabel>
                         <FormControl>
                           <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
@@ -168,7 +172,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                     name="disable_gzip"
                     render={({field}) => (
                       <FormItem className="flex justify-end">
-                        <FormLabel className="min-w-[100px] justify-end">禁用 Gzip</FormLabel>
+                        <FormLabel className="min-w-[100px] justify-end">禁用Gzip</FormLabel>
                         <FormControl>
                           <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
                         </FormControl>
@@ -270,7 +274,7 @@ export default function AdvancedOption({open, config, onClose, onSubmit}: Advanc
                 <FormItem className="flex">
                   <FormLabel className="min-w-[100px] justify-end items-start">请求头</FormLabel>
                   <FormControl>
-                    <Textarea className="text-sm placeholder:text-muted-foreground/50 h-30"
+                    <Textarea className="text-sm placeholder:text-muted-foreground/50 h-30 break-all"
                               placeholder="User-Agent: xxx" {...field}
                     />
                   </FormControl>

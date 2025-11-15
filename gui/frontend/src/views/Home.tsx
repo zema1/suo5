@@ -17,7 +17,6 @@ import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {ConnectStatus, Feature} from "@/views/types";
 import LogView from "@/views/Log";
 import Footer from "@/views/Footer";
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 
 export default function Home() {
   const [openAdvanced, setOpenAdvanced] = useState(false);
@@ -48,9 +47,9 @@ export default function Home() {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      method: "",
+      method: "GET",
       target: "",
-      listen: "",
+      listen: "127.0.0.1:1080",
       username: "",
       password: "",
       mode: "auto",
@@ -67,8 +66,10 @@ export default function Home() {
 
   const updateFormValue = (new_config: suo5.Suo5Config) => {
     Object.keys(FormSchema.innerType().shape).forEach((key) => {
-      // @ts-ignore
-      form.setValue(key, new_config[key]);
+      if (new_config[key] !== undefined) {
+        // @ts-ignore
+        form.setValue(key, new_config[key]);
+      }
     })
     if (new_config.forward_target?.length > 0) {
       form.setValue('feature', Feature.FORWARD)
@@ -91,6 +92,22 @@ export default function Home() {
     await RunSuo5WithConfig(finial_config)
   }
 
+  const onFormError = (errors: any) => {
+    console.log('表单验证错误:', errors)
+    const errorMessages = Object.keys(errors).map(key => {
+      const error = errors[key]
+      const fieldNames: Record<string, string> = {
+        method: '请求方法',
+        target: '目标地址',
+        listen: '监听地址',
+        forward_target: '转发地址',
+        template_target: '模板地址'
+      }
+      return `${fieldNames[key] || key}: ${error.message || '此字段为必填项'}`
+    }).join(', ')
+    setErrorMessage(`表单验证失败: ${errorMessages}`)
+  }
+
   const onConnectSuccess = (e: string) => {
     setStatus(ConnectStatus.SUCCESS)
     setConnectDisabled(false)
@@ -103,6 +120,8 @@ export default function Home() {
         mode = "半双工"
       } else if (e == "classic") {
         mode = "短连接"
+      } else if (e == "full") {
+        mode = "全双工"
       }
 
       if (pre.forward_target) {
@@ -174,7 +193,7 @@ export default function Home() {
 
   useEffect(() => {
     DefaultSuo5Config().then((defaultConfig) => {
-      defaultConfig.target = 'http://localhost:8011/tomcat_test_war_exploded/suo5_new.jsp'
+      // defaultConfig.target = 'http://localhost:8011/tomcat_test_war_exploded/suo5_new.jsp'
       setConfig(defaultConfig)
       updateFormValue(defaultConfig)
     });
@@ -192,8 +211,8 @@ export default function Home() {
     <div className="flex flex-col h-full">
       <div className="flex flex-col grow min-h-0 gap-y-4 p-4">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onConnecting)}
-                className="flex flex-col gap-y-4 bg-card text-card-foreground border border-border/50 rounded-md shadow p-4">
+          <form onSubmit={form.handleSubmit(onConnecting, onFormError)}
+                className="flex flex-col gap-y-4 bg-card text-card-foreground border border-border/80 rounded-md shadow p-4">
             <div className="flex gap-4">
               <FormField
                 control={form.control}
@@ -221,82 +240,43 @@ export default function Home() {
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="listen"
-              render={({field}) => (
-                <FormItem className="flex *:h-8 *:text-sm w-full">
-                  <FormLabel className="min-w-[36px]">监听</FormLabel>
-                  <FormControl>
-                    <Input {...field}/>
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
             <div className="flex gap-4">
               <FormField
                 control={form.control}
-                name="feature"
+                name="listen"
                 render={({field}) => (
-                  <FormItem className="flex *:h-8 *:text-sm">
-                    <FormLabel className="min-w-[36px]">功能</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger size="sm">
-                          <SelectValue/>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="socks5">开启 Socks5 服务</SelectItem>
-                        <SelectItem value="forward">转发到远程地址</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <FormItem className="flex *:h-8 *:text-sm w-full">
+                    <FormLabel className="min-w-[36px]">监听</FormLabel>
+                    <FormControl>
+                      <Input {...field}/>
+                    </FormControl>
                   </FormItem>
                 )}
               />
 
-              {watchedFeature === 'socks5' && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="username"
-                    render={({field}) => (
-                      <FormItem className="flex *:h-8 *:text-sm w-full">
-                        <FormControl>
-                          <Input placeholder="(可选) 用户名" {...field}/>
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+              <FormField
+                control={form.control}
+                name="username"
+                render={({field}) => (
+                  <FormItem className="flex *:h-8 *:text-sm w-full">
+                    <FormControl>
+                      <Input placeholder="(可选) 用户名" {...field}/>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({field}) => (
-                      <FormItem className="flex *:h-8 *:text-sm w-full">
-                        <FormControl>
-                          <Input placeholder="(可选) 密码" {...field}/>
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
-
-              {watchedFeature === 'forward' && (
-                <FormField
-                  control={form.control}
-                  name="forward_target"
-                  render={({field}) => (
-                    <FormItem className="flex *:h-8 *:text-sm w-full">
-                      <FormControl>
-                        <Input placeholder="远程可访问的地址，如 10.10.10.1:22" {...field}/>
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={form.control}
+                name="password"
+                render={({field}) => (
+                  <FormItem className="flex *:h-8 *:text-sm w-full">
+                    <FormControl>
+                      <Input placeholder="(可选) 密码" {...field}/>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="flex gap-4">
@@ -305,7 +285,7 @@ export default function Home() {
                 name="mode"
                 render={({field}) => (
                   <FormItem className="flex *:h-8 *:text-sm w-full">
-                    <FormLabel className="min-w-[36px]">模式</FormLabel>
+                    <FormLabel className="min-w-[36px]">协议</FormLabel>
                     <FormControl>
                       <RadioGroup className="flex gap-x-4 w-full  *:h-8 *:text-sm"
                                   onValueChange={field.onChange}

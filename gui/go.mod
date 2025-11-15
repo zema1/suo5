@@ -2,6 +2,8 @@ module changeme
 
 go 1.20
 
+replace github.com/gorilla/websocket v1.5.3 => github.com/zema1/websocket v0.0.0-20240728051525-7fc49edb27c2
+
 require (
 	github.com/wailsapp/wails/v2 v2.9.0
 	github.com/zema1/suo5 v1.3.2-0.20250219115440-31983ee59a83

@@ -66,7 +66,7 @@ export default function LogView({status, className, ...props}: ComponentProps<'d
     }
   }, [status]);
 
-  const baseClass = "flex flex-1 flex-col space-y-4 bg-muted/50 border border-border/50 rounded [&>p]:m-0 [&>p]:text-sm min-h-0"
+  const baseClass = "flex flex-1 flex-col space-y-4 bg-muted border border-border/50 rounded [&>p]:m-0 [&>p]:text-sm min-h-0"
 
   return (
     <div

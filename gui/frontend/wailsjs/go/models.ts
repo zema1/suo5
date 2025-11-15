@@ -41,6 +41,8 @@ export namespace suo5 {
 	    max_body_size: number;
 	    classic_poll_qps: number;
 	    retry_count: number;
+	    classic_poll_interval: number;
+	    impersonate_browser: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -67,6 +69,8 @@ export namespace suo5 {
 	        this.max_body_size = source["max_body_size"];
 	        this.classic_poll_qps = source["classic_poll_qps"];
 	        this.retry_count = source["retry_count"];
+	        this.classic_poll_interval = source["classic_poll_interval"];
+	        this.impersonate_browser = source["impersonate_browser"];
 	    }
 	}
 
