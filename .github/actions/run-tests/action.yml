@@ -84,7 +84,7 @@ runs:
           local redirect=$5
           
           if [ "$enabled" = "true" ]; then
-            ./suo5_test -debug -t "$url" -T https://www.bing.com -mode "$mode" $GZIP_FLAG --retry $retry -r "$redirect"
+            ./suo5_test -debug -t "$url" -T https://example.com/ -mode "$mode" $GZIP_FLAG --retry $retry -r "$redirect"
           fi
         }
         

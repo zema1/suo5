@@ -503,11 +503,16 @@
                             conn.Accept = value;
                             break;
                         case "Connection":
+                            conn.Headers.Add("Connection", "close");
                             break;
                         case "Content-Type":
                             conn.ContentType = value;
                             break;
                         case "Content-Length":
+                            conn.ContentLength = newBody.Length;
+                            break;
+                        case "Content-Encoding":
+                        case "Transfer-Encoding":
                             break;
                         case "Expect":
                             conn.Expect = value;
@@ -517,6 +522,9 @@
                             break;
                         case "User-Agent":
                             conn.UserAgent = value;
+                            break;
+                        case "Host":
+                            conn.Host = (new Uri(redirectUrl)).Host;
                             break;
                         default:
                             if (!WebHeaderCollection.IsRestricted(key, false))
@@ -539,6 +547,7 @@
                 while ((bytesRead = responseStream.Read(buffer, 0, buffer.Length)) > 0)
                 {
                     Response.OutputStream.Write(buffer, 0, bytesRead);
+                    Response.Flush();
                 }
 
                 responseStream.Close();

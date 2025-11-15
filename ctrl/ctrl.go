@@ -199,6 +199,11 @@ func testAndExit(socks5 string, remote string, timeout time.Duration) error {
 		return err
 	}
 	req.Close = true
+	ua := suo5.RandUserAgent()
+	req.Header.Set("User-Agent", ua)
+	for k, v := range suo5.GetBrowserHeaders(ua) {
+		req.Header.Set(k, v)
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		if os.IsTimeout(err) {
