@@ -53,14 +53,22 @@ jobs:
         include:
           - image: expertsystems/resin
             mount: /var/resin/webapps/ROOT/assets
+            test_redirect: 'true'
           - image: reajason/resin:3.1.16
             mount: /usr/local/resin3/webapps/ROOT/assets
+            test_redirect: 'true'
+          # java.lang.NoClassDefFoundError: Could not initialize class sun.net.www.protocol.http.HttpURLConnection
+          #        at sun.net.www.protocol.http.Handler.openConnection(Handler.java:62)
+          #        at sun.net.www.protocol.http.Handler.openConnection(Handler.java:57)
           - image: reajason/resin:3.1.8-jdk7
             mount: /usr/local/resin3/webapps/ROOT/assets
+            test_redirect: 'false'
           - image: reajason/resin:4.0.67-jdk11
             mount: /usr/local/resin4/webapps/ROOT/assets
+            test_redirect: 'true'
           - image: reajason/resin:4.0.58
             mount: /usr/local/resin4/webapps/ROOT/assets
+            test_redirect: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -74,6 +82,7 @@ jobs:
       - uses: ./.github/actions/run-tests
         with:
           service_port: 8080
+          test_redirect: ${{ matrix.test_redirect }}
 
 
   jetty-test:
@@ -138,7 +147,7 @@ jobs:
             mount: /usr/local/jboss/standalone/deployments
           - image: reajason/jboss:eap-7-jdk8
             mount: /usr/local/jboss/standalone/deployments
-# + docker compose ps -a
+    # + docker compose ps -a
     #NAME               IMAGE                       COMMAND                  SERVICE     CREATED         STATUS                              PORTS
     #suo5-nginx-1       nginx                       "/docker-entrypoint.…"   nginx       7 seconds ago   Up 5 seconds                        0.0.0.0:81->80/tcp, [::]:81->80/tcp
     #suo5-nginx-top-1   nginx                       "/docker-entrypoint.…"   nginx-top   7 seconds ago   Up 5 seconds                        0.0.0.0:80->80/tcp, [::]:80->80/tcp
@@ -146,8 +155,8 @@ jobs:
     #suo5-srv2-1        jboss/wildfly:9.0.1.Final   "/opt/jboss/wildfly/…"   srv2        7 seconds ago   Exited (1) Less than a second ago
     #suo5-srv3-1        jboss/wildfly:9.0.1.Final   "/opt/jboss/wildfly/…"   srv3        7 seconds ago   Exited (1) Less than a second ago
 
-#          - image: jboss/wildfly:9.0.1.Final
-#            mount: /opt/jboss/wildfly/standalone/deployments
+    #          - image: jboss/wildfly:9.0.1.Final
+    #            mount: /opt/jboss/wildfly/standalone/deployments
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -225,6 +234,7 @@ jobs:
           direct_url: 'http://127.0.0.1:82/console/assets/suo5.jsp'
           nginx_inner_url: 'http://127.0.0.1:81/console/assets/suo5.jsp'
           nginx_url: 'http://127.0.0.1:80/console/assets/suo5.jsp'
+          test_redirect: 'false' # 似乎和上面 resin 一样的问题，javaagent 导致 httpurlconnection 找不到?
 
 
 
