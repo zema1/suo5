@@ -5,6 +5,10 @@ inputs:
     description: "setup jar"
     default: 'false'
     required: false
+  dotnet:
+    description: "setup dotnet"
+    default: 'false'
+    required: false
 runs:
   using: composite
   steps:
@@ -30,3 +34,7 @@ runs:
       shell: bash
       working-directory: ./assets
       run: jar cvf assets.war suo5.jsp
+    - if: inputs.dotnet == 'true'
+      shell: bash
+      working-directory: ./assets
+      run: cp -r ./.net/* ./
