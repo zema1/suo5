@@ -94,7 +94,7 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		err = checkConnectMode(ctx, config)
 		if err != nil {
 			if i == retry {
-				return nil, fmt.Errorf("handshake failed after %d retries: %s", retry)
+				return nil, fmt.Errorf("handshake failed after %d retries", retry)
 			} else {
 				log.Errorf("handshake failed: %s, retrying %d/%d", err, i+1, retry)
 			}

