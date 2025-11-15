@@ -4,10 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	log "github.com/kataras/golog"
-	"github.com/pkg/errors"
-	"github.com/zema1/rawhttp"
-	"github.com/zema1/suo5/netrans"
 	"io"
 	"net"
 	"net/http"
@@ -16,6 +12,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/kataras/golog"
+	"github.com/pkg/errors"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 )
 
 type FullChunkedStreamFactory struct {
@@ -66,7 +67,7 @@ func NewFullChunkedStreamFactory(ctx context.Context, config *Suo5Config, rawCli
 }
 
 func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
-	tunnel, err = h.BaseStreamFactory.Create(id)
+	tunnel, err = h.Create(id)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client
 }
 
 func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
-	tunnel, err = h.BaseStreamFactory.Create(id)
+	tunnel, err = h.Create(id)
 	if err != nil {
 		return nil, err
 	}

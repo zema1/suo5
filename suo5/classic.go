@@ -69,9 +69,9 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 				return
 			default:
 				time.Sleep(time.Second * 5)
-				s.BaseStreamFactory.tunnelMu.Lock()
-				log.Debugf("connection count: %d", len(s.BaseStreamFactory.tunnels))
-				s.BaseStreamFactory.tunnelMu.Unlock()
+				s.tunnelMu.Lock()
+				log.Debugf("connection count: %d", len(s.tunnels))
+				s.tunnelMu.Unlock()
 			}
 		}
 	}()
@@ -79,7 +79,7 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 }
 
 func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
-	tunnel, err = c.BaseStreamFactory.Create(id)
+	tunnel, err = c.Create(id)
 	if err != nil {
 		return nil, err
 	}

@@ -162,6 +162,6 @@ func UnmarshalFrameWithBuffer(r io.Reader) (map[string][]byte, []byte, error) {
 func RandBytes(max int) []byte {
 	length := rand.Intn(max)
 	b := make([]byte, length)
-	rand.Read(b)
+	rand.Read(b) //nolint:staticcheck
 	return b
 }
