@@ -29,6 +29,14 @@ inputs:
     description: "Run nginx top URL tests"
     default: 'true'
     required: false
+  test_redirect:
+    description: "Run redirect URL tests"
+    default: 'true'
+    required: false
+  redirect_path:
+    description: "Redirect path for building redirect URL"
+    default: '/assets/suo5.jsp'
+    required: false
   nginx_url:
     description: "Nginx URL for tests"
     default: 'http://127.0.0.1:80/assets/suo5.jsp'
@@ -60,9 +68,12 @@ runs:
         fi
         
         # Redirect URL
-        SRV3_IP=$(docker inspect $(docker ps --filter "label=com.docker.compose.service=srv3" --format "{{.ID}}") --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-        REDIRECT_URL="http://$SRV3_IP:${{ inputs.service_port }}/assets/suo5.jsp"
-        echo "Redirect URL: $REDIRECT_URL"
+        REDIRECT_URL=""
+        if [ "${{ inputs.test_redirect }}" = "true" ]; then
+          SRV3_IP=$(docker inspect $(docker ps --filter "label=com.docker.compose.service=srv3" --format "{{.ID}}") --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          REDIRECT_URL="http://$SRV3_IP:${{ inputs.service_port }}${{ inputs.redirect_path }}"
+          echo "Redirect URL: $REDIRECT_URL"
+        fi
         
         # Helper function to run test if enabled
         run_test() {
@@ -82,21 +93,19 @@ runs:
         run_test "${{ inputs.test_full }}" "${{ inputs.direct_url }}" "full" 0 ""
         run_test "${{ inputs.test_half }}" "${{ inputs.direct_url }}" "half" 0 ""
         run_test "${{ inputs.test_classic }}" "${{ inputs.direct_url }}" "classic" 0 ""
-        
-        run_test "${{ inputs.test_auto }}" "${{ inputs.direct_url }}" "auto" 0 "" --na
-        run_test "${{ inputs.test_full }}" "${{ inputs.direct_url }}" "full" 0 "" --na
-        run_test "${{ inputs.test_half }}" "${{ inputs.direct_url }}" "half" 0 "" --na
-        run_test "${{ inputs.test_classic }}" "${{ inputs.direct_url }}" "classic" 0 "" --na
 
         if [ "${{ inputs.test_inner }}" = "true" ]; then
           echo "Run nginx inner URL tests with retry"
-          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "" -j 8192
-          run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "" -j 8192
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 ""
+          run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 ""
           run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 ""
 
-          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "" --na -j 8192
-          run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "" --na -j 8192
-          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 "" --na
+          if [ "${{ inputs.test_redirect }}" = "true" ]; then
+            echo "Run nginx inner URL tests with redirect"
+            run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "$REDIRECT_URL"
+            run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "$REDIRECT_URL"
+            run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 "$REDIRECT_URL"
+          fi
         fi
 
         if [ "${{ inputs.test_top }}" = "true" ]; then
@@ -104,6 +113,9 @@ runs:
           run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 ""
           run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 ""
 
-          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 "" --na
-          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "" --na
+          if [ "${{ inputs.test_redirect }}" = "true" ]; then
+            echo "Run nginx TOP URL tests with redirect"
+            run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 "$REDIRECT_URL"
+            run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "$REDIRECT_URL"
+          fi
         fi

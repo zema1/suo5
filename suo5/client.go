@@ -88,11 +88,21 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		return nil, err
 	}
 
-	err = checkConnectMode(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to %w", err)
+	retry := config.RetryCount
+
+	for i := 0; i <= retry; i++ {
+		err = checkConnectMode(ctx, config)
+		if err != nil {
+			if i == retry {
+				return nil, fmt.Errorf("handshake failed after %d retries: %s", retry)
+			} else {
+				log.Errorf("handshake failed: %s, retrying %d/%d", err, i+1, retry)
+			}
+		} else {
+			log.Infof("suo5 is going to work on %s mode", config.Mode)
+			break
+		}
 	}
-	log.Infof("suo5 is going to work on %s mode", config.Mode)
 
 	var factory StreamFactory
 	switch config.Mode {
