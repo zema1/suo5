@@ -21,6 +21,14 @@ inputs:
     description: "Run classic mode tests"
     default: 'true'
     required: false
+  test_inner:
+    description: "Run nginx inner URL tests"
+    default: 'true'
+    required: false
+  test_top:
+    description: "Run nginx top URL tests"
+    default: 'true'
+    required: false
   nginx_url:
     description: "Nginx URL for tests"
     default: 'http://127.0.0.1:80/assets/suo5.jsp'
@@ -79,19 +87,23 @@ runs:
         run_test "${{ inputs.test_full }}" "${{ inputs.direct_url }}" "full" 0 "" --na
         run_test "${{ inputs.test_half }}" "${{ inputs.direct_url }}" "half" 0 "" --na
         run_test "${{ inputs.test_classic }}" "${{ inputs.direct_url }}" "classic" 0 "" --na
-        
-        echo "Run nginx inner URL tests with retry"
-        run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "" -j 8192
-        run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "" -j 8192
-        run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 ""
-        
-        run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "" --na -j 8192
-        run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "" --na -j 8192
-        run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 "" --na
-        
-        echo "Run nginx TOP URL tests with retry"
-        run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 ""
-        run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 ""
-        
-        run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 "" --na
-        run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "" --na
+
+        if [ "${{ inputs.test_inner }}" = "true" ]; then
+          echo "Run nginx inner URL tests with retry"
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "" -j 8192
+          run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "" -j 8192
+          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 ""
+
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "" --na -j 8192
+          run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "" --na -j 8192
+          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 "" --na
+        fi
+
+        if [ "${{ inputs.test_top }}" = "true" ]; then
+          echo "Run nginx TOP URL tests with retry"
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 ""
+          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 ""
+
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 "" --na
+          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "" --na
+        fi

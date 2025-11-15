@@ -351,6 +351,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # mono 这个的 Buffer = false 似乎不生效，本地测试 .net 可以用，导致 half 模式下的 nginx 会失败
           - image: junalmeida/mono-web:latest
             mount: /var/www/sample-app
     steps:
@@ -386,8 +387,8 @@ jobs:
           direct_url: 'http://127.0.0.1:82/suo5.aspx'
           nginx_inner_url: 'http://127.0.0.1:81/suo5.aspx'
           nginx_url: 'http://127.0.0.1:80/suo5.aspx'
-          test_auto: 'true'
           test_full: 'false'
+          test_inner: 'false'
 
 
 #  php-test:
@@ -434,41 +435,3 @@ jobs:
 #          ./suo5_test -debug -t ${{ env.SUO5_NGINX_INNER_URL }} -T https://www.bing.com -mode classic --retry 5
 #          
 #
-#  donet-test:
-#    name: DoNet
-#    needs: build-test-binary
-#    runs-on: ubuntu-latest
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        include:
-#          - image: junalmeida/mono-web:latest
-#            mount: /var/www/sample-app
-#    env:
-#      SUO5_ASPX_URL: http://127.0.0.1:8080/suo5.aspx
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: ./.github/actions
-#      - run: |
-#          set -ex
-#          mkdir -p config
-#          cat << EOF > ./config/sample.webapp
-#          <?xml version="1.0" encoding="UTF-8"?>
-#          <apps>
-#            <web-application>
-#            <name>root</name>
-#            <vhost>*</vhost>
-#            <vport>-1</vport>
-#            <vpath>/</vpath>
-#            <path>/var/www/sample-app/</path>
-#            </web-application>
-#          </apps>
-#          EOF
-#          cat config/sample.webapp
-#          cp ./assets/.net/suo5.aspx ./assets/suo5.aspx
-#          docker run -it --rm -d -p8080:80 -v ${{ github.workspace }}/config:/etc/mono/pools -v ${{ github.workspace }}/assets:${{ matrix.mount }} ${{ matrix.image }}
-#          chmod +x ./helper
-#          ./helper ready -u ${{ env.SUO5_ASPX_URL }} -t 60
-#          chmod +x ./suo5_test
-#          ./suo5_test -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode classic
-#          ./suo5_test -debug -t ${{ env.SUO5_ASPX_URL }} -T https://www.bing.com -mode half
