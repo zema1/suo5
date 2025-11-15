@@ -215,3 +215,32 @@ func (m *multiReadCloser) Close() error {
 	}
 	return err
 }
+func NoOpReader(r io.Reader) io.Reader {
+	return r
+}
+
+// OffsetReader 创建一个从指定偏移量开始读取的 Reader
+func OffsetReader(r io.Reader, offset int64) io.Reader {
+	// 如果 Reader 支持 Seek，直接使用 Seek
+	if seeker, ok := r.(io.Seeker); ok {
+		_, err := seeker.Seek(offset, io.SeekStart)
+		if err == nil {
+			return r
+		}
+	}
+
+	// 否则通过读取来跳过到指定偏移量
+	_, err := io.CopyN(io.Discard, r, offset)
+	if err != nil && err != io.EOF {
+		return &errorReader{err: err}
+	}
+	return r
+}
+
+type errorReader struct {
+	err error
+}
+
+func (e *errorReader) Read(p []byte) (n int, err error) {
+	return 0, e.err
+}

@@ -1,14 +1,10 @@
 package suo5
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/chainreactors/proxyclient"
-	log "github.com/kataras/golog"
-	utls "github.com/refraction-networking/utls"
-	"github.com/zema1/rawhttp"
-	"github.com/zema1/suo5/netrans"
 	"io"
 	"math/rand"
 	"net"
@@ -19,6 +15,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/chainreactors/proxyclient"
+	log "github.com/kataras/golog"
+	utls "github.com/refraction-networking/utls"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 )
 
 type Suo5Client struct {
@@ -36,9 +38,8 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		return nil, err
 	}
 
-	log.Infof("method: %s", config.Method)
 	log.Infof("header: %s", config.HeaderString())
-	log.Infof("connecting to target %s", config.Target)
+	log.Infof("connecting to target %s", config.GetTarget())
 
 	if config.DisableGzip {
 		log.Infof("disable gzip")
@@ -140,7 +141,7 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 
 	pool := &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 1024*32)
+			return make([]byte, DefaultBufferSize)
 		},
 	}
 
@@ -156,55 +157,70 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 }
 
 func checkConnectMode(ctx context.Context, config *Suo5Config) error {
-	// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
-	timeout := config.TimeoutTime()
-	if timeout < 6*time.Second {
-		timeout = 6 * time.Second
-	}
 
-	rawClient, err := NewRawHttpClient(config.UpstreamProxy, timeout, timeout)
-	if err != nil {
-		return err
-	}
 	randLen := rand.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
 	}
 	identifier := RandString(randLen)
 	actionData := NewActionData(RandString(8), []byte(identifier))
-	data := BuildBody(actionData, config.RedirectURL, config.SessionId, Checking)
-	ch := make(chan []byte, 1)
-	ch <- data
-
-	var contentLength int64
-	if config.Mode == AutoDuplex {
-		contentLength = -1
-		actionData["a"] = []byte{0x01}
-	} else {
-		contentLength = int64(len(data))
-		actionData["a"] = []byte{0x00}
-	}
-
-	req := config.NewRequest(ctx, netrans.NewChannelReader(ch), contentLength)
 
 	now := time.Now()
-	go func() {
-		// no need to use stream in classic mode
-		if config.Mode != Classic {
+	var resp *http.Response
+	if config.Mode == AutoDuplex || config.Mode == FullDuplex {
+		actionData["a"] = []byte{0x01}
+		data := BuildBody(actionData, config.RedirectURL, config.SessionId, Checking)
+		ch := make(chan []byte, 1)
+		ch <- data
+
+		req := config.NewRequest(ctx, netrans.NewChannelReader(ch), -1)
+
+		go func() {
+			// no need to use stream in classic mode
 			time.Sleep(time.Second * 3)
+			close(ch)
+		}()
+
+		// 这里的 client 需要定义 timeout，不要用外面没有 timeout 的 rawClient
+		timeout := config.TimeoutTime()
+		if timeout < 6*time.Second {
+			timeout = 6 * time.Second
 		}
-		close(ch)
-	}()
-	resp, err := rawClient.Do(req)
-	if err != nil {
-		return err
+		rawClient, err := NewRawHttpClient(config.UpstreamProxy, timeout, timeout)
+		if err != nil {
+			return err
+		}
+		resp, err = rawClient.Do(req)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		actionData["a"] = []byte{0x00}
+		data := BuildBody(actionData, config.RedirectURL, config.SessionId, Checking)
+		req := config.NewRequest(ctx, bytes.NewReader(data), int64(len(data)))
+
+		tr, err := NewHttpTransport(config.UpstreamProxy, config.TimeoutTime())
+		if err != nil {
+			return err
+		}
+		normalClient := &http.Client{
+			Timeout:   config.TimeoutTime(),
+			Transport: tr,
+		}
+		resp, err = normalClient.Do(req)
+		if err != nil {
+			return err
+		}
 	}
+
 	defer resp.Body.Close()
 
 	// 如果独到响应的时间在3s内，说明请求没有被缓存, 那么就可以变成全双工的
 	// 如果响应时间在 3~6s 之间，说明请求被缓存了， 但响应仍然是流式的, 但是可以使用半双工
 	// 否则只能用短链接了
-	echoData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
+	bodyReader := netrans.OffsetReader(resp.Body, int64(config.Offset))
+	echoData, bufData, err := UnmarshalFrameWithBuffer(bodyReader)
 	if err != nil {
 		// 这里不要直接返回，有时虽然 eof 了但是数据是对的，可以使用
 		// todo: why listener eof
@@ -214,12 +230,13 @@ func checkConnectMode(ctx context.Context, config *Suo5Config) error {
 		log.Errorf("response are as follows:\n%s", string(header)+string(bufData))
 		return fmt.Errorf("got unexpected body, remote server test failed")
 	}
+	duration := time.Since(now).Milliseconds()
+
 	// ignore bodyData
-	sessionData, _, err := UnmarshalFrameWithBuffer(resp.Body)
+	sessionData, _, err := UnmarshalFrameWithBuffer(bodyReader)
 	if err != nil {
 		return err
 	}
-	duration := time.Since(now).Milliseconds()
 
 	if !strings.EqualFold(string(echoData["dt"]), identifier) {
 		header, _ := httputil.DumpResponse(resp, false)
@@ -232,6 +249,7 @@ func checkConnectMode(ctx context.Context, config *Suo5Config) error {
 	log.Infof("handshake success, using session id %s", sid)
 
 	if config.Mode == AutoDuplex {
+		log.Infof("handshake duration: %d ms", duration)
 		if duration < 3000 {
 			config.Mode = FullDuplex
 		} else if duration < 5000 {
@@ -386,6 +404,9 @@ func NewHttpTransport(upstreamProxies []string, timeout time.Duration) (*http.Tr
 			defer cancel()
 
 			conn, err := dialFunc(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
 
 			colonPos := strings.LastIndex(addr, ":")
 			if colonPos == -1 {

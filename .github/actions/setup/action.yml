@@ -20,6 +20,7 @@ runs:
     - uses: docker/setup-docker-action@v4
       with:
         version: 25.0.5
+    - uses: docker/setup-compose-action@v1
     - if: inputs.jar == 'true'
       uses: actions/setup-java@v4
       with:
@@ -28,4 +29,4 @@ runs:
     - if: inputs.jar == 'true'
       shell: bash
       working-directory: ./assets
-      run: jar cvf assets.war suo5.jsp suo5.jspx
+      run: jar cvf assets.war suo5.jsp

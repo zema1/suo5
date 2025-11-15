@@ -104,6 +104,9 @@ func ReadFrameBase64(r io.Reader) (*DataFrame, error) {
 	if err != nil {
 		return nil, errors.New("failed to decode header base64: " + err.Error())
 	}
+	if len(headerBytes) != 6 {
+		return nil, errors.New("invalid header length, expected 6 bytes after decoding")
+	}
 	// Extract obs and length from the decoded header
 	obs := make([]byte, 2)
 	copy(obs, headerBytes[:2])

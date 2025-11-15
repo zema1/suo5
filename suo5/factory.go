@@ -30,6 +30,8 @@ type IdData struct {
 	noDelay bool
 }
 
+type IdWriteFunc func(idata *IdData) error
+
 type BaseStreamFactory struct {
 	once    sync.Once
 	config  *Suo5Config
@@ -43,7 +45,7 @@ type BaseStreamFactory struct {
 
 	writeChan chan *IdData
 
-	directWriteFunc func(string, []byte) error
+	directWriteFunc IdWriteFunc
 	plexWriteFunc   func([]byte) error
 	ctx             context.Context
 	cancel          func()
@@ -53,7 +55,7 @@ func NewBaseStreamFactory(rootCtx context.Context, config *Suo5Config) *BaseStre
 	ctx, cancel := context.WithCancel(context.Background())
 
 	limiter := rate.NewLimiter(rate.Limit(config.ClassicPollQPS), config.ClassicPollQPS)
-	plex := &BaseStreamFactory{
+	fac := &BaseStreamFactory{
 		config:     config,
 		limiter:    limiter,
 		tunnels:    make(map[string]*TunnelConn),
@@ -68,16 +70,16 @@ func NewBaseStreamFactory(rootCtx context.Context, config *Suo5Config) *BaseStre
 		select {
 		case <-rootCtx.Done():
 			log.Infof("start to cleanup remote connections")
-			plex.Shutdown()
+			fac.Shutdown()
 		case <-ctx.Done():
 		}
 	}()
 
-	plex.sync()
-	return plex
+	fac.startPlex()
+	return fac
 }
 
-func (s *BaseStreamFactory) sync() {
+func (s *BaseStreamFactory) startPlex() {
 	go func() {
 		defer log.Infof("sync remote connection finished")
 		defer s.Shutdown()
@@ -86,33 +88,11 @@ func (s *BaseStreamFactory) sync() {
 		// 这里失败需要先 cancel
 		defer s.cancel()
 
-		reliablePlexWrite := func(data []byte) error {
-			success := false
-			for i := 0; i <= s.config.RetryCount; i++ {
-				err := s.plexWriteFunc(data)
-				if err == nil {
-					success = true
-					break
-				}
-				if errors.Is(err, errExpectedRetry) {
-					log.Debugf("plex write %s, retry %d/%d", err, i, s.config.RetryCount)
-					continue
-				} else {
-					return err
-				}
-			}
-			if !success {
-				return fmt.Errorf("retry limit exceeded, consider to increase retry count")
-			}
-			return nil
-		}
-
 		noDelayPlexWrite := func(data []byte) {
 			log.Debugf("no delay write to remote, data: %d", len(data))
 			go func() {
-				if err := reliablePlexWrite(data); err != nil {
+				if err := s.reliablePlexWrite(data); err != nil {
 					log.Errorf("failed to write plex data to remote, %v", err)
-					// s.cancel()
 				}
 			}()
 		}
@@ -128,17 +108,9 @@ func (s *BaseStreamFactory) sync() {
 					return
 				}
 				if s.directWriteFunc != nil {
-					log.Debugf("write to remote, id: %s, data: %d", idData.id, len(idData.data))
-					if err := s.directWriteFunc(idData.id, idData.data); err != nil {
-						log.Errorf("failed to write to remote, %v", err)
-						s.tunnelMu.Lock()
-						if conn, ok := s.tunnels[idData.id]; ok {
-							s.tunnelMu.Unlock()
-							_ = conn.Close()
-						} else {
-							s.tunnelMu.Unlock()
-						}
-
+					err := s.directWriteFunc(idData)
+					if err != nil {
+						log.Errorf("failed to write direct data to remote, %v", err)
 					}
 					continue
 				}
@@ -179,9 +151,9 @@ func (s *BaseStreamFactory) sync() {
 				bufCopy := make([]byte, len(buf))
 				copy(bufCopy, buf)
 
-				err = reliablePlexWrite(bufCopy)
+				err = s.reliablePlexWrite(bufCopy)
 				if err != nil {
-					log.Errorf("failed to write plex data to remote, %v", err)
+					log.Errorf("failed to write plex data to remote 2, %v", err)
 					return
 				}
 			}
@@ -193,7 +165,7 @@ func (s *BaseStreamFactory) OnRemotePlexWrite(plexWriteFunc func([]byte) error) 
 	s.plexWriteFunc = plexWriteFunc
 }
 
-func (s *BaseStreamFactory) OnRemoteWrite(idWriteFunc func(string, []byte) error) {
+func (s *BaseStreamFactory) OnRemoteDirectWrite(idWriteFunc IdWriteFunc) {
 	s.directWriteFunc = idWriteFunc
 }
 
@@ -213,16 +185,28 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 		if err != nil {
 			return err
 		}
-		id := string(m["id"])
-		if id == "" {
-			log.Warnf("empty id in data packet, packet will be dropped")
-			continue
-		}
+
 		actions := m["ac"]
 		if len(actions) != 1 {
 			return fmt.Errorf("invalid action when read %v", actions)
 		}
+
+		if actions[0] == ActionDirty {
+			log.Debugf("recv dirty chunk, size %d", len(m["d"]))
+			continue
+		}
+
+		id := string(m["id"])
+		if id == "" {
+			log.Warnf("empty id in data packet, packet will be dropped, action: %v", actions[0])
+			continue
+		}
 		log.Debugf("recv data from remote, id: %s, action: %v, data: %d", id, actions, len(m["dt"]))
+
+		if actions[0] == ActionHeartbeat {
+			log.Debugf("received heartbeat from remote, id: %s", id)
+			continue
+		}
 
 		s.tunnelMu.Lock()
 		conn, ok := s.tunnels[id]
@@ -260,13 +244,36 @@ func (s *BaseStreamFactory) DispatchRemoteData(reader io.Reader) error {
 	return nil
 }
 
+func (s *BaseStreamFactory) reliablePlexWrite(data []byte) error {
+	success := false
+	for i := 0; i <= s.config.RetryCount; i++ {
+		err := s.plexWriteFunc(data)
+		if err == nil {
+			success = true
+			break
+		}
+		log.Infof("failed to write plex data, retrying %d/%d, %s", i, s.config.RetryCount, err)
+	}
+	if !success {
+		return fmt.Errorf("retry limit exceeded, consider to increase retry count")
+	}
+	return nil
+}
+
 func (s *BaseStreamFactory) Create(id string) (*TunnelConn, error) {
 	s.tunnelMu.Lock()
 	defer s.tunnelMu.Unlock()
 	if s.closed.Load() {
 		return nil, ErrFactoryStopped
 	}
-	newConn := NewTunnelConn(id, s.config, s.writeChan)
+	newConn := NewTunnelConn(id, s.config, func(idata *IdData) error {
+		select {
+		case s.writeChan <- idata:
+			return nil
+		default:
+			return fmt.Errorf("discard data as write buffer is full, id %s,  len %d", idata.id, len(idata.data))
+		}
+	})
 	newConn.AddCloseCallback(func() {
 		s.Release(id)
 	})

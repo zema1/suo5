@@ -12,28 +12,30 @@ import (
 )
 
 type TunnelConn struct {
-	id        string
-	once      sync.Once
-	mu        sync.Mutex
-	readChan  chan map[string][]byte
-	readBuf   bytes.Buffer
-	writeChan chan *IdData
-	config    *Suo5Config
-	closed    atomic.Bool
-	onClose   []func()
-	ctx       context.Context
-	cancel    func()
+	id            string
+	once          sync.Once
+	closeMu       sync.Mutex
+	writeMu       sync.Mutex
+	readChan      chan map[string][]byte
+	readBuf       bytes.Buffer
+	remoteWrite   IdWriteFunc
+	config        *Suo5Config
+	lastHaveWrite atomic.Bool
+	closed        atomic.Bool
+	onClose       []func()
+	ctx           context.Context
+	cancel        func()
 }
 
-func NewTunnelConn(id string, config *Suo5Config, writeChan chan *IdData) *TunnelConn {
+func NewTunnelConn(id string, config *Suo5Config, remoteWrite IdWriteFunc) *TunnelConn {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &TunnelConn{
-		id:        id,
-		readChan:  make(chan map[string][]byte, 32),
-		writeChan: writeChan,
-		config:    config,
-		ctx:       ctx,
-		cancel:    cancel,
+		id:          id,
+		readChan:    make(chan map[string][]byte, 32),
+		remoteWrite: remoteWrite,
+		config:      config,
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 }
 
@@ -53,14 +55,12 @@ func (s *TunnelConn) ReadUnmarshal() (map[string][]byte, error) {
 }
 
 func (s *TunnelConn) AddCloseCallback(fn func()) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.onClose = append(s.onClose, fn)
 }
 
 func (s *TunnelConn) RemoteData(m map[string][]byte) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.closeMu.Lock()
+	defer s.closeMu.Unlock()
 	if s.closed.Load() {
 		return
 	}
@@ -119,22 +119,21 @@ func (s *TunnelConn) Write(p []byte) (int, error) {
 }
 
 func (s *TunnelConn) WriteRaw(p []byte, noDelay bool) (n int, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	if s.closed.Load() {
 		return 0, io.EOF
 	}
 	if len(p) == 0 {
 		return 0, nil
 	}
+	s.lastHaveWrite.Store(true)
 
-	select {
-	case s.writeChan <- &IdData{s.id, p, noDelay}:
+	err = s.remoteWrite(&IdData{s.id, p, noDelay})
+	if err != nil {
+		return 0, err
+	} else {
 		return len(p), nil
-	default:
-		log.Warnf("write buffer is full, discard current message, data len %d", len(p))
-		return 0, nil
 	}
 }
 
@@ -146,8 +145,8 @@ func (s *TunnelConn) CloseSelf() {
 			fn()
 		}
 
-		s.mu.Lock()
-		defer s.mu.Unlock()
+		s.closeMu.Lock()
+		defer s.closeMu.Unlock()
 
 		close(s.readChan)
 		s.closed.Store(true)
@@ -159,19 +158,44 @@ func (s *TunnelConn) Close() error {
 		log.Debugf("closing tunnel %s", s.id)
 		defer log.Debugf("tunnel closed, %s", s.id)
 		s.cancel()
-		for _, fn := range s.onClose {
-			fn()
-		}
+
 		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 		_, _ = s.WriteRaw(body, false)
 
-		s.mu.Lock()
-		defer s.mu.Unlock()
+		for _, fn := range s.onClose {
+			fn()
+		}
+
+		s.closeMu.Lock()
+		defer s.closeMu.Unlock()
 
 		close(s.readChan)
 		s.closed.Store(true)
 	})
 	return nil
+}
+
+func (s *TunnelConn) SetupActivePoll() {
+	ticker := time.NewTicker(time.Millisecond * time.Duration(s.config.ClassicPollInterval))
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-ticker.C:
+				if s.lastHaveWrite.Load() {
+					s.lastHaveWrite.Store(false)
+					continue
+				}
+				_, err := s.Write(nil)
+				if err != nil {
+					log.Error(err)
+					return
+				}
+			}
+		}
+	}()
 }
 
 func minInt(i int, i2 int) int {

@@ -1,11 +1,249 @@
 package suo5
 
 import (
+	"fmt"
 	"math/rand"
+	"strings"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-const lowerLetterBytes = "abcdefghijklmnopqrstuvwxyz"
+
+// BrowserType 浏览器类型
+type BrowserType string
+
+const (
+	Chrome  BrowserType = "Chrome"
+	Firefox BrowserType = "Firefox"
+	Safari  BrowserType = "Safari"
+	Edge    BrowserType = "Edge"
+	Unknown BrowserType = "Unknown"
+)
+
+// getBrowserType 根据 User-Agent 判断浏览器类型
+func getBrowserType(userAgent string) BrowserType {
+	ua := strings.ToLower(userAgent)
+
+	if strings.Contains(ua, "edg/") {
+		return Edge
+	}
+	if strings.Contains(ua, "chrome/") {
+		return Chrome
+	}
+	if strings.Contains(ua, "firefox/") {
+		return Firefox
+	}
+	if strings.Contains(ua, "safari/") && !strings.Contains(ua, "chrome/") {
+		return Safari
+	}
+	return Unknown
+}
+
+// extractVersion 使用字符串操作提取版本号
+func extractVersion(userAgent, prefix string) string {
+	pos := strings.Index(userAgent, prefix)
+	if pos == -1 {
+		return "120" // 默认版本
+	}
+
+	start := pos + len(prefix)
+	if start >= len(userAgent) {
+		return "120"
+	}
+
+	end := start
+	for end < len(userAgent) {
+		char := userAgent[end]
+		if char == ' ' || char == ';' || char == ')' {
+			break
+		}
+		end++
+	}
+
+	version := userAgent[start:end]
+
+	// 只返回主版本号
+	dotPos := strings.Index(version, ".")
+	if dotPos != -1 {
+		return version[:dotPos]
+	}
+
+	return version
+}
+
+// getPlatform 获取平台信息
+func getPlatform(userAgent string) string {
+	ua := strings.ToLower(userAgent)
+
+	if strings.Contains(ua, "windows") {
+		return "Windows"
+	}
+	if strings.Contains(ua, "mac os x") {
+		return "macOS"
+	}
+	if strings.Contains(ua, "android") {
+		return "Android"
+	}
+	if strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad") {
+		return "iOS"
+	}
+	if strings.Contains(ua, "linux") {
+		return "Linux"
+	}
+	return "Windows" // 默认
+}
+
+// isMobile 检测是否为移动端
+func isMobile(userAgent string) bool {
+	ua := strings.ToLower(userAgent)
+	return strings.Contains(ua, "mobile") || strings.Contains(ua, "android") ||
+		strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad")
+}
+
+// getGreaseBrand 根据浏览器类型获取对应的 GREASE 品牌
+func getGreaseBrand(browserType BrowserType) string {
+	// Chrome 使用的 GREASE 品牌列表
+	chromeBrands := []string{
+		"Not_A Brand",
+		"Not A;Brand",
+		"Chromium",
+		"Not)A;Brand",
+		"Google Chrome",
+		"Not;A=Brand",
+		"Not/A)Brand",
+		"Not:A-Brand",
+	}
+
+	// Edge 使用的 GREASE 品牌列表
+	edgeBrands := []string{
+		"Not_A Brand",
+		"Not A;Brand",
+		"Microsoft Edge",
+		"Not)A;Brand",
+		"Chromium",
+		"Not;A=Brand",
+		"Not/A)Brand",
+	}
+
+	switch browserType {
+	case Chrome:
+		// Chrome 倾向于使用 "Not_A Brand"
+		if rand.Intn(10) < 7 { // 70% 概率
+			return "Not_A Brand"
+		}
+		return chromeBrands[rand.Intn(len(chromeBrands))]
+
+	case Edge:
+		// Edge 更多使用 "Not A;Brand"
+		if rand.Intn(10) < 6 { // 60% 概率
+			return "Not A;Brand"
+		}
+		return edgeBrands[rand.Intn(len(edgeBrands))]
+
+	default:
+		return "Not_A Brand"
+	}
+}
+
+// generateSecChUA 生成 sec-ch-ua 头
+func generateSecChUA(userAgent string, browserType BrowserType) string {
+	if browserType != Chrome && browserType != Edge {
+		return ""
+	}
+	var version string
+	var brandName string
+	switch browserType {
+	case Chrome:
+		version = extractVersion(userAgent, "Chrome/")
+		brandName = "Google Chrome"
+	case Edge:
+		version = extractVersion(userAgent, "Edg/")
+		brandName = "Microsoft Edge"
+	}
+	// 获取对应的 GREASE 品牌
+	greaseBrand := getGreaseBrand(browserType)
+
+	// 生成随机的品牌版本号
+	greaseVersion := rand.Intn(10) + 8
+	return fmt.Sprintf(`"%s";v="%d", "Chromium";v="%s", "%s";v="%s"`,
+		greaseBrand, greaseVersion, version, brandName, version)
+}
+
+// getAcceptLanguage 随机返回中文或英文
+func getAcceptLanguage(browserType BrowserType) string {
+	isChineseLocale := rand.Intn(2) == 0
+	switch browserType {
+	case Chrome, Edge:
+		if isChineseLocale {
+			return "zh-CN,zh;q=0.9,en;q=0.8"
+		}
+		return "en-US,en;q=0.9"
+	case Firefox:
+		if isChineseLocale {
+			return "zh-CN,zh;q=0.8,en-US;q=0.3,en;q=0.2"
+		}
+		return "en-US,en;q=0.5"
+	case Safari:
+		if isChineseLocale {
+			return "zh-CN,zh-Hans;q=0.9"
+		}
+		return "en-US,en;q=0.9"
+	default:
+		return "en-US,en;q=0.9"
+	}
+}
+
+// getAccept 获取 Accept 头
+func getAccept(browserType BrowserType) string {
+	switch browserType {
+	case Chrome, Edge:
+		return "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+	case Firefox:
+		return "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+	case Safari:
+		return "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+	default:
+		return "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+	}
+}
+
+// GetBrowserHeaders 主函数：根据 User-Agent 生成完整的浏览器请求头
+func GetBrowserHeaders(userAgent string) map[string]string {
+	browserType := getBrowserType(userAgent)
+	headers := make(map[string]string)
+	// 基础头
+	headers["user-agent"] = userAgent
+	headers["accept"] = getAccept(browserType)
+	headers["accept-language"] = getAcceptLanguage(browserType)
+	headers["upgrade-insecure-requests"] = "1"
+	// 根据浏览器类型添加特定头
+	switch browserType {
+	case Chrome, Edge:
+		// Client Hints
+		if secChUA := generateSecChUA(userAgent, browserType); secChUA != "" {
+			headers["sec-ch-ua"] = secChUA
+		}
+		headers["sec-ch-ua-platform"] = fmt.Sprintf(`"%s"`, getPlatform(userAgent))
+		if isMobile(userAgent) {
+			headers["sec-ch-ua-mobile"] = "?1"
+		} else {
+			headers["sec-ch-ua-mobile"] = "?0"
+		}
+		// Fetch Metadata
+		headers["sec-fetch-dest"] = "document"
+		headers["sec-fetch-mode"] = "navigate"
+		headers["sec-fetch-site"] = "none"
+		headers["sec-fetch-user"] = "?1"
+	case Firefox:
+		// Firefox 只支持部分 Fetch Metadata
+		headers["sec-fetch-dest"] = "document"
+		headers["sec-fetch-mode"] = "navigate"
+		headers["sec-fetch-site"] = "none"
+		headers["sec-fetch-user"] = "?1"
+	case Safari:
+		// Safari 最简洁，只有基础头
+	}
+	return headers
+}
 
 func RandString(n int) string {
 	b := make([]byte, n)
@@ -20,14 +258,6 @@ func RandUserAgent() string {
 		return ""
 	}
 	return AllUserAgents[rand.Intn(len(AllUserAgents))]
-}
-
-func RandLowerString(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(lowerLetterBytes))]
-	}
-	return string(b)
 }
 
 // AllUserAgents unpacked from https://github.com/intoli/user-agents/blob/main/src/user-agents.json.gz

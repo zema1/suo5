@@ -48,18 +48,18 @@ func NewFullChunkedStreamFactory(ctx context.Context, config *Suo5Config, rawCli
 		}
 	}()
 
-	s.OnRemoteWrite(func(id string, p []byte) error {
+	s.OnRemoteDirectWrite(func(idata *IdData) error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		conn, ok := s.wcs[id]
+		conn, ok := s.wcs[idata.id]
 		if !ok {
-			rc := s.rcs[id]
+			rc := s.rcs[idata.id]
 			if rc != nil {
 				_ = rc.Close()
 			}
 			return nil
 		}
-		_, err := conn.Write(p)
+		_, err := conn.Write(idata.data)
 		return err
 	})
 	return s
@@ -175,6 +175,7 @@ func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client
 		}
 		return nil
 	})
+
 	return s
 }
 
@@ -238,7 +239,7 @@ func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn
 		defer cleanUp()
 
 		err := h.DispatchRemoteData(resp.Body)
-		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "use of closed network") {
+		if err != nil && !strings.Contains(err.Error(), "EOF") && !strings.Contains(err.Error(), "use of closed network") {
 			log.Errorf("dispatch remote data error: %v", err)
 		}
 	}()

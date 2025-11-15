@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/zema1/suo5/netrans"
 	"io"
 	"math/rand"
 	"strconv"
+
+	"github.com/zema1/suo5/netrans"
 )
 
 type ConnectionType string
@@ -51,6 +52,7 @@ const (
 	ActionDelete    byte = 0x02
 	ActionStatus    byte = 0x03
 	ActionHeartbeat byte = 0x10
+	ActionDirty     byte = 0x11
 )
 
 func BuildBody(m map[string][]byte, redirect, sid string, ct ConnectionType) []byte {

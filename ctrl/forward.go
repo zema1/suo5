@@ -31,7 +31,7 @@ func (f *ForwardHandler) Handle(conn net.Conn) error {
 	streamRW := suo5.NewSuo5Conn(f.ctx, f.Suo5Client)
 	err := streamRW.ConnectMultiplex(f.Config.ForwardTarget)
 	if err != nil {
-		log.Errorf("failed to connect to target: %v", err)
+		log.Warnf("failed to connect to target: %v", err)
 		return err
 	}
 

@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/zema1/suo5/suo5"
 	"os"
 	"os/signal"
 	"strings"
+
+	"github.com/zema1/suo5/suo5"
 
 	// _ "github.com/chainreactors/proxyclient/extend"
 	log "github.com/kataras/golog"
@@ -102,6 +103,12 @@ func main() {
 			Aliases: []string{"qps"},
 			Value:   defaultConfig.ClassicPollQPS,
 		},
+		&cli.IntFlag{
+			Name:    "classic-poll-interval",
+			Usage:   "request poll interval in milliseconds, only used in classic mode",
+			Aliases: []string{"qi"},
+			Value:   defaultConfig.ClassicPollInterval,
+		},
 		&cli.StringSliceFlag{
 			Name:  "proxy",
 			Usage: "set upstream proxy, support socks5/http(s), eg: socks5://127.0.0.1:7890",
@@ -126,10 +133,15 @@ func main() {
 			Value:   defaultConfig.DisableHeartbeat,
 		},
 		&cli.BoolFlag{
-			Name:    "jar",
-			Aliases: []string{"j"},
-			Usage:   "enable cookiejar",
-			Value:   defaultConfig.EnableCookieJar,
+			Name:  "jar",
+			Usage: "enable cookiejar",
+			Value: defaultConfig.EnableCookieJar,
+		},
+		&cli.BoolFlag{
+			Name:    "no-browser-headers",
+			Aliases: []string{"nb"},
+			Usage:   "disable browser headers, which will not send Accept, Accept-Encoding, etc.",
+			Value:   !defaultConfig.ImpersonateBrowser,
 		},
 		&cli.StringFlag{
 			Name:    "test-exit",
@@ -184,11 +196,13 @@ func Action(c *cli.Context) error {
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
 	noGzip := c.Bool("no-gzip")
+	noBrowserHeaders := c.Bool("no-browser-headers")
 	jar := c.Bool("jar")
 	testExit := c.String("test-exit")
 	exclude := c.StringSlice("exclude-domain")
 	excludeFile := c.String("exclude-domain-file")
 	classicQPS := c.Int("classic-poll-qps")
+	classicInterval := c.Int("classic-poll-interval")
 	forward := c.String("forward")
 	configFile := c.String("config")
 
@@ -241,6 +255,9 @@ func Action(c *cli.Context) error {
 		ExcludeDomain:    exclude,
 		ForwardTarget:    forward,
 		RetryCount:       retryCount,
+
+		ClassicPollInterval: classicInterval,
+		ImpersonateBrowser:  !noBrowserHeaders,
 	}
 
 	if configFile != "" {

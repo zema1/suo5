@@ -2,6 +2,8 @@ module github.com/zema1/suo5
 
 go 1.20
 
+replace github.com/gorilla/websocket v1.5.3 => github.com/zema1/websocket v0.0.0-20240728051525-7fc49edb27c2
+
 require (
 	github.com/chainreactors/proxyclient v1.0.2
 	github.com/go-gost/gosocks5 v0.3.0
@@ -13,6 +15,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.6
 	github.com/zema1/rawhttp v0.2.0
+	golang.org/x/time v0.10.0
 )
 
 require (
@@ -28,7 +31,6 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/time v0.10.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

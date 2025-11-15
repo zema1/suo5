@@ -2,6 +2,7 @@ package suo5
 
 import (
 	"context"
+	"github.com/kataras/golog"
 	"github.com/pkg/errors"
 	"github.com/zema1/suo5/netrans"
 	"io"
@@ -30,6 +31,7 @@ type Suo5Conn struct {
 
 func (suo5 *Suo5Conn) ConnectMultiplex(address string) error {
 	id := RandString(8)
+	golog.Debugf("trying to connect to %s with id %s", address, id)
 	plexConn, err := suo5.Spawn(id, address)
 	if err != nil {
 		return err

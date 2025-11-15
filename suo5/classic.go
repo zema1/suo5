@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	log "github.com/kataras/golog"
-	"github.com/pkg/errors"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/kataras/golog"
+	"github.com/pkg/errors"
 )
 
 type ClassicStreamFactory struct {
@@ -38,7 +39,7 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 			return errors.Wrap(errExpectedRetry, fmt.Sprintf("unexpected status of %d", resp.StatusCode))
 		}
 		if resp.ContentLength == 0 {
-			log.Debugf("no data from server")
+			// log.Debugf("no data from server")
 			return nil
 		}
 
@@ -48,6 +49,10 @@ func NewClassicStreamFactory(ctx context.Context, config *Suo5Config, client *ht
 			if !strings.Contains(err.Error(), "unexpected EOF") {
 				return errors.Wrap(errExpectedRetry, fmt.Sprintf("read body err, %s", err))
 			}
+		}
+		if len(data) == 0 {
+			log.Debugf("no data from server, empty body")
+			return nil
 		}
 		err = s.DispatchRemoteData(bytes.NewReader(data))
 		if err != nil {
@@ -93,6 +98,7 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 	_, err = tunnel.WriteRaw(dialData, true)
 	if err != nil {
 		return nil, errors.Wrap(ErrDialFailed, err.Error())
+
 	}
 
 	// classic 只能通过轮询来获取远端数据
@@ -112,23 +118,4 @@ func (c *ClassicStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, er
 	}
 
 	return tunnel, nil
-}
-
-func (s *TunnelConn) SetupActivePoll() {
-	ticker := time.NewTicker(time.Millisecond * 500)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			case <-ticker.C:
-				_, err := s.Write(nil)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-			}
-		}
-	}()
 }

@@ -3,18 +3,23 @@ package suo5
 import (
 	"context"
 	"fmt"
-	"github.com/gobwas/glob"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gobwas/glob"
+	"github.com/zema1/suo5/tpl"
 )
 
 var (
-	DefaultMaxRequestSize = 1024 * 512
-	DefaultTimeout        = 10
-	DefaultClassicPollQPS = 5
-	DefaultRetryCount     = 1
+	DefaultMaxRequestSize      = 1024 * 512
+	DefaultTimeout             = 5
+	DefaultClassicPollQPS      = 6
+	DefaultClassicPollInterval = 200 // ms, 1s
+	DefaultRetryCount          = 1
+	DefaultRotateCount         = 8
+	DefaultBufferSize          = 1024 * 64
 )
 
 type Suo5Config struct {
@@ -37,6 +42,9 @@ type Suo5Config struct {
 	MaxBodySize      int            `json:"max_body_size"`
 	ClassicPollQPS   int            `json:"classic_poll_qps"`
 	RetryCount       int            `json:"retry_count"`
+
+	ClassicPollInterval int  `json:"classic_poll_interval"`
+	ImpersonateBrowser  bool `json:"impersonate_browser"`
 
 	SessionId               string                               `json:"-"`
 	TestExit                string                               `json:"-"`
@@ -69,10 +77,15 @@ func DefaultSuo5Config() *Suo5Config {
 		MaxBodySize:      DefaultMaxRequestSize,
 		ClassicPollQPS:   DefaultClassicPollQPS,
 		RetryCount:       DefaultRetryCount,
+
+		ClassicPollInterval: DefaultClassicPollInterval,
+		ImpersonateBrowser:  true,
 	}
 }
 
 func (conf *Suo5Config) Parse() error {
+	conf.Target = strings.TrimSpace(conf.Target)
+
 	if conf.Timeout <= 0 {
 		conf.Timeout = DefaultTimeout
 	}
@@ -83,6 +96,10 @@ func (conf *Suo5Config) Parse() error {
 
 	if conf.ClassicPollQPS <= 0 {
 		conf.ClassicPollQPS = DefaultClassicPollQPS
+	}
+
+	if conf.ClassicPollInterval <= 0 {
+		conf.ClassicPollInterval = DefaultClassicPollInterval
 	}
 
 	isValidMode := false
@@ -96,10 +113,15 @@ func (conf *Suo5Config) Parse() error {
 		return fmt.Errorf("invalid connection mode: %s", conf.Mode)
 	}
 
-	if err := conf.parseExcludeDomain(); err != nil {
+	err := conf.parseExcludeDomain()
+	if err != nil {
 		return err
 	}
-	return conf.parseHeader()
+	err = conf.parseHeader()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (conf *Suo5Config) parseExcludeDomain() error {
@@ -128,11 +150,12 @@ func (conf *Suo5Config) parseHeader() error {
 	}
 
 	if conf.Header.Get("Referer") == "" {
-		n := strings.LastIndex(conf.Target, "/")
+		target := conf.GetTarget()
+		n := strings.LastIndex(target, "/")
 		if n == -1 {
-			conf.Header.Set("Referer", conf.Target)
+			conf.Header.Set("Referer", target)
 		} else {
-			conf.Header.Set("Referer", conf.Target[:n+1])
+			conf.Header.Set("Referer", target)
 		}
 	}
 
@@ -160,12 +183,34 @@ func (conf *Suo5Config) RequestHeader() http.Header {
 	if header.Get("User-Agent") == "" {
 		header.Set("User-Agent", RandUserAgent())
 	}
+
+	if conf.ImpersonateBrowser {
+		browserHeaders := GetBrowserHeaders(header.Get("User-Agent"))
+		for k, v := range browserHeaders {
+			if header.Get(k) == "" {
+				header.Set(k, v)
+			}
+		}
+
+	}
+
 	return header
 }
 
 func (conf *Suo5Config) NewRequest(ctx context.Context, body io.Reader, contentLength int64) *http.Request {
-	req, _ := http.NewRequestWithContext(ctx, conf.Method, conf.Target, body)
-	req.ContentLength = contentLength
+	req, err := http.NewRequestWithContext(ctx, conf.Method, conf.GetTarget(), body)
+	if err != nil {
+		panic(err)
+	}
 	req.Header = conf.RequestHeader()
+	req.ContentLength = contentLength
 	return req
+}
+
+func (conf *Suo5Config) GetTarget() string {
+	target := conf.Target
+	if strings.Contains(target, "{rand}") {
+		target = strings.ReplaceAll(target, "{rand}", tpl.RandWord())
+	}
+	return target
 }
