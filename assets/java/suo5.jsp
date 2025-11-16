@@ -174,6 +174,7 @@
 
         private boolean processRedirect(HttpServletRequest req, HttpServletResponse resp, HashMap dataMap, byte[] bodyPrefix, byte[] bodyContent) throws Exception {
             byte[] redirectData = (byte[]) dataMap.get("r");
+            dataMap.remove("r");
             // load balance, send request with data to request url
             boolean needRedirect = redirectData != null && redirectData.length > 0;
             if (needRedirect && !isLocalAddr(new String(redirectData))) {

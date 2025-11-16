@@ -471,6 +471,7 @@
     {
         byte[] redirectData;
         bool needRedirect = dataMap.TryGetValue("r", out redirectData) && redirectData != null && redirectData.Length > 0;
+        dataMap.Remove("r");
 
         if (needRedirect && !IsLocalAddr(Encoding.UTF8.GetString(redirectData)))
         {
