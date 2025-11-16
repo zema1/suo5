@@ -492,7 +492,13 @@
                 conn.ReadWriteTimeout = System.Threading.Timeout.Infinite;
 
                 // Ignore SSL verify
-                ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+                ServicePointManager.ServerCertificateValidationCallback =
+                    delegate(object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate,
+                             System.Security.Cryptography.X509Certificates.X509Chain chain,
+                             System.Net.Security.SslPolicyErrors sslPolicyErrors)
+                    {
+                        return true;
+                    };
 
                 // Copy headers
                 foreach (string key in Request.Headers.AllKeys)
@@ -525,7 +531,7 @@
                             conn.UserAgent = value;
                             break;
                         case "Host":
-                            conn.Host = (new Uri(redirectUrl)).Host;
+                            // Host header is automatically set from the URL in .NET 2.0
                             break;
                         default:
                             if (!WebHeaderCollection.IsRestricted(key, false))
