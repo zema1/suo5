@@ -267,6 +267,11 @@ func (s *BaseStreamFactory) Create(id string) (*TunnelConn, error) {
 		return nil, ErrFactoryStopped
 	}
 	newConn := NewTunnelConn(id, s.config, func(idata *IdData) error {
+		s.closeMu.Lock()
+		defer s.closeMu.Unlock()
+		if s.closed.Load() {
+			return ErrFactoryStopped
+		}
 		select {
 		case s.writeChan <- idata:
 			return nil

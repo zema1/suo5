@@ -419,6 +419,19 @@ jobs:
           - webdevops/php-nginx:8.0
           - webdevops/php-nginx:8.1
           - webdevops/php-nginx:8.2
+          - webdevops/php-nginx:8.3
+          - webdevops/php-nginx:8.4
+          - webdevops/php-apache:5.6
+          - webdevops/php-apache:7.0
+          - webdevops/php-apache:7.1
+          - webdevops/php-apache:7.2
+          - webdevops/php-apache:7.3
+          - webdevops/php-apache:7.4
+          - webdevops/php-apache:8.0
+          - webdevops/php-apache:8.1
+          - webdevops/php-apache:8.2
+          - webdevops/php-apache:8.3
+          - webdevops/php-apache:8.4
         mount:
           - /app
     steps:

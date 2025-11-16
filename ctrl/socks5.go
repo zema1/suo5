@@ -3,11 +3,12 @@ package ctrl
 import (
 	"context"
 	"fmt"
-	"github.com/go-gost/gosocks5/server"
-	"github.com/pkg/errors"
 	"net"
 	"net/url"
 	"time"
+
+	"github.com/go-gost/gosocks5/server"
+	"github.com/pkg/errors"
 
 	"github.com/go-gost/gosocks5"
 	log "github.com/kataras/golog"
@@ -81,7 +82,7 @@ func (m *Socks5Handler) handleConnect(conn net.Conn, sockReq *gosocks5.Request) 
 	rep := gosocks5.NewReply(gosocks5.Succeeded, nil)
 	err = rep.Write(conn)
 	if err != nil {
-		log.Errorf("write data failed, %w", err)
+		log.Errorf("write data failed, %s", err)
 		return
 	}
 	log.Infof("successfully connected to %s", sockReq.Addr)

