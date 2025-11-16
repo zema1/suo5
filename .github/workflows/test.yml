@@ -434,10 +434,10 @@ jobs:
       - uses: ./.github/actions/run-tests
         with:
           service_port: 80
-          direct_url: 'http://127.0.0.1:82/php/suo5.php'
-          nginx_inner_url: 'http://127.0.0.1:81/php/suo5.php'
-          nginx_url: 'http://127.0.0.1:80/php/suo5.php'
-          redirect_path: '/php/suo5.php'
+          direct_url: 'http://127.0.0.1:82/suo5.php'
+          nginx_inner_url: 'http://127.0.0.1:81/suo5.php'
+          nginx_url: 'http://127.0.0.1:80/suo5.php'
+          redirect_path: '/suo5.php'
           test_full: 'false'
           test_redirect: 'false'
-          test_top: 'false'
+          test_inner: 'false'

@@ -91,7 +91,7 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 	retry := config.RetryCount
 
 	for i := 0; i <= retry; i++ {
-		err = checkConnectMode(ctx, config)
+		err = checkConnectMode(ctx, config, jar)
 		if err != nil {
 			if i == retry {
 				return nil, fmt.Errorf("handshake failed after %d retries", retry)
@@ -166,7 +166,7 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 	return suo5Client, nil
 }
 
-func checkConnectMode(ctx context.Context, config *Suo5Config) error {
+func checkConnectMode(ctx context.Context, config *Suo5Config, jar http.CookieJar) error {
 
 	randLen := rand.Intn(4096)
 	if randLen <= 32 {
@@ -221,6 +221,15 @@ func checkConnectMode(ctx context.Context, config *Suo5Config) error {
 		resp, err = normalClient.Do(req)
 		if err != nil {
 			return err
+		}
+	}
+
+	cookies := resp.Cookies()
+	if len(cookies) != 0 {
+		u, err := url.Parse(config.GetTarget())
+		if err == nil {
+			jar.SetCookies(u, cookies)
+			log.Infof("handling cookies: %s", resp.Header.Get("Set-Cookie"))
 		}
 	}
 
