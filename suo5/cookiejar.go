@@ -1,11 +1,12 @@
 package suo5
 
 import (
-	log "github.com/kataras/golog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"sync"
+
+	log "github.com/kataras/golog"
 )
 
 var _ http.CookieJar = (*SwitchableCookieJar)(nil)
@@ -17,7 +18,7 @@ type SwitchableCookieJar struct {
 	enable  bool
 }
 
-func NewSwitchableCookieJar(hintKey []string) http.CookieJar {
+func NewSwitchableCookieJar(defaultEnable bool, hintKey []string) *SwitchableCookieJar {
 	hintMap := make(map[string]bool)
 	for _, key := range hintKey {
 		hintMap[key] = true
@@ -26,6 +27,7 @@ func NewSwitchableCookieJar(hintKey []string) http.CookieJar {
 	return &SwitchableCookieJar{
 		CookieJar: defaultJar,
 		hintMap:   hintMap,
+		enable:    defaultEnable,
 	}
 }
 
@@ -56,4 +58,10 @@ func (f *SwitchableCookieJar) Cookies(u *url.URL) []*http.Cookie {
 		return f.CookieJar.Cookies(u)
 	}
 	return nil
+}
+
+func (f *SwitchableCookieJar) IsEnabled() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.enable
 }

@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
 	"strings"
@@ -22,6 +21,8 @@ import (
 	"github.com/zema1/rawhttp"
 	"github.com/zema1/suo5/netrans"
 )
+
+var errApacheChunkedNotSupported = fmt.Errorf("apache server may not support chunked encoding")
 
 type Suo5Client struct {
 	StreamFactory
@@ -70,13 +71,8 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		log.Infof("using upstream proxy: %s", strings.Join(config.UpstreamProxy, " -> "))
 	}
 
-	var jar http.CookieJar
-	if config.EnableCookieJar {
-		jar, _ = cookiejar.New(nil)
-	} else {
-		// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
-		jar = NewSwitchableCookieJar([]string{"PHPSESSID"})
-	}
+	// 对 PHP的特殊处理一下, 如果是 PHP 的站点则自动启用 cookiejar, 其他站点保持不启用
+	jar := NewSwitchableCookieJar(config.EnableCookieJar, []string{"PHPSESSID"})
 
 	tr, err := NewHttpTransport(config.UpstreamProxy, config.TimeoutTime())
 	if err != nil {
@@ -102,6 +98,12 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 			log.Infof("suo5 is going to work on %s mode", config.Mode)
 			break
 		}
+	}
+
+	// php 开启转发时，仅支持 classic
+	if config.Mode != Classic && config.RedirectURL != "" && jar.IsEnabled() {
+		log.Warnf("redirect url with cookiejar enabled only supports classic mode, switching to classic mode")
+		config.Mode = Classic
 	}
 
 	var factory StreamFactory
@@ -167,7 +169,7 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 }
 
 func checkConnectMode(ctx context.Context, config *Suo5Config, jar http.CookieJar) error {
-
+RetryApache:
 	randLen := rand.Intn(4096)
 	if randLen <= 32 {
 		randLen += 32
@@ -222,6 +224,13 @@ func checkConnectMode(ctx context.Context, config *Suo5Config, jar http.CookieJa
 		if err != nil {
 			return err
 		}
+	}
+
+	// apache+php-fpm 特殊判断, apache 似乎不支持 chunked-encoding, 表现为请求为空
+	if strings.Contains(resp.Header.Get("Server"), "Apache") && resp.ContentLength == 0 && config.Mode == AutoDuplex {
+		log.Warnf("detected apache server with empty response, switching to classic mode")
+		config.Mode = Classic
+		goto RetryApache
 	}
 
 	cookies := resp.Cookies()

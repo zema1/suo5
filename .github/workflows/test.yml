@@ -409,31 +409,73 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image:
-          - webdevops/php-nginx:5.6
-          - webdevops/php-nginx:7.0
-          - webdevops/php-nginx:7.1
-          - webdevops/php-nginx:7.2
-          - webdevops/php-nginx:7.3
-          - webdevops/php-nginx:7.4
-          - webdevops/php-nginx:8.0
-          - webdevops/php-nginx:8.1
-          - webdevops/php-nginx:8.2
-          - webdevops/php-nginx:8.3
-          - webdevops/php-nginx:8.4
-          - webdevops/php-apache:5.6
-          - webdevops/php-apache:7.0
-          - webdevops/php-apache:7.1
-          - webdevops/php-apache:7.2
-          - webdevops/php-apache:7.3
-          - webdevops/php-apache:7.4
-          - webdevops/php-apache:8.0
-          - webdevops/php-apache:8.1
-          - webdevops/php-apache:8.2
-          - webdevops/php-apache:8.3
-          - webdevops/php-apache:8.4
-        mount:
-          - /app
+        include:
+          - image: webdevops/php-nginx:5.6
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:7.0
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:7.1
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:7.2
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:7.3
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:7.4
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:8.0
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:8.1
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:8.2
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:8.3
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-nginx:8.4
+            mount: /app
+            test_half: 'true'
+          - image: webdevops/php-apache:5.6
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:7.0
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:7.1
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:7.2
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:7.3
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:7.4
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:8.0
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:8.1
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:8.2
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:8.3
+            mount: /app
+            test_half: 'false'
+          - image: webdevops/php-apache:8.4
+            mount: /app
+            test_half: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -452,5 +494,5 @@ jobs:
           nginx_url: 'http://127.0.0.1:80/suo5.php'
           redirect_path: '/suo5.php'
           test_full: 'false'
-          test_redirect: 'false'
+          test_half: ${{ matrix.test_half }}
           test_inner: 'false'
