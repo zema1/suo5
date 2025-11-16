@@ -402,47 +402,42 @@ jobs:
           test_inner: 'false'
 
 
-#  php-test:
-#    name: PHP
-#    needs: build-test-binary
-#    runs-on: ubuntu-latest
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        image:
-#          - webdevops/php-nginx:5.6
-#          - webdevops/php-nginx:7.0
-#          - webdevops/php-nginx:7.1
-#          - webdevops/php-nginx:7.2
-#          - webdevops/php-nginx:7.3
-#          - webdevops/php-nginx:7.4
-#          - webdevops/php-nginx:8.0
-#          - webdevops/php-nginx:8.1
-#          - webdevops/php-nginx:8.2
-#        mount:
-#          - /app
-#    env:
-#      SUO5_NGINX_URL: http://127.0.0.1:80/assets/suo5.jsp
-#      SUO5_NGINX_INNER_URL: http://127.0.0.1:81/assets/suo5.jsp
-#      SUO5_DIRECT_URL: http://127.0.0.1:82/assets/suo5.jsp
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: ./.github/actions
-#      - run: |
-#          set -ex
-#          chmod +x ./helper
-#          ./helper gen -image ${{ matrix.image }} -port 80 -volumes "${{ github.workspace }}/assets:${{ matrix.mount }}"
-#          docker compose up -d --quiet-pull
-#          sleep 5
-#          docker compose ps -a
-#          ./helper ready -u ${{ env.SUO5_DIRECT_URL }} -t 60
-#          chmod +x ./suo5_test
-#          ./suo5_test -debug -t ${{ env.SUO5_DIRECT_URL }} -T https://www.bing.com -mode auto
-#          ./suo5_test -debug -t ${{ env.SUO5_DIRECT_URL }} -T https://www.bing.com -mode full
-#          ./suo5_test -debug -t ${{ env.SUO5_DIRECT_URL }} -T https://www.bing.com -mode half
-#          ./suo5_test -debug -t ${{ env.SUO5_DIRECT_URL }} -T https://www.bing.com -mode classic
-#          ./suo5_test -debug -t ${{ env.SUO5_NGINX_INNER_URL }} -T https://www.bing.com -mode auto --retry 5
-#          ./suo5_test -debug -t ${{ env.SUO5_NGINX_INNER_URL }} -T https://www.bing.com -mode half --retry 5
-#          ./suo5_test -debug -t ${{ env.SUO5_NGINX_INNER_URL }} -T https://www.bing.com -mode classic --retry 5
-#          
-#
+  php-test:
+    name: PHP
+    needs: build-test-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - webdevops/php-nginx:5.6
+          - webdevops/php-nginx:7.0
+          - webdevops/php-nginx:7.1
+          - webdevops/php-nginx:7.2
+          - webdevops/php-nginx:7.3
+          - webdevops/php-nginx:7.4
+          - webdevops/php-nginx:8.0
+          - webdevops/php-nginx:8.1
+          - webdevops/php-nginx:8.2
+        mount:
+          - /app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: |
+          set -ex
+          chmod +x ./helper
+          ./helper gen -image ${{ matrix.image }} -port 80 -volumes "${{ github.workspace }}/assets:${{ matrix.mount }}"
+          docker compose up -d --quiet-pull
+          sleep 5
+          docker compose ps -a
+      - uses: ./.github/actions/run-tests
+        with:
+          service_port: 80
+          direct_url: 'http://127.0.0.1:82/php/suo5.php'
+          nginx_inner_url: 'http://127.0.0.1:81/php/suo5.php'
+          nginx_url: 'http://127.0.0.1:80/php/suo5.php'
+          redirect_path: '/php/suo5.php'
+          test_full: 'false'
+          test_redirect: 'false'
+          test_top: 'false'
