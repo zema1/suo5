@@ -37,7 +37,10 @@ func Connect(ctx context.Context, config *Suo5Config) (*Suo5Client, error) {
 		return nil, err
 	}
 
-	log.Infof("header: %s", config.HeaderString())
+	headerString := strings.TrimSpace(config.HeaderString())
+	if headerString != "" {
+		log.Infof("header: %s", headerString)
+	}
 	log.Infof("connecting to target %s", config.GetTarget())
 
 	if config.DisableGzip {

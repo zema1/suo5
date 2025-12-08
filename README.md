@@ -11,17 +11,16 @@
 
 </div>
 
+
 ![experience](./tests/img/suo5.gif)
 
+
+Suo5 是一款久经实战检验的高性能 HTTP 正向代理工具，持续打磨只为解决一个需求：不出网场景下的稳定正向代理。
 
 > [!WARNING]
 > 本工具仅供安全研究人员、网络管理员及相关技术人员进行授权的安全测试、漏洞评估和安全审计工作使用。使用本工具进行任何未经授权的网络攻击或渗透测试等行为均属违法，使用者需自行承担相应的法律责任。
 
-## 简介
-
-Suo5 是一款久经实战检验的高性能 HTTP 正向代理工具，历时三年持续打磨只为解决一个需求：不出网场景下的稳定正向代理。
-
-其主要特点包括：
+## 主要特性
 
 - **优异的传输性能**
     - 全双工: 借助双向 Chunked-Encoding 实现单连接双向通信，传输性能接近 FRP
@@ -89,7 +88,7 @@ GUI 版基于 [Wails](https://github.com/wailsapp/wails) 构建，支持 Windows
 
 > 该实现依赖系统的 Webview 框架, Windows 11 和 MacOS 已自带该组件，其他系统会弹框请允许下载安装，否则无法使用。
 
-![gui.png](tests/img/gui.jpg)
+<img src="tests/img/gui.jpg" style="max-width: 800px;"  alt="gui.jpg"/>
 
 CLI 版本适合喜欢命令行操作的用户，或需要在服务器上运行的场景。
 
