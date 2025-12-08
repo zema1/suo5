@@ -3,12 +3,13 @@ package ctrl
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/go-gost/gosocks5"
@@ -20,21 +21,52 @@ import (
 	"github.com/zema1/suo5/suo5"
 )
 
+func InitDefaultLog(writer io.Writer) {
+	// log.SetTimeFormat("01-02 15:04")
+	log.SetTimeFormat("15:04")
+	log.SetOutput(writer)
+
+	supportColor := pio.SupportColors(writer)
+	log.Handle(func(l *log.Log) bool {
+		prefix := log.GetTextForLevel(l.Level, supportColor)
+		var message string
+
+		if len(l.Stacktrace) != 0 {
+			s := l.Stacktrace[0]
+			parts := strings.Split(s.Source, "/")
+			source := parts[len(parts)-1]
+			message = fmt.Sprintf("%s %s [%s] %s", prefix, l.FormatTime(), source, l.Message)
+		} else {
+			message = fmt.Sprintf("%s %s %s", prefix, l.FormatTime(), l.Message)
+		}
+
+		if l.NewLine {
+			message += "\n"
+		}
+
+		output := l.Logger.GetLevelOutput(l.Level.String())
+		_, err := output.Write([]byte(message))
+		return err == nil
+	})
+}
+
 func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	if config.GuiLog != nil {
 		// 防止多次执行出错
-		log.Default = log.New()
-		log.Default.AddOutput(config.GuiLog)
+		InitDefaultLog(config.GuiLog)
 	}
 	if config.Debug {
 		log.SetLevel("debug")
+	} else {
+		log.SetLevel("info")
 	}
 
-	suo5Client, err := config.Init()
+	suo5Client, err := suo5.Connect(ctx, config)
 	if err != nil {
 		return err
 	}
 	log.Infof("starting tunnel at %s", config.Listen)
+
 	if config.OnRemoteConnected != nil {
 		config.OnRemoteConnected(&suo5.ConnectedEvent{Mode: config.Mode})
 	}
@@ -48,7 +80,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		msg += fmt.Sprintf("Forward: %s\n", config.ForwardTarget)
 		msg += fmt.Sprintf("Listen:  %s\n", config.Listen)
 	} else {
-		if config.NoAuth {
+		if config.NoAuth() {
 			socks5Addr = fmt.Sprintf("socks5://%s", config.Listen)
 		} else {
 			socks5Addr = fmt.Sprintf("socks5://%s:%s@%s", config.Username, config.Password, config.Listen)
@@ -69,42 +101,22 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 	}
 	go func() {
 		<-ctx.Done()
-		log.Infof("server stopped")
+		log.Infof("socks5 server stopped")
 		_ = srv.Close()
 	}()
 
-	trPool := &sync.Pool{
-		New: func() interface{} {
-			return make([]byte, config.BufferSize)
-		},
-	}
-
 	var handler server.Handler
-
 	if config.ForwardTarget != "" {
 		// 使用 Forward 模式
 		handler = &suo5.ClientEventHandler{
-			Inner:                   NewForwardHandler(ctx, suo5Client, trPool, config.ForwardTarget),
+			Inner:                   NewForwardHandler(ctx, suo5Client),
 			OnNewClientConnection:   config.OnNewClientConnection,
 			OnClientConnectionClose: config.OnClientConnectionClose,
 		}
 		log.Infof("running in forward mode, forwarding all connections to %s", config.ForwardTarget)
 	} else {
-		// 使用 SOCKS5 模式
-		selector := server.DefaultSelector
-		if !config.NoAuth {
-			selector = server.NewServerSelector([]*url.Userinfo{
-				url.UserPassword(config.Username, config.Password),
-			})
-		}
-
 		handler = &suo5.ClientEventHandler{
-			Inner: &socks5Handler{
-				Suo5Client: suo5Client,
-				ctx:        ctx,
-				pool:       trPool,
-				selector:   selector,
-			},
+			Inner:                   NewSocks5Handler(ctx, suo5Client),
 			OnNewClientConnection:   config.OnNewClientConnection,
 			OnClientConnectionClose: config.OnClientConnectionClose,
 		}
@@ -136,7 +148,8 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 		}
 	}
 
-	<-ctx.Done()
+	suo5Client.Wait()
+	log.Infof("all cleaned up, suo5 is going to exit")
 	return nil
 }
 
@@ -186,6 +199,11 @@ func testAndExit(socks5 string, remote string, timeout time.Duration) error {
 		return err
 	}
 	req.Close = true
+	ua := suo5.RandUserAgent()
+	req.Header.Set("User-Agent", ua)
+	for k, v := range suo5.GetBrowserHeaders(ua) {
+		req.Header.Set(k, v)
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		if os.IsTimeout(err) {

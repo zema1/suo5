@@ -4,197 +4,249 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	log "github.com/kataras/golog"
-	"github.com/zema1/suo5/netrans"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
+
+	log "github.com/kataras/golog"
+	"github.com/pkg/errors"
+	"github.com/zema1/rawhttp"
+	"github.com/zema1/suo5/netrans"
 )
 
-type fullChunkedReadWriter struct {
-	id         string
-	reqBody    io.WriteCloser
-	serverResp io.ReadCloser
-	once       sync.Once
-
-	readBuf  bytes.Buffer
-	readTmp  []byte
-	writeTmp []byte
+type FullChunkedStreamFactory struct {
+	*BaseStreamFactory
+	mu        sync.Mutex
+	rawClient *rawhttp.Client
+	rcs       map[string]io.ReadCloser
+	wcs       map[string]io.WriteCloser
 }
 
-// NewFullChunkedReadWriter 全双工读写流
-func NewFullChunkedReadWriter(id string, reqBody io.WriteCloser, serverResp io.ReadCloser) io.ReadWriteCloser {
-	rw := &fullChunkedReadWriter{
-		id:         id,
-		reqBody:    reqBody,
-		serverResp: serverResp,
-		readBuf:    bytes.Buffer{},
-		readTmp:    make([]byte, 16*1024),
-		writeTmp:   make([]byte, 8*1024),
+func NewFullChunkedStreamFactory(ctx context.Context, config *Suo5Config, rawClient *rawhttp.Client) StreamFactory {
+	s := &FullChunkedStreamFactory{
+		BaseStreamFactory: NewBaseStreamFactory(ctx, config),
+		rawClient:         rawClient,
+		rcs:               make(map[string]io.ReadCloser),
+		wcs:               make(map[string]io.WriteCloser),
 	}
-	return rw
-}
 
-func (s *fullChunkedReadWriter) Read(p []byte) (n int, err error) {
-	if s.readBuf.Len() != 0 {
-		return s.readBuf.Read(p)
-	}
-	fr, err := netrans.ReadFrame(s.serverResp)
-	if err != nil {
-		return 0, err
-	}
-	m, err := Unmarshal(fr.Data)
-	if err != nil {
-		return 0, err
-	}
-	action := m["ac"]
-	if len(action) != 1 {
-		return 0, fmt.Errorf("invalid action when read %v", action)
-	}
-	switch action[0] {
-	case ActionData:
-		data := m["dt"]
-		s.readBuf.Reset()
-		s.readBuf.Write(data)
-		return s.readBuf.Read(p)
-	case ActionDelete:
-		return 0, io.EOF
-	default:
-		return 0, fmt.Errorf("unpected action when read %v", action)
-	}
-}
-
-func (s *fullChunkedReadWriter) Write(p []byte) (n int, err error) {
-	log.Debugf("write socket data, length: %d", len(p))
-	body := BuildBody(NewActionData(s.id, p, ""))
-	return s.WriteRaw(body)
-}
-
-func (s *fullChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
-	return s.reqBody.Write(p)
-}
-
-func (s *fullChunkedReadWriter) Close() error {
-	s.once.Do(func() {
-		defer s.reqBody.Close()
-		body := BuildBody(NewDelete(s.id, ""))
-		_, _ = s.reqBody.Write(body)
-		_ = s.serverResp.Close()
-	})
-	return nil
-}
-
-type halfChunkedReadWriter struct {
-	ctx        context.Context
-	id         string
-	client     *http.Client
-	method     string
-	target     string
-	serverResp io.ReadCloser
-	once       sync.Once
-	chunked    bool
-	baseHeader http.Header
-	redirect   string
-
-	readBuf  bytes.Buffer
-	readTmp  []byte
-	writeTmp []byte
-}
-
-// NewHalfChunkedReadWriter 半双工读写流, 用发送请求的方式模拟写
-func NewHalfChunkedReadWriter(ctx context.Context, id string, client *http.Client, method, target string,
-	serverResp io.ReadCloser, baseHeader http.Header, redirect string) io.ReadWriteCloser {
-	return &halfChunkedReadWriter{
-		ctx:        ctx,
-		id:         id,
-		client:     client,
-		method:     method,
-		target:     target,
-		serverResp: serverResp,
-		readBuf:    bytes.Buffer{},
-		readTmp:    make([]byte, 16*1024),
-		writeTmp:   make([]byte, 8*1024),
-		baseHeader: baseHeader,
-		redirect:   redirect,
-	}
-}
-
-func (s *halfChunkedReadWriter) Read(p []byte) (n int, err error) {
-	if s.readBuf.Len() != 0 {
-		return s.readBuf.Read(p)
-	}
-	fr, err := netrans.ReadFrame(s.serverResp)
-	if err != nil {
-		return 0, err
-	}
-	m, err := Unmarshal(fr.Data)
-	if err != nil {
-		return 0, err
-	}
-	action := m["ac"]
-	if len(action) != 1 {
-		return 0, fmt.Errorf("invalid action when read %v", action)
-	}
-	switch action[0] {
-	case ActionData:
-		data := m["dt"]
-		s.readBuf.Reset()
-		s.readBuf.Write(data)
-		return s.readBuf.Read(p)
-	case ActionDelete:
-		return 0, io.EOF
-	case ActionHeartbeat:
-		return 0, nil
-	default:
-		return 0, fmt.Errorf("unpected action when read %v", action)
-	}
-}
-
-func (s *halfChunkedReadWriter) Write(p []byte) (n int, err error) {
-	body := BuildBody(NewActionData(s.id, p, s.redirect))
-	log.Debugf("send request, length: %d", len(body))
-	return s.WriteRaw(body)
-}
-
-func (s *halfChunkedReadWriter) WriteRaw(p []byte) (n int, err error) {
-	req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(p))
-	if err != nil {
-		return 0, err
-	}
-	if s.chunked {
-		req.ContentLength = -1
-	} else {
-		req.ContentLength = int64(len(p))
-	}
-	req.Header = s.baseHeader.Clone()
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		return len(p), nil
-	} else {
-		return 0, fmt.Errorf("unexpected status of %d", resp.StatusCode)
-	}
-}
-
-func (s *halfChunkedReadWriter) Close() error {
-	s.once.Do(func() {
-		body := BuildBody(NewDelete(s.id, s.redirect))
-		req, err := http.NewRequestWithContext(s.ctx, s.method, s.target, bytes.NewReader(body))
-		if err != nil {
-			log.Error(err)
-			return
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				time.Sleep(time.Second * 5)
+				s.mu.Lock()
+				log.Debugf("connection count: r: %d w: %d", len(s.rcs), len(s.wcs))
+				s.mu.Unlock()
+			}
 		}
-		req.Header = s.baseHeader.Clone()
+	}()
+
+	s.OnRemoteDirectWrite(func(idata *IdData) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		conn, ok := s.wcs[idata.id]
+		if !ok {
+			rc := s.rcs[idata.id]
+			if rc != nil {
+				_ = rc.Close()
+			}
+			return nil
+		}
+		_, err := conn.Write(idata.data)
+		return err
+	})
+	return s
+}
+
+func (h *FullChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
+	tunnel, err = h.Create(id)
+	if err != nil {
+		return nil, err
+	}
+
+	tunnelRef := tunnel
+	defer func() {
+		if err != nil && tunnelRef != nil {
+			tunnelRef.CloseSelf()
+		}
+	}()
+
+	host, port, _ := net.SplitHostPort(address)
+	uport, _ := strconv.Atoi(port)
+	dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
+
+	ch, wc := netrans.NewChannelWriteCloser(h.ctx)
+	body := netrans.MultiReadCloser(
+		io.NopCloser(bytes.NewReader(dialData)),
+		io.NopCloser(netrans.NewChannelReader(ch)),
+	)
+	req := h.config.NewRequest(h.ctx, body, 0)
+	resp, err := h.rawClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(ErrDialFailed, err.Error())
+	}
+
+	serverData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
+	if err != nil {
+		bodyData, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		bufData = append(bufData, bodyData...)
+		header, _ := httputil.DumpResponse(resp, false)
+		return nil, fmt.Errorf("%s, response is:\n%s", err, string(header)+string(bufData))
+	}
+
+	status := serverData["s"]
+
+	log.Debugf("recv dial response from server:  %v", status)
+	if len(status) != 1 || status[0] != 0x00 {
+		return nil, errors.Wrap(ErrConnRefused, fmt.Sprintf("status: %v", status))
+	}
+
+	cleanUp := func() {
+		_ = resp.Body.Close()
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(h.rcs, id)
+		delete(h.wcs, id)
+	}
+
+	tunnel.AddCloseCallback(cleanUp)
+
+	go func() {
+		defer cleanUp()
+
+		err := h.DispatchRemoteData(resp.Body)
+		if err != nil && !errors.Is(err, io.EOF) && !strings.Contains(err.Error(), "use of closed network") {
+			log.Errorf("dispatch remote data error: %v", err)
+		}
+	}()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rcs[id] = resp.Body
+	h.wcs[id] = wc
+	return tunnel, nil
+}
+
+type HalfChunkedStreamFactory struct {
+	*BaseStreamFactory
+	client *http.Client
+	mu     sync.Mutex
+	rcs    map[string]io.ReadCloser
+}
+
+func NewHalfChunkedStreamFactory(ctx context.Context, config *Suo5Config, client *http.Client) StreamFactory {
+	s := &HalfChunkedStreamFactory{
+		BaseStreamFactory: NewBaseStreamFactory(ctx, config),
+		client:            client,
+		rcs:               make(map[string]io.ReadCloser),
+	}
+
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				time.Sleep(time.Second * 5)
+				s.mu.Lock()
+				log.Debugf("connection count: %d", len(s.rcs))
+				s.mu.Unlock()
+			}
+		}
+	}()
+
+	s.OnRemotePlexWrite(func(p []byte) error {
+		log.Debugf("send remote write request, body len: %d", len(p))
+		req := s.config.NewRequest(s.ctx, bytes.NewReader(p), int64(len(p)))
 		resp, err := s.client.Do(req)
 		if err != nil {
-			log.Errorf("send close error: %v", err)
-			return
+			return err
 		}
-		_ = resp.Body.Close()
-		_ = s.serverResp.Close()
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return errors.Wrap(errExpectedRetry, fmt.Sprintf("unexpected status of %d", resp.StatusCode))
+		}
+		return nil
 	})
-	return nil
+
+	return s
+}
+
+func (h *HalfChunkedStreamFactory) Spawn(id, address string) (tunnel *TunnelConn, err error) {
+	tunnel, err = h.Create(id)
+	if err != nil {
+		return nil, err
+	}
+
+	tunnelRef := tunnel
+	defer func() {
+		if err != nil && tunnelRef != nil {
+			tunnelRef.CloseSelf()
+		}
+	}()
+
+	host, port, _ := net.SplitHostPort(address)
+	uport, _ := strconv.Atoi(port)
+	var status []byte
+	var resp *http.Response
+
+	for i := 0; i <= h.config.RetryCount; i++ {
+		dialData := BuildBody(NewActionCreate(id, host, uint16(uport)), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
+		req := h.config.NewRequest(h.ctx, bytes.NewReader(dialData), int64(len(dialData)))
+		resp, err = h.client.Do(req)
+		if err != nil {
+			return nil, errors.Wrap(ErrDialFailed, err.Error())
+		}
+
+		serverData, bufData, err := UnmarshalFrameWithBuffer(resp.Body)
+		if err != nil {
+			bodyData, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			bufData = append(bufData, bodyData...)
+			header, _ := httputil.DumpResponse(resp, false)
+			log.Debugf("unmarshal frame data failed, retry %d/%d, response is:\n%s", i, h.config.RetryCount, string(header)+string(bufData))
+			continue
+		}
+
+		status = serverData["s"]
+		break
+	}
+	if len(status) == 0 {
+		return nil, errors.Wrap(ErrDialFailed, "retry limit exceeded, consider to increase retry count?")
+	}
+
+	log.Debugf("recv dial response from server:  %v", status)
+	if len(status) != 1 || status[0] != 0x00 {
+		return nil, errors.Wrap(ErrConnRefused, fmt.Sprintf("status: %v", status))
+	}
+
+	cleanUp := func() {
+		_ = resp.Body.Close()
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(h.rcs, id)
+	}
+
+	tunnel.AddCloseCallback(cleanUp)
+
+	go func() {
+		defer cleanUp()
+
+		err := h.DispatchRemoteData(resp.Body)
+		if err != nil && !strings.Contains(err.Error(), "EOF") && !strings.Contains(err.Error(), "use of closed network") {
+			log.Errorf("dispatch remote data error: %v", err)
+		}
+	}()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rcs[id] = resp.Body
+	return tunnel, nil
 }

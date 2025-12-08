@@ -11,16 +11,16 @@ import (
 
 type RawReadWriteCloser interface {
 	io.ReadWriteCloser
-	WriteRaw(p []byte) (n int, err error)
+	WriteRaw(p []byte, noDelay bool) (n int, err error)
 }
 
-func NewHeartbeatRW(rw RawReadWriteCloser, id, redirect string) io.ReadWriteCloser {
+func NewHeartbeatRW(rw RawReadWriteCloser, id string, conf *Suo5Config) io.ReadWriteCloser {
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &heartbeatRW{
-		rw:       rw,
-		id:       id,
-		redirect: redirect,
-		cancel:   cancel,
+		rw:     rw,
+		id:     id,
+		config: conf,
+		cancel: cancel,
 	}
 	go h.heartbeat(ctx)
 	return h
@@ -28,7 +28,7 @@ func NewHeartbeatRW(rw RawReadWriteCloser, id, redirect string) io.ReadWriteClos
 
 type heartbeatRW struct {
 	id            string
-	redirect      string
+	config        *Suo5Config
 	rw            RawReadWriteCloser
 	lastHaveWrite atomic.Bool
 	cancel        func()
@@ -50,7 +50,7 @@ func (h *heartbeatRW) Close() error {
 
 // write data to the remote server to avoid server's ReadTimeout
 func (h *heartbeatRW) heartbeat(ctx context.Context) {
-	t := time.NewTicker(time.Second * 10)
+	t := time.NewTicker(time.Second * 3)
 	defer t.Stop()
 	for {
 		select {
@@ -59,9 +59,9 @@ func (h *heartbeatRW) heartbeat(ctx context.Context) {
 				h.lastHaveWrite.Store(false)
 				continue
 			}
-			body := BuildBody(NewHeartbeat(h.id, h.redirect))
+			body := BuildBody(NewActionHeartbeat(h.id), h.config.RedirectURL, h.config.SessionId, h.config.Mode)
 			log.Debugf("send heartbeat, length: %d", len(body))
-			_, err := h.rw.WriteRaw(body)
+			_, err := h.rw.WriteRaw(body, false)
 			if err != nil {
 				log.Errorf("send heartbeat error %s", err)
 				return

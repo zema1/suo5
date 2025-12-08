@@ -4,61 +4,99 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/zema1/suo5/netrans"
+	"io"
+	"math/rand"
 	"strconv"
+
+	"github.com/zema1/suo5/netrans"
 )
 
-func BuildBody(m map[string][]byte) []byte {
-	return netrans.NewDataFrame(Marshal(m)).MarshalBinary()
+type ConnectionType string
+
+const (
+	Checking   ConnectionType = "checking"
+	AutoDuplex ConnectionType = "auto"
+	FullDuplex ConnectionType = "full"
+	HalfDuplex ConnectionType = "half"
+	Classic    ConnectionType = "classic"
+)
+
+func AllConnectionTypes() []ConnectionType {
+	return []ConnectionType{
+		Checking,
+		AutoDuplex,
+		FullDuplex,
+		HalfDuplex,
+		Classic,
+	}
+}
+
+func (c ConnectionType) Bin() byte {
+	switch c {
+	case Checking:
+		return 0x00
+	case FullDuplex:
+		return 0x01
+	case HalfDuplex:
+		return 0x02
+	case Classic:
+		return 0x03
+	default:
+		return 0xff
+	}
 }
 
 const (
 	ActionCreate    byte = 0x00
 	ActionData      byte = 0x01
 	ActionDelete    byte = 0x02
-	ActionHeartbeat byte = 0x03
+	ActionStatus    byte = 0x03
+	ActionHeartbeat byte = 0x10
+	ActionDirty     byte = 0x11
 )
 
-func NewActionCreate(id, addr string, port uint16, redirect string) map[string][]byte {
+func BuildBody(m map[string][]byte, redirect, sid string, ct ConnectionType) []byte {
+	if len(redirect) != 0 {
+		m["r"] = []byte(redirect)
+	}
+	if len(sid) != 0 {
+		m["sid"] = []byte(sid)
+	}
+	m["m"] = []byte{ct.Bin()}
+	// some junk data
+	m["_"] = RandBytes(64)
+	return netrans.NewDataFrame(Marshal(m)).MarshalBinaryBase64()
+}
+
+func NewActionCreate(id, addr string, port uint16) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionCreate}
 	m["id"] = []byte(id)
 	m["h"] = []byte(addr)
 	m["p"] = []byte(strconv.Itoa(int(port)))
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
+
 	return m
 }
 
-func NewActionData(id string, data []byte, redirect string) map[string][]byte {
+func NewActionData(id string, data []byte) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionData}
 	m["id"] = []byte(id)
 	m["dt"] = []byte(data)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 
-func NewDelete(id string, redirect string) map[string][]byte {
+func NewActionDelete(id string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionDelete}
 	m["id"] = []byte(id)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 
-func NewHeartbeat(id string, redirect string) map[string][]byte {
+func NewActionHeartbeat(id string) map[string][]byte {
 	m := make(map[string][]byte)
 	m["ac"] = []byte{ActionHeartbeat}
 	m["id"] = []byte(id)
-	if len(redirect) != 0 {
-		m["r"] = []byte(redirect)
-	}
 	return m
 }
 
@@ -90,7 +128,7 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 		key := string(bs[i : i+kLen])
 		i += kLen
 
-		if i+4 >= total {
+		if i+4 > total {
 			return nil, fmt.Errorf("unexpected eof when read value size")
 		}
 		vLen := int(binary.BigEndian.Uint32(bs[i : i+4]))
@@ -104,4 +142,26 @@ func Unmarshal(bs []byte) (map[string][]byte, error) {
 		i += vLen
 	}
 	return m, nil
+}
+
+func UnmarshalFrameWithBuffer(r io.Reader) (map[string][]byte, []byte, error) {
+	var buf bytes.Buffer
+	teeReader := io.TeeReader(r, &buf)
+	fr, err := netrans.ReadFrameBase64(teeReader)
+	if err != nil {
+		return nil, buf.Bytes(), err
+	}
+
+	serverData, err := Unmarshal(fr.Data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return serverData, buf.Bytes(), nil
+}
+
+func RandBytes(max int) []byte {
+	length := rand.Intn(max)
+	b := make([]byte, length)
+	rand.Read(b) //nolint:staticcheck
+	return b
 }

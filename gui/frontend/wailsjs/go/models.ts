@@ -1,19 +1,19 @@
 export namespace main {
 	
-	export class Status {
+	export class RunStatus {
 	    connection_count: number;
-	    memory_usage: string;
-	    cpu_percent: string;
+	    upload: string;
+	    download: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new Status(source);
+	        return new RunStatus(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.connection_count = source["connection_count"];
-	        this.memory_usage = source["memory_usage"];
-	        this.cpu_percent = source["cpu_percent"];
+	        this.upload = source["upload"];
+	        this.download = source["download"];
 	    }
 	}
 
@@ -25,11 +25,9 @@ export namespace suo5 {
 	    method: string;
 	    listen: string;
 	    target: string;
-	    no_auth: boolean;
 	    username: string;
 	    password: string;
 	    mode: string;
-	    buffer_size: number;
 	    timeout: number;
 	    debug: boolean;
 	    upstream_proxy: string[];
@@ -39,6 +37,12 @@ export namespace suo5 {
 	    disable_gzip: boolean;
 	    enable_cookiejar: boolean;
 	    exclude_domain: string[];
+	    forward_target: string;
+	    max_body_size: number;
+	    classic_poll_qps: number;
+	    retry_count: number;
+	    classic_poll_interval: number;
+	    impersonate_browser: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Suo5Config(source);
@@ -49,11 +53,9 @@ export namespace suo5 {
 	        this.method = source["method"];
 	        this.listen = source["listen"];
 	        this.target = source["target"];
-	        this.no_auth = source["no_auth"];
 	        this.username = source["username"];
 	        this.password = source["password"];
 	        this.mode = source["mode"];
-	        this.buffer_size = source["buffer_size"];
 	        this.timeout = source["timeout"];
 	        this.debug = source["debug"];
 	        this.upstream_proxy = source["upstream_proxy"];
@@ -63,6 +65,12 @@ export namespace suo5 {
 	        this.disable_gzip = source["disable_gzip"];
 	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
+	        this.forward_target = source["forward_target"];
+	        this.max_body_size = source["max_body_size"];
+	        this.classic_poll_qps = source["classic_poll_qps"];
+	        this.retry_count = source["retry_count"];
+	        this.classic_poll_interval = source["classic_poll_interval"];
+	        this.impersonate_browser = source["impersonate_browser"];
 	    }
 	}
 

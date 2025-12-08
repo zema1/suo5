@@ -34,3 +34,8 @@ type ClientConnectionEvent struct {
 type ClientConnectCloseEvent struct {
 	Conn net.Conn
 }
+
+type SpeedStatisticEvent struct {
+	Upload   uint64
+	Download uint64
+}

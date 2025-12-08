@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/zema1/suo5/suo5"
 	"os"
 	"os/signal"
 	"strings"
 
-	_ "github.com/chainreactors/proxyclient/extend"
+	"github.com/zema1/suo5/suo5"
+
+	// _ "github.com/chainreactors/proxyclient/extend"
 	log "github.com/kataras/golog"
 	"github.com/urfave/cli/v2"
 	"github.com/zema1/suo5/ctrl"
@@ -18,7 +19,7 @@ import (
 var Version = "v0.0.0"
 
 func main() {
-	log.Default.SetTimeFormat("01-02 15:04")
+	ctrl.InitDefaultLog(os.Stdout)
 	app := cli.NewApp()
 	app.Name = "suo5"
 	app.Usage = "A high-performance http tunnel"
@@ -59,11 +60,6 @@ func main() {
 			Usage:   "redirect to the url if host not matched, used to bypass load balance",
 			Value:   defaultConfig.RedirectURL,
 		},
-		&cli.BoolFlag{
-			Name:  "no-auth",
-			Usage: "disable socks5 authentication",
-			Value: defaultConfig.NoAuth,
-		},
 		&cli.StringFlag{
 			Name:  "auth",
 			Usage: "socks5 creds, username:password, leave empty to auto generate",
@@ -71,18 +67,19 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "mode",
-			Usage: "connection mode, choices are auto, full, half",
+			Usage: "connection mode, choices are auto, full, half, classic",
 			Value: string(defaultConfig.Mode),
-		},
-		&cli.StringFlag{
-			Name:  "ua",
-			Usage: "set the request User-Agent",
-			Value: "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.1.2.3",
 		},
 		&cli.StringSliceFlag{
 			Name:    "header",
 			Aliases: []string{"H"},
 			Usage:   "use extra header, ex -H 'Cookie: abc'",
+			Value:   cli.NewStringSlice(defaultConfig.RawHeader...),
+		},
+		&cli.StringFlag{
+			Name:  "ua",
+			Usage: "shortcut to set the request User-Agent",
+			Value: "",
 		},
 		&cli.IntFlag{
 			Name:  "timeout",
@@ -90,9 +87,27 @@ func main() {
 			Value: defaultConfig.Timeout,
 		},
 		&cli.IntFlag{
-			Name:  "buf-size",
-			Usage: "request max body size",
-			Value: defaultConfig.BufferSize,
+			Name:    "max-body-size",
+			Aliases: []string{"S"},
+			Usage:   "request max body size",
+			Value:   defaultConfig.MaxBodySize,
+		},
+		&cli.IntFlag{
+			Name:  "retry",
+			Usage: "request retry",
+			Value: defaultConfig.RetryCount,
+		},
+		&cli.IntFlag{
+			Name:    "classic-poll-qps",
+			Usage:   "request poll qps, only used in classic mode",
+			Aliases: []string{"qps"},
+			Value:   defaultConfig.ClassicPollQPS,
+		},
+		&cli.IntFlag{
+			Name:    "classic-poll-interval",
+			Usage:   "request poll interval in milliseconds, only used in classic mode",
+			Aliases: []string{"qi"},
+			Value:   defaultConfig.ClassicPollInterval,
 		},
 		&cli.StringSliceFlag{
 			Name:  "proxy",
@@ -118,10 +133,15 @@ func main() {
 			Value:   defaultConfig.DisableHeartbeat,
 		},
 		&cli.BoolFlag{
-			Name:    "jar",
-			Aliases: []string{"j"},
-			Usage:   "enable cookiejar",
-			Value:   defaultConfig.EnableCookieJar,
+			Name:  "jar",
+			Usage: "enable cookiejar",
+			Value: defaultConfig.EnableCookieJar,
+		},
+		&cli.BoolFlag{
+			Name:    "no-browser-headers",
+			Aliases: []string{"nb"},
+			Usage:   "disable browser headers, which will not send Accept, Accept-Encoding, etc.",
+			Value:   !defaultConfig.ImpersonateBrowser,
 		},
 		&cli.StringFlag{
 			Name:    "test-exit",
@@ -148,7 +168,7 @@ func main() {
 	}
 	app.Before = func(c *cli.Context) error {
 		if c.Bool("debug") {
-			log.Default.SetLevel("debug")
+			log.SetLevel("debug")
 		}
 		return nil
 	}
@@ -163,49 +183,42 @@ func main() {
 func Action(c *cli.Context) error {
 	listen := c.String("listen")
 	target := c.String("target")
-	noAuth := c.Bool("no-auth")
 	auth := c.String("auth")
 	mode := suo5.ConnectionType(c.String("mode"))
-	ua := c.String("ua")
-	bufSize := c.Int("buf-size")
+	maxBodySize := c.Int("max-body-size")
 	timeout := c.Int("timeout")
 	debug := c.Bool("debug")
 	proxy := c.StringSlice("proxy")
+	retryCount := c.Int("retry")
 	method := c.String("method")
 	redirect := c.String("redirect")
+	ua := c.String("ua")
 	header := c.StringSlice("header")
 	noHeartbeat := c.Bool("no-heartbeat")
 	noGzip := c.Bool("no-gzip")
+	noBrowserHeaders := c.Bool("no-browser-headers")
 	jar := c.Bool("jar")
 	testExit := c.String("test-exit")
 	exclude := c.StringSlice("exclude-domain")
 	excludeFile := c.String("exclude-domain-file")
+	classicQPS := c.Int("classic-poll-qps")
+	classicInterval := c.Int("classic-poll-interval")
 	forward := c.String("forward")
 	configFile := c.String("config")
 
+	if ua != "" {
+		header = append(header, fmt.Sprintf("User-Agent: %s", ua))
+	}
+
 	var username, password string
-	if auth == "" {
-		if !noAuth {
-			username = "suo5"
-			password = suo5.RandString(8)
-		}
-	} else {
+	if auth != "" {
 		parts := strings.Split(auth, ":")
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid socks credentials, expected username:password")
 		}
 		username = parts[0]
 		password = parts[1]
-		noAuth = false
 	}
-	if !(mode == suo5.AutoDuplex || mode == suo5.FullDuplex || mode == suo5.HalfDuplex) {
-		return fmt.Errorf("invalid mode, expected auto or full or half")
-	}
-
-	if bufSize < 512 || bufSize > 1024000 {
-		return fmt.Errorf("inproper buffer size, 512~1024000")
-	}
-	header = append(header, "User-Agent: "+ua)
 
 	if excludeFile != "" {
 		data, err := os.ReadFile(excludeFile)
@@ -224,11 +237,10 @@ func Action(c *cli.Context) error {
 	config := &suo5.Suo5Config{
 		Listen:           listen,
 		Target:           target,
-		NoAuth:           noAuth,
 		Username:         username,
 		Password:         password,
 		Mode:             mode,
-		BufferSize:       bufSize,
+		MaxBodySize:      maxBodySize,
 		Timeout:          timeout,
 		Debug:            debug,
 		UpstreamProxy:    proxy,
@@ -238,9 +250,14 @@ func Action(c *cli.Context) error {
 		DisableHeartbeat: noHeartbeat,
 		DisableGzip:      noGzip,
 		EnableCookieJar:  jar,
+		ClassicPollQPS:   classicQPS,
 		TestExit:         testExit,
 		ExcludeDomain:    exclude,
 		ForwardTarget:    forward,
+		RetryCount:       retryCount,
+
+		ClassicPollInterval: classicInterval,
+		ImpersonateBrowser:  !noBrowserHeaders,
 	}
 
 	if configFile != "" {

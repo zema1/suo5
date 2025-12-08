@@ -122,16 +122,17 @@ func (c *channelReader) Read(p []byte) (n int, err error) {
 		return c.buf.Read(p)
 	}
 	var data []byte
+	var ok bool
 	for {
-		data = <-c.ch
-		// channel closed
-		if data == nil {
+		data, ok = <-c.ch
+		if !ok {
 			return 0, io.EOF
 		}
 		if len(data) != 0 {
 			break
 		}
 	}
+	c.buf.Reset()
 	c.buf.Write(data)
 	return c.buf.Read(p)
 }
@@ -145,7 +146,7 @@ type channelWriterCloser struct {
 }
 
 func NewChannelWriteCloser(ctx context.Context) (chan []byte, io.WriteCloser) {
-	ch := make(chan []byte)
+	ch := make(chan []byte, 64)
 	ctx, cancel := context.WithCancel(ctx)
 	return ch, &channelWriterCloser{
 		ch:     ch,
@@ -179,6 +180,9 @@ func (c *channelWriterCloser) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	case <-c.ctx.Done():
 		return 0, c.ctx.Err()
+	default:
+		// don't block on write
+		return 0, errors.New("write channel is full")
 	}
 }
 
@@ -210,4 +214,33 @@ func (m *multiReadCloser) Close() error {
 		}
 	}
 	return err
+}
+func NoOpReader(r io.Reader) io.Reader {
+	return r
+}
+
+// OffsetReader 创建一个从指定偏移量开始读取的 Reader
+func OffsetReader(r io.Reader, offset int64) io.Reader {
+	// 如果 Reader 支持 Seek，直接使用 Seek
+	if seeker, ok := r.(io.Seeker); ok {
+		_, err := seeker.Seek(offset, io.SeekStart)
+		if err == nil {
+			return r
+		}
+	}
+
+	// 否则通过读取来跳过到指定偏移量
+	_, err := io.CopyN(io.Discard, r, offset)
+	if err != nil && err != io.EOF {
+		return &errorReader{err: err}
+	}
+	return r
+}
+
+type errorReader struct {
+	err error
+}
+
+func (e *errorReader) Read(p []byte) (n int, err error) {
+	return 0, e.err
 }

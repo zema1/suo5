@@ -1,19 +1,22 @@
 # Java
 
-> Weblogic 等服务对换行很敏感， 如果你需要对文件进行修改，请务必确保去除了不必要的换行，
-> 尤其是文件结束的换行，否则可能无法使用
+环境依赖：Java 6及以上版本。
 
-运行环境: JDK 4~21
+下方表格是 CI 测试中确认可以使用的版本，实际上绝大部分中间件都可以使用，只要实现了 Java Servlet 规范即可。
 
-| 文件                       | 全双工 | 半双工 | 负载转发 | 备注                                                                     |
-|:-------------------------|:---:|:---:|:----:|:-----------------------------------------------------------------------|
-| `suo5.jsp`               |  ✓  |  ✓  |  ✓   |                                                                        |
-| `suo5.jspx`              |  ✓  |  ✓  |  ✓   |                                                                        |
-| `Suo5Filter.java`        |  ✓  |  ✓  |  ✓   | `javax.servlet.Filter` 的实现，用于经典中间件 `Filter` 类型的内存马注入                   |
-| `Suo5WebFluxFilter.java` |  ✓  |  ✓  |  x   | `org.springframework.web.server.WebFilter` 的实现， 用于响应式的 Spring Netty 环境 |
-| `Suo5WebFluxSpEL.txt`    |  ✓  |  ✓  |  x   | Spring Cloud Gateway `CVE-2022-22947` 的一键注入 Suo5 的 Payload             |
+| 中间件                  | 自动检测 | 全双工 | 半双工 | 短链接 |
+|:---------------------|:----:|:---:|:---:|:---:|
+| Tomcat (4.1-10)      |  ✓   |  ✓  |  ✓  |  ✓  |
+| Jetty (9.4-11.0)     |  ✓   |  ✓  |  ✓  |  ✓  |
+| Resin (3.1-4.0)      |  ✓   |  ✓  |  ✓  |  ✓  |
+| JBoss (4-7, EAP-7)   |  ✓   |  ✓  |  ✓  |  ✓  |
+| WebSphere            |  ✓   |  ✓  |  ✓  |  ✓  |
+| Weblogic (10.3-14.1) |  ✓   |  ✓  |  ✓  |  ✓  |
+| TongWeb (6)          |  ✓   |  ✓  |  ✓  |  ✓  |
 
-> WebFlux 的负载转发功能时可以支持的，时间比较仓库还没写，后面会更新
+暂时不打算支持的中间件为：
 
-内存马注入推荐参考这个项目，其支持生成各种中间件的一键 Suo5
-注入逻辑 [java-memshell-generator-release](https://github.com/pen4uin/java-memshell-generator-release)
+- Netty
+- Spring Webflux
+
+主要原因是用的比较少，而且语法比较特殊，需要投入精力单独适配。如果你觉得这些中间件很重要，可以提 issue 说明理由，我会考虑支持。

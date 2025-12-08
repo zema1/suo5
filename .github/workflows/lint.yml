@@ -18,6 +18,6 @@ jobs:
         with:
           go-version: '1.20'
       - run: go mod download
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
         with:
           skip-cache: true

@@ -1,22 +1,14 @@
-import {defineConfig} from 'vite'
-import vue from '@vitejs/plugin-vue'
-import AutoImport from 'unplugin-auto-import/vite'
-import Components from 'unplugin-vue-components/vite'
-import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
+import path from "path"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import {defineConfig} from "vite"
 
-// https://vitejs.dev/config/
+// https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    vue(),
-    AutoImport({
-      dts: true,
-      imports: [
-        'vue',
-      ]
-    }),
-    Components({
-      dts: true,
-      resolvers: [NaiveUiResolver()]
-    })
-  ],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
 })

@@ -1,0 +1,121 @@
+name: Run Suo5 Tests
+description: Run standard suo5 tests with optional no-gzip flag
+inputs:
+  no_gzip:
+    description: "Add -no-gzip flag to tests"
+    default: 'false'
+    required: false
+  test_auto:
+    description: "Run auto mode tests"
+    default: 'true'
+    required: false
+  test_full:
+    description: "Run full mode tests"
+    default: 'true'
+    required: false
+  test_half:
+    description: "Run half mode tests"
+    default: 'true'
+    required: false
+  test_classic:
+    description: "Run classic mode tests"
+    default: 'true'
+    required: false
+  test_inner:
+    description: "Run nginx inner URL tests"
+    default: 'true'
+    required: false
+  test_top:
+    description: "Run nginx top URL tests"
+    default: 'true'
+    required: false
+  test_redirect:
+    description: "Run redirect URL tests"
+    default: 'true'
+    required: false
+  redirect_path:
+    description: "Redirect path for building redirect URL"
+    default: '/assets/suo5.jsp'
+    required: false
+  nginx_url:
+    description: "Nginx URL for tests"
+    default: 'http://127.0.0.1:80/assets/suo5.jsp'
+    required: false
+  nginx_inner_url:
+    description: "Nginx inner URL for tests"
+    default: 'http://127.0.0.1:81/assets/suo5.jsp'
+    required: false
+  direct_url:
+    description: "Direct URL for tests"
+    default: 'http://127.0.0.1:82/assets/suo5.jsp'
+    required: false
+  service_port:
+    description: "Service port for the application"
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -ex
+        ./helper ready -u ${{ inputs.direct_url }} -t 60
+        chmod +x ./suo5_test
+        
+        # Set gzip flag based on input
+        GZIP_FLAG=""
+        if [ "${{ inputs.no_gzip }}" = "true" ]; then
+          GZIP_FLAG="-no-gzip"
+        fi
+        
+        # Redirect URL
+        REDIRECT_URL=""
+        if [ "${{ inputs.test_redirect }}" = "true" ]; then
+          SRV3_IP=$(docker inspect $(docker ps --filter "label=com.docker.compose.service=srv3" --format "{{.ID}}") --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+          REDIRECT_URL="http://$SRV3_IP:${{ inputs.service_port }}${{ inputs.redirect_path }}"
+          echo "Redirect URL: $REDIRECT_URL"
+        fi
+        
+        # Helper function to run test if enabled
+        run_test() {
+          local enabled=$1
+          local url=$2
+          local mode=$3
+          local retry=$4
+          local redirect=$5
+          
+          if [ "$enabled" = "true" ]; then
+            ./suo5_test -debug -t "$url" -T https://example.com/ -mode "$mode" $GZIP_FLAG --retry $retry -r "$redirect"
+          fi
+        }
+        
+        echo "Run direct URL tests"
+        run_test "${{ inputs.test_auto }}" "${{ inputs.direct_url }}" "auto" 0 ""
+        run_test "${{ inputs.test_full }}" "${{ inputs.direct_url }}" "full" 0 ""
+        run_test "${{ inputs.test_half }}" "${{ inputs.direct_url }}" "half" 0 ""
+        run_test "${{ inputs.test_classic }}" "${{ inputs.direct_url }}" "classic" 0 ""
+
+        if [ "${{ inputs.test_inner }}" = "true" ]; then
+          echo "Run nginx inner URL tests with retry"
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 ""
+          run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 ""
+          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 ""
+
+          if [ "${{ inputs.test_redirect }}" = "true" ]; then
+            echo "Run nginx inner URL tests with redirect"
+            run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_inner_url }}" "auto" 5 "$REDIRECT_URL"
+            run_test "${{ inputs.test_half }}" "${{ inputs.nginx_inner_url }}" "half" 5 "$REDIRECT_URL"
+            run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_inner_url }}" "classic" 5 "$REDIRECT_URL"
+          fi
+        fi
+
+        if [ "${{ inputs.test_top }}" = "true" ]; then
+          echo "Run nginx TOP URL tests with retry"
+          run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 ""
+          run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 ""
+
+          if [ "${{ inputs.test_redirect }}" = "true" ]; then
+            echo "Run nginx TOP URL tests with redirect"
+            run_test "${{ inputs.test_auto }}" "${{ inputs.nginx_url }}" "auto" 5 "$REDIRECT_URL"
+            run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "$REDIRECT_URL"
+          fi
+        fi

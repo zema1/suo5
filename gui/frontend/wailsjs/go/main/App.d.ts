@@ -7,7 +7,7 @@ export function DefaultSuo5Config():Promise<suo5.Suo5Config>;
 
 export function ExportConfig(arg1:suo5.Suo5Config):Promise<void>;
 
-export function GetStatus():Promise<main.Status>;
+export function GetStatus():Promise<main.RunStatus>;
 
 export function ImportConfig():Promise<suo5.Suo5Config>;
 

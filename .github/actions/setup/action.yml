@@ -1,0 +1,40 @@
+name: setup
+description: Setup docker and jar
+inputs:
+  jar:
+    description: "setup jar"
+    default: 'false'
+    required: false
+  dotnet:
+    description: "setup dotnet"
+    default: 'false'
+    required: false
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: test-target
+        path: .
+    - shell: bash
+      working-directory: ./assets
+      run: |
+        cp -r ./java/* ./
+        cp -r ./php/* ./
+    - uses: docker/setup-docker-action@v4
+      with:
+        version: 25.0.5
+    - uses: docker/setup-compose-action@v1
+    - if: inputs.jar == 'true'
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'corretto'
+        java-version: '8'
+    - if: inputs.jar == 'true'
+      shell: bash
+      working-directory: ./assets
+      run: jar cvf assets.war suo5.jsp
+    - if: inputs.dotnet == 'true'
+      shell: bash
+      working-directory: ./assets
+      run: cp -r ./.net/* ./
