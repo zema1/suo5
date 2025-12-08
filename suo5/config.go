@@ -149,15 +149,15 @@ func (conf *Suo5Config) parseHeader() error {
 		conf.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 	}
 
-	if conf.Header.Get("Referer") == "" {
-		target := conf.GetTarget()
-		n := strings.LastIndex(target, "/")
-		if n == -1 {
-			conf.Header.Set("Referer", target)
-		} else {
-			conf.Header.Set("Referer", target)
-		}
-	}
+	// if conf.Header.Get("Referer") == "" {
+	// 	target := conf.GetTarget()
+	// 	n := strings.LastIndex(target, "/")
+	// 	if n == -1 {
+	// 		conf.Header.Set("Referer", target)
+	// 	} else {
+	// 		conf.Header.Set("Referer", target)
+	// 	}
+	// }
 
 	return nil
 }
