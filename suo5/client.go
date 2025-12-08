@@ -22,8 +22,6 @@ import (
 	"github.com/zema1/suo5/netrans"
 )
 
-var errApacheChunkedNotSupported = fmt.Errorf("apache server may not support chunked encoding")
-
 type Suo5Client struct {
 	StreamFactory
 	Config *Suo5Config
