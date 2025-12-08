@@ -88,6 +88,8 @@ func handleGen() {
       - "80:80"
     volumes:
       - ./nginx-config/default-top.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - nginx
 
   nginx:
     image: nginx
@@ -95,6 +97,10 @@ func handleGen() {
       - "81:80"
     volumes:
       - ./nginx-config/default-inner.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - srv1
+      - srv2
+      - srv3
 
   srv1:
     image: {{.Image}}{{if .Volumes}}
