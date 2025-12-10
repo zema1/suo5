@@ -1,5 +1,7 @@
 # Java
 
+推荐使用 [MemshellParty](https://github.com/ReaJason/MemShellParty) 项目来生成内存马并进行注入。
+
 环境依赖：Java 6及以上版本。
 
 下方表格是 CI 测试中确认可以使用的版本，实际上绝大部分中间件都可以使用，只要实现了 Java Servlet 规范即可。

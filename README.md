@@ -51,7 +51,9 @@ Suo5 是一款久经实战检验的高性能 HTTP 正向代理工具，持续打
 
 ### 2. 部署服务端
 
-将 [assets](./assets/) 目录下对应的服务端文件上传到目标服务器并确认可以正常执行。实战建议使用内存马版本以实现更好的隐蔽性。
+将 [assets](./assets/) 目录下对应的服务端文件上传到目标服务器并确认可以正常执行。
+
+Java 目标推荐使用 [MemshellParty](https://github.com/ReaJason/MemShellParty) 项目来生成内存马并进行注入。
 
 ### 3. 连接服务端
 
