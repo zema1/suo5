@@ -282,11 +282,11 @@
 
             Thread t = null;
             boolean sendClose = true;
-            try {
-                final OutputStream scOutStream = socket.getOutputStream();
-                final InputStream scInStream = socket.getInputStream();
-                final OutputStream respOutputStream = resp.getOutputStream();
+            final OutputStream scOutStream = socket.getOutputStream();
+            final InputStream scInStream = socket.getInputStream();
+            final OutputStream respOutputStream = resp.getOutputStream();
 
+            try {
                 Suo5 p = new Suo5(scInStream, respOutputStream, tunId);
                 t = new Thread(p);
                 t.start();
@@ -317,7 +317,6 @@
                 }
             } catch (Exception ignored) {
             } finally {
-
                 try {
                     socket.close();
                 } catch (Exception ignored) {
@@ -326,6 +325,12 @@
                 if (sendClose) {
                     writeAndFlush(resp, marshalBase64(newDel(tunId)), 0);
                 }
+
+                try {
+                    respOutputStream.close();
+                } catch (Exception ignored) {
+                }
+
                 if (t != null) {
                     t.join();
                 }
