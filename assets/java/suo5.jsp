@@ -124,7 +124,11 @@
                 }
             } catch (Throwable e) {
             } finally {
-
+                try {
+                    OutputStream out = resp.getOutputStream();
+                    out.flush();
+                    out.close();
+                } catch (Throwable ignored) {}
             }
         }
 
@@ -330,12 +334,7 @@
                 if (sendClose) {
                     writeAndFlush(resp, marshalBase64(newDel(tunId)), 0);
                 }
-
-                try {
-                    respOutputStream.close();
-                } catch (Exception ignored) {
-                }
-
+                
                 if (t != null) {
                     t.join();
                 }
