@@ -326,11 +326,6 @@
                 } catch (Exception ignored) {
                 }
 
-                try {
-                    respOutputStream.close();
-                } catch (Exception ignored) {
-                }
-
                 if (sendClose) {
                     writeAndFlush(resp, marshalBase64(newDel(tunId)), 0);
                 }
