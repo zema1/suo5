@@ -111,6 +111,7 @@ func (s *BaseStreamFactory) startPlex() {
 					err := s.directWriteFunc(idData)
 					if err != nil {
 						log.Errorf("failed to write direct data to remote: %v", err)
+						return // 连接已断开，退出循环
 					}
 					continue
 				}

@@ -137,7 +137,7 @@ func Run(ctx context.Context, config *suo5.Suo5Config) error {
 			log.Errorf("tunnel created but test connection failed")
 			return fmt.Errorf("suo5 can not work on this server")
 		} else {
-			log.Infof("test connection succeeded, tunnel is ready")
+			log.Infof("tunnel is ready to use")
 		}
 
 		if config.TestExit != "" {
