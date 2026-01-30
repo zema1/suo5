@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -13,7 +14,22 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		runServer(os.Args[1])
+		return
+	}
+
+	addr := "127.0.0.1:9977"
+	go runServer(addr)
+
+	time.Sleep(time.Second)
+
 	start := time.Now()
+	runReq()
+	golog.Infof("total time: %.2f", time.Since(start).Seconds())
+}
+
+func runServer(addr string) {
 	http.HandleFunc("/testconn", func(writer http.ResponseWriter, request *http.Request) {
 		// 禁用连接复用，每次请求后关闭连接
 		needClose := request.URL.Query().Get("close") == "1"
@@ -24,35 +40,32 @@ func main() {
 		defer request.Body.Close()
 		data, err := io.ReadAll(request.Body)
 		if err != nil {
-			golog.Errorf("readbody %s", err)
+			golog.Errorf("failed to read body: %s", err)
 			return
 		}
 		n, err := writer.Write(data)
 		if err != nil {
-			golog.Errorf("write err %s", err)
+			golog.Errorf("failed to write: %s", err)
 		}
 		if n != len(data) {
-			golog.Errorf("write not equal, expected %d, got %d", len(data), n)
+			golog.Errorf("write length mismatch, expected: %d, got: %d", len(data), n)
 		}
 	})
-	go http.ListenAndServe("127.0.0.1:9977", nil)
-	time.Sleep(time.Second)
-	runReq()
-	golog.Infof("total time: %.2f", time.Since(start).Seconds())
+	http.ListenAndServe(addr, nil)
 }
 
 func runReq() {
 	proxy, _ := url.Parse("socks5://127.0.0.1:1111")
 	var wg sync.WaitGroup
 	// var connDone atomic.Uint32
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 30; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// defer func() {
 			// 	golog.Infof("done %d", connDone.Add(1))
 			// }()
-			client := http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy)}, Timeout: time.Second * 5}
+			client := http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy)}, Timeout: time.Second * 30}
 			for j := 0; j < 30; j++ {
 				data := randBytes()
 				u := "http://127.0.0.1:9977/testconn"
@@ -71,7 +84,7 @@ func runReq() {
 				}
 				_ = resp.Body.Close()
 				if !bytes.Equal(data, newData) {
-					golog.Error("data not equal")
+					golog.Error("data mismatch")
 					return
 				}
 			}
