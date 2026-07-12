@@ -52,6 +52,18 @@ inputs:
   service_port:
     description: "Service port for the application"
     required: true
+  reliability_modes:
+    description: "Space-separated modes that run the large-response reliability suite"
+    default: ''
+    required: false
+  reliability_echo_workers:
+    description: "Echo workers used by the reliability suite"
+    default: '50'
+    required: false
+  reliability_echo_requests:
+    description: "Echo requests per worker used by the reliability suite"
+    default: '30'
+    required: false
 runs:
   using: composite
   steps:
@@ -59,7 +71,33 @@ runs:
       run: |
         set -ex
         ./helper ready -u ${{ inputs.direct_url }} -t 60
-        chmod +x ./suo5_test
+        chmod +x ./suo5_test ./mbtest
+
+        SRV1_ID=$(docker compose ps -q srv1)
+        NETWORK=$(docker inspect "$SRV1_ID" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}')
+        TARGET_HOST=$(docker network inspect "$NETWORK" --format '{{(index .IPAM.Config 0).Gateway}}')
+        REMOTE_TEST_URL="http://${TARGET_HOST}:9976/echo"
+        CLIENT_PID=""
+
+        ./mbtest -listen 0.0.0.0:9976 -serve-only >mbtest-target.log 2>&1 &
+        TARGET_PID=$!
+
+        cleanup_client() {
+          if [ -n "${CLIENT_PID:-}" ]; then
+            kill "$CLIENT_PID" 2>/dev/null || true
+            wait "$CLIENT_PID" 2>/dev/null || true
+            CLIENT_PID=""
+          fi
+        }
+
+        cleanup_all() {
+          cleanup_client
+          kill "$TARGET_PID" 2>/dev/null || true
+          wait "$TARGET_PID" 2>/dev/null || true
+        }
+        trap cleanup_all EXIT
+
+        ./helper ready -u http://127.0.0.1:9976/echo -t 10
 
         # Set gzip flag based on input
         GZIP_FLAG=""
@@ -89,7 +127,7 @@ runs:
             if [ -n "$dirty" ] && [ "$dirty" != "0" ]; then
               DIRTY_FLAG="-jk $dirty"
             fi
-            ./suo5_test -debug -t "$url" -T https://example.com/ -mode "$mode" $GZIP_FLAG --retry $retry -r "$redirect" $DIRTY_FLAG
+            ./suo5_test -debug -t "$url" -T "$REMOTE_TEST_URL" -mode "$mode" $GZIP_FLAG --retry $retry -r "$redirect" $DIRTY_FLAG
           fi
         }
 
@@ -137,4 +175,48 @@ runs:
             run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "$REDIRECT_URL" ""
             run_test "${{ inputs.test_classic }}" "${{ inputs.nginx_url }}" "classic" 5 "$REDIRECT_URL" "8192"
           fi
+        fi
+
+        if [ -n "${{ inputs.reliability_modes }}" ]; then
+          echo "Run large-response reliability tests: ${{ inputs.reliability_modes }}"
+          RELIABILITY_MODES="${{ inputs.reliability_modes }}"
+
+          TEST_PORT=11120
+
+          for mode in $RELIABILITY_MODES; do
+            CLIENT_LOG="suo5-reliability-${mode}.log"
+            ./suo5_test -debug -t "${{ inputs.direct_url }}" -mode "$mode" \
+              $GZIP_FLAG --retry 0 -l "127.0.0.1:${TEST_PORT}" >"$CLIENT_LOG" 2>&1 &
+            CLIENT_PID=$!
+
+            ready=false
+            for _ in $(seq 1 50); do
+              if ! kill -0 "$CLIENT_PID" 2>/dev/null; then
+                echo "suo5 client exited before reliability tests"
+                cat "$CLIENT_LOG"
+                exit 1
+              fi
+              if (echo >"/dev/tcp/127.0.0.1/${TEST_PORT}") 2>/dev/null; then
+                ready=true
+                break
+              fi
+              sleep 0.1
+            done
+            if [ "$ready" != "true" ]; then
+              echo "suo5 client did not listen on ${TEST_PORT}"
+              cat "$CLIENT_LOG"
+              exit 1
+            fi
+
+            if ! ./mbtest -listen 0.0.0.0:9977 -target "${TARGET_HOST}:9977" \
+              -proxy "127.0.0.1:${TEST_PORT}" \
+              -echo-workers "${{ inputs.reliability_echo_workers }}" \
+              -echo-requests "${{ inputs.reliability_echo_requests }}"; then
+              cat "$CLIENT_LOG"
+              exit 1
+            fi
+
+            cleanup_client
+            TEST_PORT=$((TEST_PORT + 1))
+          done
         fi

@@ -3,10 +3,8 @@ package ctrl
 import (
 	"context"
 	"net"
-	"time"
 
 	log "github.com/kataras/golog"
-	"github.com/zema1/suo5/netrans"
 	"github.com/zema1/suo5/suo5"
 )
 
@@ -25,7 +23,6 @@ func NewForwardHandler(ctx context.Context, client *suo5.Suo5Client) *ForwardHan
 func (f *ForwardHandler) Handle(conn net.Conn) error {
 	defer conn.Close()
 
-	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	log.Infof("starting forwarding connection to: %s", f.Config.ForwardTarget)
 
 	streamRW := suo5.NewSuo5Conn(f.ctx, f.Suo5Client)

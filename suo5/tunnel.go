@@ -14,7 +14,6 @@ import (
 type TunnelConn struct {
 	id            string
 	once          sync.Once
-	closeMu       sync.Mutex
 	writeMu       sync.Mutex
 	readChan      chan map[string][]byte
 	readBuf       bytes.Buffer
@@ -43,13 +42,14 @@ func (s *TunnelConn) ReadUnmarshal() (map[string][]byte, error) {
 	if s.closed.Load() {
 		return nil, fmt.Errorf("tunnel %s is closed", s.id)
 	}
+	timer := time.NewTimer(s.config.TimeoutTime())
+	defer timer.Stop()
 	select {
-	case m, ok := <-s.readChan:
-		if !ok {
-			return nil, io.EOF
-		}
+	case m := <-s.readChan:
 		return m, nil
-	case <-time.After(s.config.TimeoutTime()):
+	case <-s.ctx.Done():
+		return nil, io.EOF
+	case <-timer.C:
 		return nil, fmt.Errorf("timeout when read from tunnel %s", s.id)
 	}
 }
@@ -59,14 +59,14 @@ func (s *TunnelConn) AddCloseCallback(fn func()) {
 }
 
 func (s *TunnelConn) RemoteData(m map[string][]byte) {
-	s.closeMu.Lock()
-	defer s.closeMu.Unlock()
 	if s.closed.Load() {
 		return
 	}
+	// Preserve frame ordering and propagate backpressure to the remote reader.
+	// The tunnel context makes a blocked send cancelable without closing readChan.
 	select {
 	case s.readChan <- m:
-	default:
+	case <-s.ctx.Done():
 	}
 }
 
@@ -74,9 +74,9 @@ func (s *TunnelConn) Read(p []byte) (n int, err error) {
 	if s.readBuf.Len() != 0 {
 		return s.readBuf.Read(p)
 	}
-	m, ok := <-s.readChan
-	if !ok {
-		return 0, io.EOF
+	m, err := s.readRemoteData()
+	if err != nil {
+		return 0, err
 	}
 
 	action := m["ac"]
@@ -94,6 +94,22 @@ func (s *TunnelConn) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	default:
 		return 0, fmt.Errorf("unpected action when read %v", action)
+	}
+}
+
+func (s *TunnelConn) readRemoteData() (map[string][]byte, error) {
+	// Once DispatchRemoteData has accepted a frame it must be delivered even if
+	// the remote HTTP response reaches EOF and closes the tunnel immediately.
+	select {
+	case m := <-s.readChan:
+		return m, nil
+	default:
+	}
+	select {
+	case m := <-s.readChan:
+		return m, nil
+	case <-s.ctx.Done():
+		return nil, io.EOF
 	}
 }
 
@@ -140,16 +156,11 @@ func (s *TunnelConn) WriteRaw(p []byte, noDelay bool) (n int, err error) {
 func (s *TunnelConn) CloseSelf() {
 	s.once.Do(func() {
 		log.Debugf("closing tunnel by itself: %s", s.id)
+		s.closed.Store(true)
 		s.cancel()
 		for _, fn := range s.onClose {
 			fn()
 		}
-
-		s.closeMu.Lock()
-		defer s.closeMu.Unlock()
-
-		close(s.readChan)
-		s.closed.Store(true)
 	})
 }
 
@@ -157,20 +168,14 @@ func (s *TunnelConn) Close() error {
 	s.once.Do(func() {
 		log.Debugf("closing tunnel: %s", s.id)
 		defer log.Debugf("tunnel closed: %s", s.id)
-		s.cancel()
-
 		body := BuildBody(NewActionDelete(s.id), s.config.RedirectURL, s.config.SessionId, s.config.Mode)
 		_, _ = s.WriteRaw(body, false)
 
+		s.closed.Store(true)
+		s.cancel()
 		for _, fn := range s.onClose {
 			fn()
 		}
-
-		s.closeMu.Lock()
-		defer s.closeMu.Unlock()
-
-		close(s.readChan)
-		s.closed.Store(true)
 	})
 	return nil
 }

@@ -341,7 +341,7 @@ func (m *Suo5Client) DualPipe(localConn, remoteWrapper io.ReadWriteCloser, addr 
 		defer cancel()
 		defer remoteWrapper.Close()
 		if err := m.Pipe(localConn, remoteWrapper); err != nil {
-			log.Debugf("local connection closed: %s", addr)
+			log.Debugf("local connection closed: %s: %v", addr, err)
 		}
 	}()
 
@@ -351,7 +351,7 @@ func (m *Suo5Client) DualPipe(localConn, remoteWrapper io.ReadWriteCloser, addr 
 		defer cancel()
 		defer localConn.Close()
 		if err := m.Pipe(remoteWrapper, localConn); err != nil {
-			log.Debugf("remote read-writer closed: %s", addr)
+			log.Debugf("remote read-writer closed: %s: %v", addr, err)
 		}
 	}()
 
