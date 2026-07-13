@@ -45,6 +45,28 @@ jobs:
             helper
             mbtest
 
+  nodejs-test:
+    name: Node.js ${{ matrix.node-version }}
+    needs: build-test-binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - '18'
+          - '22'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-target
+          path: .
+      - run: chmod +x ./suo5_test ./mbtest
+      - run: bash tests/nodejs/run.sh
+
   resin-test:
     name: Resin
     needs: build-test-binary
