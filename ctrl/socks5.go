@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"time"
 
 	"github.com/go-gost/gosocks5/server"
 	"github.com/pkg/errors"
 
 	"github.com/go-gost/gosocks5"
 	log "github.com/kataras/golog"
-	"github.com/zema1/suo5/netrans"
 	"github.com/zema1/suo5/suo5"
 )
 
@@ -41,7 +39,6 @@ func NewSocks5Handler(ctx context.Context, client *suo5.Suo5Client) *Socks5Handl
 func (m *Socks5Handler) Handle(conn net.Conn) error {
 	defer conn.Close()
 
-	conn = netrans.NewTimeoutConn(conn, 0, time.Second*3)
 	conn = gosocks5.ServerConn(conn, m.selector)
 	req, err := gosocks5.ReadRequest(conn)
 	if err != nil {

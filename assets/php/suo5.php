@@ -739,7 +739,7 @@ function performHalfCreate($dataMap, $tunId, $dirtySize) {
             $data = @fread($socket, BUF_SIZE);
             $eofStatus = feof($socket);
 
-            if ($data === false || $eofStatus) {
+            if ($data === false) {
                 break;
             }
             if (strlen($data) > 0) {
@@ -752,21 +752,26 @@ function performHalfCreate($dataMap, $tunId, $dirtySize) {
                     break;
                 }
             }
+            if ($eofStatus) {
+                break;
+            }
         }
 
-        $writeBuf = getKey($tunId . '_write_buf');
+        $writeBuf = atomicDrainBuffer($tunId . '_write_buf');
         if ($writeBuf && strlen($writeBuf) > 0) {
-            $expectedLen = strlen($writeBuf);
-            putKey($tunId . '_write_buf', '');
             $written = @fwrite($socket, $writeBuf);
 
             if ($written === false) {
                 break;
             }
-            if ($written < $expectedLen) {
+            if ($written < strlen($writeBuf)) {
                 $unwritten = substr($writeBuf, $written);
-                $existingBuf = getKey($tunId . '_write_buf');
-                putKey($tunId . '_write_buf', $unwritten . $existingBuf);
+                atomicUpdate($tunId . '_write_buf', function($current) use ($unwritten) {
+                    if ($current === null) {
+                        $current = '';
+                    }
+                    return $unwritten . $current;
+                });
             }
             $lastActivityTime = time();
         }
@@ -790,7 +795,7 @@ function performHalfCreate($dataMap, $tunId, $dirtySize) {
 // Mode: Classic (0x03)
 // ============================================================================
 
-function processClassic($dataMap, $tunId, $respBodyStream, &$needWorker, &$workerSocket, &$workerTunId) {
+function processClassic($dataMap, $tunId, $respBodyStream, &$needWorker, &$workerSocket, &$workerTunId, &$workerOwner) {
     $sendClose = true;
 
     try {
@@ -804,6 +809,7 @@ function processClassic($dataMap, $tunId, $respBodyStream, &$needWorker, &$worke
                     $needWorker = true;
                     $workerSocket = $result['socket'];
                     $workerTunId = $tunId;
+                    $workerOwner = $result['owner'];
                 }
                 break;
 
@@ -835,6 +841,15 @@ function performClassicCreate($dataMap, $tunId) {
         $port = isset($_SERVER['SERVER_PORT']) ? intval($_SERVER['SERVER_PORT']) : 80;
     }
 
+    $existingOwner = getKey($tunId . '_ok');
+    if ($existingOwner !== null && $existingOwner !== false) {
+        return array(
+            'data' => marshalBase64(newStatus($tunId, 0x00)),
+            'socket' => null,
+            'owner' => null
+        );
+    }
+
     $context = createStreamContext();
     $socket = @stream_socket_client(
         "tcp://{$host}:{$port}",
@@ -848,23 +863,52 @@ function performClassicCreate($dataMap, $tunId) {
     if (!$socket) {
         return array(
             'data' => marshalBase64(newStatus($tunId, 0x01)),
-            'socket' => null
+            'socket' => null,
+            'owner' => null
         );
     }
 
     ensureSocketOptions($socket);
 
-    putKey($tunId . '_ok', true);
-    putKey($tunId . '_read_buf', '');
-    putKey($tunId . '_write_buf', '');
+    $owner = md5(uniqid(mt_rand(), true));
+    $installed = false;
+    $claimed = atomicUpdate($tunId . '_ok', function($current) use ($tunId, $owner, &$installed) {
+        if ($current !== null && $current !== false) {
+            return $current;
+        }
+        putKey($tunId . '_read_buf', '');
+        putKey($tunId . '_write_buf', '');
+        removeKey($tunId . '_eof');
+        $installed = true;
+        return $owner;
+    });
+
+    if (!$claimed) {
+        @fclose($socket);
+        return array(
+            'data' => marshalBase64(newStatus($tunId, 0x01)),
+            'socket' => null,
+            'owner' => null
+        );
+    }
+
+    if (!$installed) {
+        @fclose($socket);
+        return array(
+            'data' => marshalBase64(newStatus($tunId, 0x00)),
+            'socket' => null,
+            'owner' => null
+        );
+    }
 
     return array(
         'data' => marshalBase64(newStatus($tunId, 0x00)),
-        'socket' => $socket
+        'socket' => $socket,
+        'owner' => $owner
     );
 }
 
-function classicBackgroundWorker($socket, $tunId) {
+function classicBackgroundWorker($socket, $tunId, $owner) {
     @ignore_user_abort(true);
     @set_time_limit(0);
 
@@ -876,7 +920,7 @@ function classicBackgroundWorker($socket, $tunId) {
         $loopCount++;
 
         $okStatus = getKey($tunId . '_ok');
-        if ($okStatus === false || $okStatus === null) {
+        if ($okStatus !== $owner) {
             break;
         }
 
@@ -897,7 +941,7 @@ function classicBackgroundWorker($socket, $tunId) {
             $data = @fread($socket, BUF_SIZE);
             $eofStatus = feof($socket);
 
-            if ($data === false || $eofStatus) {
+            if ($data === false) {
                 break;
             }
             if (strlen($data) > 0) {
@@ -911,6 +955,9 @@ function classicBackgroundWorker($socket, $tunId) {
                 if ($consecutiveEmptyReads > EMPTY_READ_THRESHOLD) {
                     break;
                 }
+            }
+            if ($eofStatus) {
+                break;
             }
         }
 
@@ -943,9 +990,15 @@ function classicBackgroundWorker($socket, $tunId) {
 
     @fclose($socket);
 
-    // Set EOF flag to notify client that connection is closed
-    putKey($tunId . '_eof', true);
-    putKey($tunId . '_ok', false);
+    // Only the current owner may mark this tunnel as closed. This prevents an
+    // old worker from deleting a replacement created after a retry.
+    atomicUpdate($tunId . '_ok', function($current) use ($tunId, $owner) {
+        if ($current === $owner) {
+            putKey($tunId . '_eof', true);
+            return false;
+        }
+        return $current;
+    });
 }
 
 function performWrite($dataMap, $tunId) {
@@ -1099,9 +1152,10 @@ function process() {
                     $needWorker = false;
                     $workerSocket = null;
                     $workerTunId = '';
+                    $workerOwner = null;
 
                     do {
-                        processClassic($dataMap, $tunId, $respBodyStream, $needWorker, $workerSocket, $workerTunId);
+                        processClassic($dataMap, $tunId, $respBodyStream, $needWorker, $workerSocket, $workerTunId, $workerOwner);
                         try {
                             $dataMap = unmarshalBase64($bodyStream2);
                             if (empty($dataMap)) {
@@ -1132,7 +1186,7 @@ function process() {
                         if (function_exists('fastcgi_finish_request')) {
                             fastcgi_finish_request();
                         }
-                        classicBackgroundWorker($workerSocket, $workerTunId);
+                        classicBackgroundWorker($workerSocket, $workerTunId, $workerOwner);
                     }
                 }
 

