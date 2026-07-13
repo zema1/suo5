@@ -1,6 +1,6 @@
 import {Trash2} from "lucide-react";
 import {ScrollArea, ScrollBar} from "@/components/ui/scroll-area.tsx";
-import {Light as SyntaxHighlighter} from "react-syntax-highlighter";
+import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/light";
 import {atomOneDark, atomOneLight} from "react-syntax-highlighter/dist/esm/styles/hljs"
 import {ComponentProps, useEffect, useMemo, useRef, useState} from "react";
 import {useTheme} from "@/components/theme-provider";
