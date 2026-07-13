@@ -12,10 +12,10 @@ jobs:
   #    name: Go Test
   #    runs-on: ubuntu-latest
   #    steps:
-  #      - uses: actions/checkout@v4
+  #      - uses: actions/checkout@v5
   #        with:
   #          submodules: recursive
-  #      - uses: actions/setup-go@v5
+  #      - uses: actions/setup-go@v6
   #        with:
   #          go-version: '1.26.5'
   #      - run: go mod download
@@ -27,17 +27,17 @@ jobs:
     env:
       CGO_ENABLED: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26.5'
       - run: |
           go build -trimpath -race --tags "neoreg suo5" -o suo5_test
           go build -trimpath -race -o helper ./.github/actions/helper.go
           go build -trimpath -race -o mbtest ./tests/mbtest
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: test-target
           path: |
@@ -56,11 +56,11 @@ jobs:
           - '18'
           - '22'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: test-target
           path: .
@@ -94,7 +94,7 @@ jobs:
             mount: /usr/local/resin4/webapps/ROOT/assets
             test_redirect: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: |
           set -ex
@@ -130,7 +130,7 @@ jobs:
         mount:
           - /var/lib/jetty/webapps/ROOT/assets
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: |
           set -ex
@@ -178,7 +178,7 @@ jobs:
     #          - image: jboss/wildfly:9.0.1.Final
     #            mount: /opt/jboss/wildfly/standalone/deployments
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
         with:
           jar: true
@@ -209,7 +209,7 @@ jobs:
         deploy:
           - /config/dropins
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
         with:
           jar: true
@@ -236,7 +236,7 @@ jobs:
           - image: boyingking/tongweb-auto
             deploy: /home/tw6/tongweb6/applications/console/assets
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
         with:
           jar: true
@@ -278,7 +278,7 @@ jobs:
           - image: vulhub/weblogic:10.3.6.0-2017
             deploy: /root/Oracle/Middleware/user_projects/domains/base_domain/autodeploy/
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
         with:
           jar: true
@@ -350,7 +350,7 @@ jobs:
           - image: consol/tomcat-4.1
             mount: /opt/tomcat/webapps/ROOT/assets
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: |
           set -ex
@@ -377,7 +377,7 @@ jobs:
           - image: junalmeida/mono-web:latest
             mount: /var/www/sample-app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
         with:
           dotnet: true
@@ -494,7 +494,7 @@ jobs:
             mount: /app
             test_half: 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: |
           set -ex
