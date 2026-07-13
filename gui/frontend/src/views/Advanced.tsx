@@ -12,7 +12,7 @@ import {Checkbox} from "@/components/ui/checkbox";
 import {Input} from "@/components/ui/input";
 import {Textarea} from "@/components/ui/textarea";
 import {useEffect, useState} from "react";
-import {CheckedState} from "@radix-ui/react-checkbox";
+import type {Checkbox as CheckboxPrimitive} from "radix-ui";
 import {z} from "zod";
 import {useForm} from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
@@ -45,7 +45,7 @@ const FormSchema = z.object({
 
 
 export default function AdvancedOption({open, config, onClose, onSubmit}: AdvancedOptionsProps) {
-  const [devMode, setDevMode] = useState<CheckedState>(false);
+  const [devMode, setDevMode] = useState<CheckboxPrimitive.CheckedState>(false);
 
   const onCloseInner = (e) => {
     e.preventDefault()

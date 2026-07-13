@@ -38,6 +38,7 @@ export namespace suo5 {
 	    enable_cookiejar: boolean;
 	    exclude_domain: string[];
 	    forward_target: string;
+	    dirty_size: number;
 	    max_body_size: number;
 	    classic_poll_qps: number;
 	    retry_count: number;
@@ -66,6 +67,7 @@ export namespace suo5 {
 	        this.enable_cookiejar = source["enable_cookiejar"];
 	        this.exclude_domain = source["exclude_domain"];
 	        this.forward_target = source["forward_target"];
+	        this.dirty_size = source["dirty_size"];
 	        this.max_body_size = source["max_body_size"];
 	        this.classic_poll_qps = source["classic_poll_qps"];
 	        this.retry_count = source["retry_count"];
