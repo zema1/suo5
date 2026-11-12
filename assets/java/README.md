@@ -15,10 +15,9 @@
 | WebSphere            |  ✓   |  ✓  |  ✓  |  ✓  |
 | Weblogic (10.3-14.1) |  ✓   |  ✓  |  ✓  |  ✓  |
 | TongWeb (6)          |  ✓   |  ✓  |  ✓  |  ✓  |
+| Netty (4.x)          |  ✓   |  ✓  |  ✓  |  ✓  |
+| Spring Webflux       |  ✓   |  ✓  |  ✓  |  ✓  |
 
-暂时不打算支持的中间件为：
+Netty 使用单独的 handler 实现，见 [Suo5NettyHandler.java](Suo5NettyHandler.java)，挂载在 `HttpServerCodec` 之后、`HttpObjectAggregator` 之前。
 
-- Netty
-- Spring Webflux
-
-主要原因是用的比较少，而且语法比较特殊，需要投入精力单独适配。如果你觉得这些中间件很重要，可以提 issue 说明理由，我会考虑支持。
+Spring Webflux 使用 [Suo5WebFluxFilter.java](Suo5WebFluxFilter.java)。
